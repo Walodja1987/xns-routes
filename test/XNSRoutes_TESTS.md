@@ -1,76 +1,129 @@
-# Test cases
+# XNSRoutes test matrix
 
-The following test cases are implemented in [InboundBlockRegistry.test.ts](./InboundBlockRegistry.test.ts) file.
+This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../contracts/src/XNSRoutes.sol) in [`XNSRoutes.test.ts`](./XNSRoutes.test.ts).
 
-## InboundBlockRegistry
+## Test setup
 
-### isInboundBlocked
-
-#### Functionality
-
-- Should return `false` for addresses that have not blocked inbound transfers.
-- Should return `true` only for the account that called `blockInboundForever`.
+- **Unit tests** use [`MockXNS`](../contracts/src/mocks/MockXNS.sol): set `baseName → owner` via `setResolution`, and optionally mark labels invalid via `setLabelInvalid` for `InvalidRoute` cases.
+- **Canonical on-chain XNS** addresses for deploy/scripts/fork work live in [`constants/addresses.ts`](../constants/addresses.ts) as `XNS_ADDRESS` (they are not used by the default local test suite).
 
 ---
 
-### blockInboundForever
+## Constructor
 
 #### Functionality
 
-- Should mark `msg.sender` as blocked forever.
-- Should allow multiple different accounts to block themselves independently.
-
-#### Events
-
-- Should emit `InboundBlockedForever` event with `msg.sender`.
+- Stores the non-zero XNS registry address and exposes it via `XNS()`.
 
 #### Reverts
 
-- Should revert with `AlreadyBlocked` when calling `blockInboundForever` twice.
+- Should revert with `ZeroXNS` when `xns_` is `address(0)`.
 
 ---
 
-### setGuardian
+## `setRoute`
 
 #### Functionality
 
-- Should set guardian and persist it in storage.
-- Should allow changing guardian.
+- Name owner can **create** a new route with the given `target`, `isActive`, and `isFrozen` implied by `freezeImmediately`.
+- Name owner can **update** `target` and `isActive` on an existing route while it is not frozen and the base name is not base-frozen.
+- With `freezeImmediately == true`, should set `isFrozen` and emit `RouteFrozen` (in addition to `RouteSet`).
 
 #### Events
 
-- Should emit `GuardianSet` with the expected account and guardian.
+- Should emit `RouteSet` with `baseName`, `route`, `target`, `isActive`, and final `isFrozen`.
+- Should emit `RouteFrozen` when the route becomes frozen in that transaction (create with immediate freeze, or update with immediate freeze).
 
 #### Reverts
 
-- Should revert with `InvalidGuardian` for zero-address guardian.
-- Should revert with `InvalidGuardian` for self guardian (`guardian == msg.sender`).
-- Should revert with `BlockedAccount` when a blocked account tries to set guardian.
+- Should revert with `NotBaseNameOwner` when `msg.sender` is not `XNS.getAddress(baseName)`.
+- Should revert with `InvalidBaseName` when `baseName` is empty.
+- Should revert with `InvalidBaseName` when `XNS.getAddress(baseName)` is zero.
+- Should revert with `InvalidRoute` when `XNS.isValidLabelOrNamespace(route)` is false.
+- Should revert with `InvalidTarget` when `target` is zero.
+- Should revert with `BaseRoutesFrozen` when `freezeRoutes` has already been called for that `baseName`.
+- Should revert with `CannotUpdateFrozenRoute` when updating a route that is already frozen.
 
 ---
 
-### getGuardianOf
+## `setRouteActive`
 
 #### Functionality
 
-- Should return `address(0)` when no guardian is configured.
-- Should return the latest configured guardian.
-
----
-
-### blockInboundForeverFor
-
-#### Functionality
-
-- Should allow the configured guardian to block inbound transfers for the target account.
+- Name owner can toggle `isActive` for an existing route.
+- Should still succeed when the **route** is frozen or the **base** is base-frozen (only target updates are blocked).
 
 #### Events
 
-- Should emit `InboundBlockedForever` for the target account.
+- Should emit `RouteActivationSet` with `baseName`, `route`, and `isActive`.
 
 #### Reverts
 
-- Should revert with `NotGuardian` when caller is not the configured guardian.
-- Should revert with `AlreadyBlocked` when attempting to block the same account twice.
+- Should revert with `NotBaseNameOwner` when the caller is not the resolved owner.
+- Should revert with `RouteNotFound` when no route exists for `(baseName, route)`.
 
 ---
+
+## `freezeRoute`
+
+#### Functionality
+
+- Name owner can set `isFrozen` permanently for an existing route.
+- Second call when already frozen should **not** emit `RouteFrozen` again (no-op on storage already frozen).
+
+#### Events
+
+- Should emit `RouteFrozen` the first time the route transitions to frozen.
+
+#### Reverts
+
+- Should revert with `NotBaseNameOwner` when the caller is not the resolved owner.
+- Should revert with `RouteNotFound` when the route does not exist.
+
+---
+
+## `freezeRoutes`
+
+#### Functionality
+
+- Name owner can set `baseRoutesFrozen[keccak256(bytes(baseName))]` permanently.
+- After base freeze, `setRoute` must revert for that `baseName` (new routes and target changes), while `setRouteActive` may still run.
+
+#### Events
+
+- Should emit `BaseRoutesFrozenForName` with `baseName` the first time the base is frozen.
+- Second call should not emit again (idempotent).
+
+#### Reverts
+
+- Should revert with `NotBaseNameOwner` when the caller is not the resolved owner.
+
+---
+
+## `getRoute` / `getRouteInfo` / `routeExists`
+
+#### Functionality
+
+- `routeExists` returns `false` before a route is created and `true` after.
+- `getRoute` returns the stored `target` when the route exists.
+- `getRouteInfo` returns `(target, isActive, isFrozen)` consistent with `setRoute` / `setRouteActive` / `freezeRoute`.
+
+#### Reverts
+
+- `getRoute` and `getRouteInfo` should revert with `RouteNotFound` when the route does not exist.
+
+---
+
+## `baseRoutesFrozen`
+
+#### Functionality
+
+- For a given `baseName`, `baseRoutesFrozen(keccak256(bytes(baseName)))` matches whether `freezeRoutes` was applied.
+
+---
+
+## Route keying (regression)
+
+#### Functionality
+
+- Routes under different `baseName` or `route` strings are independent (no collision across `keccak256(abi.encodePacked(baseName, "/", route))`).

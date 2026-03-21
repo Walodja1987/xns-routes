@@ -1,7 +1,3 @@
-Here is a clean, high-signal `README.md` you can use for your **xns-routes** repo:
-
----
-
 # XNS Routes
 
 **Routes turn XNS names into onchain actions.**
@@ -241,6 +237,50 @@ They enable:
 
   * `XNSRegisterNameBuilder`
   * `USDTTransferEthBuilder`
+
+---
+
+## 📚 API reference
+
+Generated contract documentation (NatSpec / solidity-docgen): [docs/API.md](docs/API.md).
+
+---
+
+## 📍 Network addresses
+
+On-chain XNS registry and deployed `XNSRoutes` slots live in [constants/addresses.ts](constants/addresses.ts) (`XNS_ADDRESS`, `XNS_ROUTES_ADDRESS`).
+
+---
+
+## 🚢 Deploy
+
+* Script: [scripts/deploy/deployXNSRoutes.ts](scripts/deploy/deployXNSRoutes.ts)
+* Shortcuts: `yarn deploy:xns-routes:hh`, `yarn deploy:xns-routes:sepolia`, `yarn deploy:xns-routes:ethMain`
+
+Set `XNS_CONTRACT_ADDRESS` (Hardhat vars or environment) to your XNS registry before deploying. See [docs/DEV_NOTES.md](docs/DEV_NOTES.md).
+
+---
+
+## 🧪 Example scripts
+
+```bash
+npx hardhat run scripts/examples/<script_name>.ts --network <network_name>
+```
+
+**Read-only**
+
+* [scripts/examples/routeExists.ts](scripts/examples/routeExists.ts) — check if a route is registered
+* [scripts/examples/getRouteInfo.ts](scripts/examples/getRouteInfo.ts) — read target, `isActive`, `isFrozen`
+* [scripts/examples/isBaseRoutesFrozen.ts](scripts/examples/isBaseRoutesFrozen.ts) — base-freeze flag for a name
+
+**Write** (signer must be the address XNS currently resolves for the script’s `baseName`)
+
+* [scripts/examples/setRoute.ts](scripts/examples/setRoute.ts) — create or update a route
+* [scripts/examples/setRouteActive.ts](scripts/examples/setRouteActive.ts) — toggle `isActive`
+* [scripts/examples/freezeRoute.ts](scripts/examples/freezeRoute.ts) — freeze one route forever
+* [scripts/examples/freezeRoutes.ts](scripts/examples/freezeRoutes.ts) — base-freeze all routes under a name
+
+Each script has a `USER INPUTS` section at the top. Fill in [constants/addresses.ts](constants/addresses.ts) for `XNS_ROUTES_ADDRESS` on your network before running.
 
 ---
 
