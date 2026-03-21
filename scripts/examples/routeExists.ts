@@ -27,6 +27,8 @@ const RED = "\x1b[31m";
 /** XNS name that owns the route space (e.g. "xns.action") */
 const baseName = "xns.action";
 
+const chain = "eth";
+
 /** Route label (e.g. "register-name") */
 const route = "register-name";
 
@@ -44,9 +46,10 @@ async function main() {
   console.log(`\nNetwork: ${GREEN}${networkName}${RESET}`);
   console.log(`XNSRoutes: ${GREEN}${contractAddress}${RESET}`);
   console.log(`baseName: ${GREEN}${baseName}${RESET}`);
+  console.log(`chain: ${GREEN}${chain}${RESET}`);
   console.log(`route: ${GREEN}${route}${RESET}\n`);
 
-  const exists = await routes.routeExists(baseName, route);
+  const exists = await routes.routeExists(baseName, chain, route);
 
   if (exists) {
     console.log(`${GREEN}✓${RESET} Route exists.\n`);

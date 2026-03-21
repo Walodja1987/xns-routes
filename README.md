@@ -8,17 +8,17 @@ Instead of sharing raw calldata or relying on a single frontend, protocols and u
 
 ## ✨ What are Routes?
 
-An XNS route is a **named action** under an XNS name.
+An XNS route is a **named action** under an XNS name, scoped to a **chain key** and **route** label. Paths look like `base/chain:route/params…` (exactly one `:` between chain and route).
 
 ```
-xns.action/register-name/label=bro/namespace=og
-usdt.action/transfer-eth/to=0x.../amount=100
+xns.action/eth:register-name/label=bro/namespace=og
+usdt.action/eth:transfer-usdt/to=0x.../amount=100
 ```
 
 Each route:
 
 * belongs to an XNS name (e.g. `xns.action`)
-* has a route name (e.g. `register-name`)
+* has a **chain** key (e.g. `eth`, `137-poly`) and **route** label (e.g. `transfer-usdt`)
 * points to a **build contract**
 * produces transaction calldata
 
@@ -26,11 +26,12 @@ Each route:
 
 ## 🧠 Mental Model
 
-| Component      | Meaning                      |
-| -------------- | ---------------------------- |
-| XNS name       | Identity / publisher         |
-| Route          | Action / intent              |
-| Build contract | How the transaction is built |
+| Component      | Meaning                                      |
+| -------------- | -------------------------------------------- |
+| XNS name       | Identity / publisher                         |
+| Chain key      | Where the action runs (label, e.g. `eth`)   |
+| Route          | Action / intent (label, e.g. `transfer-usdt`) |
+| Build contract | How the transaction is built                 |
 
 > **XNS names resolve identities. Routes resolve actions.**
 
@@ -65,7 +66,8 @@ A route is registered under an XNS name:
 ```solidity
 setRoute(
   "xns.action",
-  "register-name",
+  "eth",           // chain
+  "register-name", // route
   address(builder),
   true,   // active
   true    // freeze immediately
@@ -97,21 +99,22 @@ function build(...)
 Given:
 
 ```
-xns.action/register-name/label=bro/namespace=og
+xns.action/eth:register-name/label=bro/namespace=og
 ```
 
 A wallet:
 
 1. Resolves `xns.action`
-2. Looks up route `register-name`
-3. Calls `build(...)`
-4. Gets:
+2. Parses `eth` and `register-name` from `eth:register-name`
+3. Looks up `(base, chain, route)` on the registry
+4. Calls `build(...)`
+5. Gets:
 
    * target chain
    * contract address
    * value
    * calldata
-5. Verifies and executes the transaction
+6. Verifies and executes the transaction
 
 ---
 
@@ -141,7 +144,7 @@ Each route has:
 Locks a route forever:
 
 ```solidity
-freezeRoute("xns.action", "register-name");
+freezeRoute("xns.action", "eth", "register-name");
 ```
 
 * Target can never change again
@@ -176,7 +179,7 @@ Build contracts:
 ### Example: XNS Name Registration
 
 ```
-xns.action/register-name/label=bro/namespace=og
+xns.action/eth:register-name/label=bro/namespace=og
 ```
 
 ---
@@ -184,14 +187,14 @@ xns.action/register-name/label=bro/namespace=og
 ### Example: USDT Transfer
 
 ```
-usdt.action/transfer-eth/to=0x.../amount=100
+usdt.action/eth:transfer-usdt/to=0x.../amount=100
 ```
 
 ---
 
-## 🧭 Suggested Route Names
+## 🧭 Suggested route label (and chain)
 
-Build contracts can suggest default route names:
+Build contracts can suggest the **route** label (the part after `chain:` in the path). The **chain** key (e.g. `eth`) usually comes from the builder’s target network or app defaults.
 
 ```solidity
 function suggestedRouteName() external pure returns (string memory);
@@ -200,8 +203,8 @@ function suggestedRouteName() external pure returns (string memory);
 ### UX Flow
 
 * User picks builder from library
-* App reads suggested name
-* Prefills route name
+* App reads suggested **route** label and sets **chain** (e.g. from `TARGET_CHAIN_ID` or user choice)
+* Prefills `chain:route` in the path
 * User accepts or edits
 
 ---
@@ -258,6 +261,8 @@ On-chain XNS registry and deployed `XNSRoutes` slots live in [constants/addresse
 * Shortcuts: `yarn deploy:xns-routes:hh`, `yarn deploy:xns-routes:sepolia`, `yarn deploy:xns-routes:ethMain`
 
 Set `XNS_CONTRACT_ADDRESS` (Hardhat vars or environment) to your XNS registry before deploying. See [docs/DEV_NOTES.md](docs/DEV_NOTES.md).
+
+The deploy script reads `getNamespacePrice("xns")` and sends that ETH with the deployment tx: the `XNSRoutes` constructor calls XNS `registerName("routes","xns")` so **`routes.xns` resolves to the new registry contract**. Ensure the deploy account holds enough ETH for the quoted price (XNS refunds overpayment).
 
 ---
 

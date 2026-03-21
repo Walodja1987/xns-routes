@@ -1,6 +1,7 @@
 [
   "function getAddress(string) view returns (address)",
   "function isValidLabelOrNamespace(string) view returns (bool)",
+  "function registerName(string,string) payable",
   "function setLabelInvalid(string,bool)",
   "function setResolution(string,address)"
 ]

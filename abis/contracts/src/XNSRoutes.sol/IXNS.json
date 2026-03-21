@@ -1,0 +1,5 @@
+[
+  "function getAddress(string) view returns (address)",
+  "function isValidLabelOrNamespace(string) pure returns (bool)",
+  "function registerName(string,string) payable"
+]

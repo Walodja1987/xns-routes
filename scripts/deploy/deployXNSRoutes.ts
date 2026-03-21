@@ -11,10 +11,14 @@
  *
  * XNS registry (constructor arg):
  * - Preferred: `npx hardhat vars set XNS_CONTRACT_ADDRESS` (deployed XNS / resolver contract
- *   implementing IXNSMinimal: getAddress, isValidLabelOrNamespace)
+ *   implementing IXNS: getAddress, isValidLabelOrNamespace, registerName)
  * - Override for one-off runs: `XNS_CONTRACT_ADDRESS=0x... npx hardhat run ...`
  *
  * After deployment, record the address in constants/addresses.ts (XNS_ROUTES_ADDRESS).
+ *
+ * The constructor is payable: it forwards `msg.value` to XNS `registerName("routes","xns")` so `routes.xns`
+ * resolves to the new registry. The script queries `getNamespacePrice("xns")` on the XNS contract and
+ * uses that as the deployment transaction value (excess is refunded by XNS).
  */
 
 import { vars } from "hardhat/config";
@@ -59,8 +63,26 @@ async function main() {
     "ETH\n",
   );
 
+  const xnsPriceAbi = [
+    "function getNamespacePrice(string namespace) external view returns (uint256)",
+  ] as const;
+  const xnsForPrice = new hre.ethers.Contract(xnsAddress, xnsPriceAbi, deployer);
+  let registrationValue: bigint;
+  try {
+    registrationValue = await xnsForPrice.getNamespacePrice("xns");
+    console.log(
+      "XNS getNamespacePrice(\"xns\"):",
+      hre.ethers.formatEther(registrationValue),
+      "ETH (sent with deployment for registerName)\n",
+    );
+  } catch {
+    throw new Error(
+      "Could not read getNamespacePrice(\"xns\") on the XNS contract. Check XNS_CONTRACT_ADDRESS and network.",
+    );
+  }
+
   const XNSRoutes = await hre.ethers.getContractFactory("XNSRoutes");
-  const xnsRoutes = await XNSRoutes.deploy(xnsAddress);
+  const xnsRoutes = await XNSRoutes.deploy(xnsAddress, { value: registrationValue });
   await xnsRoutes.waitForDeployment();
 
   const contractAddress = await xnsRoutes.getAddress();

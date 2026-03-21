@@ -1,18 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-interface IXNSMinimal {
+/// @dev Subset of the XNS registry used by `XNSRoutes` (resolution, label rules, and `registerName` at deploy).
+interface IXNS {
     function getAddress(string calldata fullName) external view returns (address addr);
     function isValidLabelOrNamespace(string calldata labelOrNamespace) external pure returns (bool isValid);
+    /// @dev Assigns `label.namespace` to `msg.sender` (at deploy, the new `XNSRoutes` instance).
+    function registerName(string calldata label, string calldata namespace) external payable;
 }
 
 /// @title XNSRoutes
 /// @author Wladimir Weinbender (DIVA Technologies AG)
-/// @notice Route registry linked to an already deployed XNS contract.
+/// @notice Route registry linked to the XNS contract on Ethereum (0x648E4F05aF2b7eB85109A8dc8AE81D8E006457D8).
 ///
-/// Routes are scoped under an existing XNS name, e.g.:
-/// - baseName: "xns.action"
-/// - route:    "register-name"
+/// Routes are scoped under an XNS name plus a chain key and route label. Human-readable paths look like:
+/// `bob.xns/eth:transfer-usdt/to=0x.../amount=100`
+/// - baseName: `bob.xns`
+/// - chain: `eth` (one label token; use hyphens for compound ids, e.g. `1-eth`, `137-poly`)
+/// - route: `transfer-usdt`
+/// Only a single `:` appears in the action segment, between `chain` and `route`.
+///
+/// Storage key: `keccak256(abi.encode(baseName, chain, route))`.
 ///
 /// A route points to a build contract that returns tx calldata.
 ///
@@ -36,8 +44,9 @@ interface IXNSMinimal {
 /// - active/inactive can be toggled even after freeze
 /// - setRoute supports create/update + optional immediate freeze in one tx
 contract XNSRoutes {
-    error ZeroXNS();
+    error ZeroAddress();
     error InvalidBaseName();
+    error InvalidChain();
     error InvalidRoute();
     error InvalidTarget();
     error NotBaseNameOwner();
@@ -52,17 +61,19 @@ contract XNSRoutes {
         bool exists;
     }
 
-    IXNSMinimal public immutable XNS;
+    IXNS public immutable XNS;
 
     // keccak256(baseName) => all routes under this base name frozen?
     mapping(bytes32 => bool) public baseRoutesFrozen;
 
-    // keccak256(baseName, "/", route) => route record
+    // keccak256(abi.encode(baseName, chain, route)) => route record
     mapping(bytes32 => RouteRecord) private _routes;
 
+    /// @dev At most three `indexed` fields (EVM limit). `route` is non-indexed for filtering via calldata/logs.
     event RouteSet(
         string indexed baseName,
-        string indexed route,
+        string indexed chain,
+        string route,
         address indexed target,
         bool isActive,
         bool isFrozen
@@ -70,50 +81,38 @@ contract XNSRoutes {
 
     event RouteActivationSet(
         string indexed baseName,
-        string indexed route,
+        string indexed chain,
+        string route,
         bool isActive
     );
 
-    event RouteFrozen(
-        string indexed baseName,
-        string indexed route
-    );
+    event RouteFrozen(string indexed baseName, string indexed chain, string route);
 
-    event BaseRoutesFrozenForName(
-        string indexed baseName
-    );
+    event BaseRoutesFrozenForName(string indexed baseName);
 
-    constructor(address xns_) {
-        if (xns_ == address(0)) revert ZeroXNS();
-        XNS = IXNSMinimal(xns_);
+    /// @param xns_ XNS registry implementing `IXNS`.
+    /// @dev Payable: forwards `msg.value` to `registerName("routes","xns")` so `routes.xns` resolves to `address(this)`.
+    /// Requirements on XNS side (payment, exclusivity, name availability, etc.) apply — deployment reverts if registration fails.
+    /// @dev Because the owner of `routes.xns` is this contract, `setRoute` with `baseName == "routes.xns"` requires
+    /// `msg.sender == address(this)`. To let an EOA or multisig manage that namespace, add an authorized entrypoint
+    /// that performs an external `this.setRoute(...)` (or use another XNS name owned by the operator for routes).
+    constructor(address xns_) payable {
+        if (xns_ == address(0)) revert ZeroAddress();
+        XNS = IXNS(xns_);
+        XNS.registerName{value: msg.value}("routes", "xns");
     }
 
-    /// @notice Create or update a route under `baseName`.
+    /// @notice Create or update a route under `(baseName, chain, route)`.
     ///
     /// @param baseName The XNS name that owns the route space, e.g. "xns.action"
-    /// @param route The route label, e.g. "register-name"
+    /// @param chain Chain key (XNS label rules), e.g. "eth" or "137-poly"
+    /// @param route Action label (XNS label rules), e.g. "transfer-usdt"
     /// @param target The build contract address
     /// @param isActive Initial or updated active flag
     /// @param freezeImmediately If true, the route is frozen as part of this same tx
-    ///
-    /// Behavior:
-    /// - new route:
-    ///   - created with the provided target and isActive
-    ///   - frozen immediately if `freezeImmediately == true`
-    ///
-    /// - existing mutable route:
-    ///   - target updated
-    ///   - isActive updated
-    ///   - frozen immediately if `freezeImmediately == true`
-    ///
-    /// Requirements:
-    /// - caller must be current owner/resolved address of `baseName`
-    /// - route must be valid
-    /// - target must not be zero
-    /// - base name must not be base-frozen
-    /// - route must not already be route-frozen
     function setRoute(
         string calldata baseName,
+        string calldata chain,
         string calldata route,
         address target,
         bool isActive,
@@ -121,13 +120,14 @@ contract XNSRoutes {
     ) external {
         _requireBaseNameOwner(baseName);
 
+        if (!_isValidChain(chain)) revert InvalidChain();
         if (!_isValidRoute(route)) revert InvalidRoute();
         if (target == address(0)) revert InvalidTarget();
 
         bytes32 baseKey = keccak256(bytes(baseName));
         if (baseRoutesFrozen[baseKey]) revert BaseRoutesFrozen();
 
-        bytes32 routeKey = _routeKey(baseName, route);
+        bytes32 routeKey = _routeKey(baseName, chain, route);
         RouteRecord storage record = _routes[routeKey];
 
         if (record.exists) {
@@ -138,10 +138,10 @@ contract XNSRoutes {
 
             if (freezeImmediately) {
                 record.isFrozen = true;
-                emit RouteFrozen(baseName, route);
+                emit RouteFrozen(baseName, chain, route);
             }
 
-            emit RouteSet(baseName, route, target, record.isActive, record.isFrozen);
+            emit RouteSet(baseName, chain, route, target, record.isActive, record.isFrozen);
         } else {
             bool frozen = freezeImmediately;
 
@@ -153,10 +153,10 @@ contract XNSRoutes {
             });
 
             if (frozen) {
-                emit RouteFrozen(baseName, route);
+                emit RouteFrozen(baseName, chain, route);
             }
 
-            emit RouteSet(baseName, route, target, isActive, frozen);
+            emit RouteSet(baseName, chain, route, target, isActive, frozen);
         }
     }
 
@@ -164,18 +164,19 @@ contract XNSRoutes {
     /// @dev Can be called even after route freeze or base freeze.
     function setRouteActive(
         string calldata baseName,
+        string calldata chain,
         string calldata route,
         bool isActive
     ) external {
         _requireBaseNameOwner(baseName);
 
-        bytes32 routeKey = _routeKey(baseName, route);
+        bytes32 routeKey = _routeKey(baseName, chain, route);
         RouteRecord storage record = _routes[routeKey];
         if (!record.exists) revert RouteNotFound();
 
         record.isActive = isActive;
 
-        emit RouteActivationSet(baseName, route, isActive);
+        emit RouteActivationSet(baseName, chain, route, isActive);
     }
 
     /// @notice Freeze a single route forever.
@@ -183,17 +184,18 @@ contract XNSRoutes {
     /// Active/inactive can still be toggled.
     function freezeRoute(
         string calldata baseName,
+        string calldata chain,
         string calldata route
     ) external {
         _requireBaseNameOwner(baseName);
 
-        bytes32 routeKey = _routeKey(baseName, route);
+        bytes32 routeKey = _routeKey(baseName, chain, route);
         RouteRecord storage record = _routes[routeKey];
         if (!record.exists) revert RouteNotFound();
 
         if (!record.isFrozen) {
             record.isFrozen = true;
-            emit RouteFrozen(baseName, route);
+            emit RouteFrozen(baseName, chain, route);
         }
     }
 
@@ -202,9 +204,7 @@ contract XNSRoutes {
     /// - no new routes may be added under `baseName`
     /// - no existing route targets may be changed under `baseName`
     /// - route activation can still be toggled
-    function freezeRoutes(
-        string calldata baseName
-    ) external {
+    function freezeRoutes(string calldata baseName) external {
         _requireBaseNameOwner(baseName);
 
         bytes32 baseKey = keccak256(bytes(baseName));
@@ -217,9 +217,10 @@ contract XNSRoutes {
     /// @notice Return route target only. Reverts if not found.
     function getRoute(
         string calldata baseName,
+        string calldata chain,
         string calldata route
     ) external view returns (address target) {
-        RouteRecord storage record = _routes[_routeKey(baseName, route)];
+        RouteRecord storage record = _routes[_routeKey(baseName, chain, route)];
         if (!record.exists) revert RouteNotFound();
         return record.target;
     }
@@ -227,17 +228,14 @@ contract XNSRoutes {
     /// @notice Return full route metadata. Reverts if not found.
     function getRouteInfo(
         string calldata baseName,
+        string calldata chain,
         string calldata route
     )
         external
         view
-        returns (
-            address target,
-            bool isActive,
-            bool isFrozen
-        )
+        returns (address target, bool isActive, bool isFrozen)
     {
-        RouteRecord storage record = _routes[_routeKey(baseName, route)];
+        RouteRecord storage record = _routes[_routeKey(baseName, chain, route)];
         if (!record.exists) revert RouteNotFound();
 
         return (record.target, record.isActive, record.isFrozen);
@@ -246,9 +244,10 @@ contract XNSRoutes {
     /// @notice Returns whether a route exists.
     function routeExists(
         string calldata baseName,
+        string calldata chain,
         string calldata route
     ) external view returns (bool) {
-        return _routes[_routeKey(baseName, route)].exists;
+        return _routes[_routeKey(baseName, chain, route)].exists;
     }
 
     function _requireBaseNameOwner(string calldata baseName) internal view {
@@ -261,14 +260,17 @@ contract XNSRoutes {
 
     function _routeKey(
         string calldata baseName,
+        string calldata chain,
         string calldata route
     ) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(baseName, "/", route));
+        return keccak256(abi.encode(baseName, chain, route));
+    }
+
+    function _isValidChain(string calldata chain) internal view returns (bool) {
+        return XNS.isValidLabelOrNamespace(chain);
     }
 
     function _isValidRoute(string calldata route) internal view returns (bool) {
-        // Reuse XNS label validation rules:
-        // 1–20 chars, [a-z0-9-], no leading/trailing '-', no consecutive '--'
         return XNS.isValidLabelOrNamespace(route);
     }
 }

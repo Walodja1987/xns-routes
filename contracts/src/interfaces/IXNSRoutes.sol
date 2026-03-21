@@ -4,8 +4,9 @@ pragma solidity 0.8.28;
 /// @title IXNSRoutes
 /// @notice Interface for the `XNSRoutes` route registry.
 interface IXNSRoutes {
-    error ZeroXNS();
+    error ZeroAddress();
     error InvalidBaseName();
+    error InvalidChain();
     error InvalidRoute();
     error InvalidTarget();
     error NotBaseNameOwner();
@@ -22,15 +23,21 @@ interface IXNSRoutes {
 
     event RouteSet(
         string indexed baseName,
-        string indexed route,
+        string indexed chain,
+        string route,
         address indexed target,
         bool isActive,
         bool isFrozen
     );
 
-    event RouteActivationSet(string indexed baseName, string indexed route, bool isActive);
+    event RouteActivationSet(
+        string indexed baseName,
+        string indexed chain,
+        string route,
+        bool isActive
+    );
 
-    event RouteFrozen(string indexed baseName, string indexed route);
+    event RouteFrozen(string indexed baseName, string indexed chain, string route);
 
     event BaseRoutesFrozenForName(string indexed baseName);
 
@@ -40,24 +47,36 @@ interface IXNSRoutes {
 
     function setRoute(
         string calldata baseName,
+        string calldata chain,
         string calldata route,
         address target,
         bool isActive,
         bool freezeImmediately
     ) external;
 
-    function setRouteActive(string calldata baseName, string calldata route, bool isActive) external;
+    function setRouteActive(
+        string calldata baseName,
+        string calldata chain,
+        string calldata route,
+        bool isActive
+    ) external;
 
-    function freezeRoute(string calldata baseName, string calldata route) external;
+    function freezeRoute(string calldata baseName, string calldata chain, string calldata route) external;
 
     function freezeRoutes(string calldata baseName) external;
 
-    function getRoute(string calldata baseName, string calldata route) external view returns (address target);
+    function getRoute(string calldata baseName, string calldata chain, string calldata route)
+        external
+        view
+        returns (address target);
 
-    function getRouteInfo(string calldata baseName, string calldata route)
+    function getRouteInfo(string calldata baseName, string calldata chain, string calldata route)
         external
         view
         returns (address target, bool isActive, bool isFrozen);
 
-    function routeExists(string calldata baseName, string calldata route) external view returns (bool);
+    function routeExists(string calldata baseName, string calldata chain, string calldata route)
+        external
+        view
+        returns (bool);
 }

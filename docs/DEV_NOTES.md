@@ -31,7 +31,7 @@ yarn test:hh
 
 ## Deploy Scripts
 
-Set `XNS_CONTRACT_ADDRESS` (Hardhat var or env) to your XNS registry, then:
+Set `XNS_CONTRACT_ADDRESS` (Hardhat var or env) to your XNS registry. The deploy script sends `getNamespacePrice("xns")` as the deployment tx value so the constructor can call XNS `registerName("routes","xns")` (see `XNSRoutes` NatSpec).
 
 ```bash
 yarn deploy:xns-routes:hh

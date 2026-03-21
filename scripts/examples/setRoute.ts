@@ -26,6 +26,8 @@ const RED = "\x1b[31m";
 //////////////////////////////////////////////////////////////*/
 
 const baseName = "xns.action";
+/** Chain key (path segment before `:`), e.g. `eth` in `xns.action/eth:register-name/...` */
+const chain = "eth";
 const route = "register-name";
 
 /** Build contract address for this route */
@@ -63,6 +65,7 @@ async function main() {
   const balance = await hre.ethers.provider.getBalance(signer.address);
   console.log(`Balance: ${GREEN}${formatEther(balance)} ETH${RESET}`);
   console.log(`baseName: ${GREEN}${baseName}${RESET}`);
+  console.log(`chain: ${GREEN}${chain}${RESET}`);
   console.log(`route: ${GREEN}${route}${RESET}`);
   console.log(`target: ${GREEN}${target}${RESET}`);
   console.log(`isActive: ${GREEN}${isActive}${RESET}`);
@@ -70,12 +73,12 @@ async function main() {
 
   const tx = await routes
     .connect(signer)
-    .setRoute(baseName, route, target, isActive, freezeImmediately);
+    .setRoute(baseName, chain, route, target, isActive, freezeImmediately);
   console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
-  const [t, active, frozen] = await routes.getRouteInfo(baseName, route);
+  const [t, active, frozen] = await routes.getRouteInfo(baseName, chain, route);
   console.log(
     `${GREEN}✓ Confirmed. getRouteInfo → target=${t} isActive=${active} isFrozen=${frozen}${RESET}\n`,
   );

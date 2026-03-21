@@ -5,11 +5,16 @@ This is an automatically generated documentation (using `solidity-docgen` packag
 ## XNSRoutes
 
 
-Route registry linked to an already deployed XNS contract.
+Route registry linked to the XNS contract on Ethereum (0x648E4F05aF2b7eB85109A8dc8AE81D8E006457D8).
 
-Routes are scoped under an existing XNS name, e.g.:
-- baseName: "xns.action"
-- route:    "register-name"
+Routes are scoped under an XNS name plus a chain key and route label. Human-readable paths look like:
+`bob.xns/eth:transfer-usdt/to=0x.../amount=100`
+- baseName: `bob.xns`
+- chain: `eth` (one label token; use hyphens for compound ids, e.g. `1-eth`, `137-poly`)
+- route: `transfer-usdt`
+Only a single `:` appears in the action segment, between `chain` and `route`.
+
+Storage key: `keccak256(abi.encode(baseName, chain, route))`.
 
 A route points to a build contract that returns tx calldata.
 
@@ -43,10 +48,10 @@ Semantics:
 ### setRoute
 
 
-Create or update a route under `baseName`.
+Create or update a route under `(baseName, chain, route)`.
 
 ```solidity
-function setRoute(string baseName, string route, address target, bool isActive, bool freezeImmediately) external
+function setRoute(string baseName, string chain, string route, address target, bool isActive, bool freezeImmediately) external
 ```
 
 
@@ -55,10 +60,11 @@ function setRoute(string baseName, string route, address target, bool isActive, 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | baseName | string | The XNS name that owns the route space, e.g. "xns.action" |
-| route | string | The route label, e.g. "register-name" |
+| chain | string | Chain key (XNS label rules), e.g. "eth" or "137-poly" |
+| route | string | Action label (XNS label rules), e.g. "transfer-usdt" |
 | target | address | The build contract address |
 | isActive | bool | Initial or updated active flag |
-| freezeImmediately | bool | If true, the route is frozen as part of this same tx Behavior: - new route:   - created with the provided target and isActive   - frozen immediately if `freezeImmediately == true` - existing mutable route:   - target updated   - isActive updated   - frozen immediately if `freezeImmediately == true` Requirements: - caller must be current owner/resolved address of `baseName` - route must be valid - target must not be zero - base name must not be base-frozen - route must not already be route-frozen |
+| freezeImmediately | bool | If true, the route is frozen as part of this same tx |
 
 
 ### setRouteActive
@@ -67,7 +73,7 @@ function setRoute(string baseName, string route, address target, bool isActive, 
 Activate or deactivate a route.
 
 ```solidity
-function setRouteActive(string baseName, string route, bool isActive) external
+function setRouteActive(string baseName, string chain, string route, bool isActive) external
 ```
 
 _Can be called even after route freeze or base freeze._
@@ -80,7 +86,7 @@ _Can be called even after route freeze or base freeze._
 Freeze a single route forever.
 
 ```solidity
-function freezeRoute(string baseName, string route) external
+function freezeRoute(string baseName, string chain, string route) external
 ```
 
 _After freezing, the route target can never be changed again.
@@ -110,7 +116,7 @@ _After this:
 Return route target only. Reverts if not found.
 
 ```solidity
-function getRoute(string baseName, string route) external view returns (address target)
+function getRoute(string baseName, string chain, string route) external view returns (address target)
 ```
 
 
@@ -122,7 +128,7 @@ function getRoute(string baseName, string route) external view returns (address 
 Return full route metadata. Reverts if not found.
 
 ```solidity
-function getRouteInfo(string baseName, string route) external view returns (address target, bool isActive, bool isFrozen)
+function getRouteInfo(string baseName, string chain, string route) external view returns (address target, bool isActive, bool isFrozen)
 ```
 
 
@@ -134,7 +140,7 @@ function getRouteInfo(string baseName, string route) external view returns (addr
 Returns whether a route exists.
 
 ```solidity
-function routeExists(string baseName, string route) external view returns (bool)
+function routeExists(string baseName, string chain, string route) external view returns (bool)
 ```
 
 
@@ -158,7 +164,19 @@ function _requireBaseNameOwner(string baseName) internal view
 
 
 ```solidity
-function _routeKey(string baseName, string route) internal pure returns (bytes32)
+function _routeKey(string baseName, string chain, string route) internal pure returns (bytes32)
+```
+
+
+
+
+### _isValidChain
+
+
+
+
+```solidity
+function _isValidChain(string chain) internal view returns (bool)
 ```
 
 
@@ -185,9 +203,10 @@ function _isValidRoute(string route) internal view returns (bool)
 
 
 ```solidity
-event RouteSet(string baseName, string route, address target, bool isActive, bool isFrozen)
+event RouteSet(string baseName, string chain, string route, address target, bool isActive, bool isFrozen)
 ```
 
+_At most three `indexed` fields (EVM limit). `route` is non-indexed for filtering via calldata/logs._
 
 
 
@@ -198,7 +217,7 @@ event RouteSet(string baseName, string route, address target, bool isActive, boo
 
 
 ```solidity
-event RouteActivationSet(string baseName, string route, bool isActive)
+event RouteActivationSet(string baseName, string chain, string route, bool isActive)
 ```
 
 
@@ -211,7 +230,7 @@ event RouteActivationSet(string baseName, string route, bool isActive)
 
 
 ```solidity
-event RouteFrozen(string baseName, string route)
+event RouteFrozen(string baseName, string chain, string route)
 ```
 
 
@@ -235,13 +254,13 @@ event BaseRoutesFrozenForName(string baseName)
 
 ## Errors
 
-### ZeroXNS
+### ZeroAddress
 
 
 
 
 ```solidity
-error ZeroXNS()
+error ZeroAddress()
 ```
 
 
@@ -255,6 +274,19 @@ error ZeroXNS()
 
 ```solidity
 error InvalidBaseName()
+```
+
+
+
+
+
+### InvalidChain
+
+
+
+
+```solidity
+error InvalidChain()
 ```
 
 
@@ -348,7 +380,7 @@ error BaseRoutesFrozen()
 
 
 ```solidity
-contract IXNSMinimal XNS
+contract IXNS XNS
 ```
 
 

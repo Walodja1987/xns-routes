@@ -21,4 +21,10 @@ contract MockXNS {
     function isValidLabelOrNamespace(string calldata labelOrNamespace) external view returns (bool isValid) {
         return !_labelInvalid[keccak256(bytes(labelOrNamespace))];
     }
+
+    /// @dev Mirrors XNS name keying: `keccak256(abi.encodePacked(label, ".", namespace))`.
+    function registerName(string calldata label, string calldata namespace) external payable {
+        bytes32 key = keccak256(abi.encodePacked(label, ".", namespace));
+        _resolver[key] = msg.sender;
+    }
 }

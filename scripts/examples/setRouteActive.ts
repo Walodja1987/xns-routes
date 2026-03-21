@@ -27,6 +27,7 @@ const RED = "\x1b[31m";
 //////////////////////////////////////////////////////////////*/
 
 const baseName = "xns.action";
+const chain = "eth";
 const route = "register-name";
 const isActive = true;
 const signerIndex = 0;
@@ -50,15 +51,16 @@ async function main() {
   const balance = await hre.ethers.provider.getBalance(signer.address);
   console.log(`Balance: ${GREEN}${formatEther(balance)} ETH${RESET}`);
   console.log(`baseName: ${GREEN}${baseName}${RESET}`);
+  console.log(`chain: ${GREEN}${chain}${RESET}`);
   console.log(`route: ${GREEN}${route}${RESET}`);
   console.log(`isActive: ${GREEN}${isActive}${RESET}\n`);
 
-  const tx = await routes.connect(signer).setRouteActive(baseName, route, isActive);
+  const tx = await routes.connect(signer).setRouteActive(baseName, chain, route, isActive);
   console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
-  const [, active] = await routes.getRouteInfo(baseName, route);
+  const [, active] = await routes.getRouteInfo(baseName, chain, route);
   console.log(`${GREEN}✓ Confirmed. isActive=${active}${RESET}\n`);
 }
 
