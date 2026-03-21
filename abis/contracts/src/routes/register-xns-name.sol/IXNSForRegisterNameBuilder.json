@@ -1,0 +1,5 @@
+[
+  "function getNamespacePrice(string) view returns (uint256)",
+  "function isValidLabelOrNamespace(string) pure returns (bool)",
+  "function registerName(string,string) payable"
+]

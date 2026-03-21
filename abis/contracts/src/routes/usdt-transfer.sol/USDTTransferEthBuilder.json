@@ -1,0 +1,17 @@
+[
+  "constructor(address,address,string,string) payable",
+  "error InvalidAmount()",
+  "error InvalidRouteLabel()",
+  "error InvalidRouteNamespace()",
+  "error ZeroRecipient()",
+  "error ZeroToken()",
+  "error ZeroXNS()",
+  "function SCALE() view returns (uint256)",
+  "function TARGET_CHAIN_ID() view returns (uint256)",
+  "function TOKEN() view returns (address)",
+  "function TRANSFER_SELECTOR() view returns (bytes4)",
+  "function XNS() view returns (address)",
+  "function build(address,uint256) view returns (uint256, address, uint256, bytes)",
+  "function suggestedRouteName() pure returns (string)",
+  "function title() pure returns (string)"
+]

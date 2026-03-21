@@ -1,0 +1,23 @@
+[
+  "error BaseRoutesFrozen()",
+  "error CannotUpdateFrozenRoute()",
+  "error InvalidBaseName()",
+  "error InvalidRoute()",
+  "error InvalidTarget()",
+  "error NotBaseNameOwner()",
+  "error RouteNotFound()",
+  "error ZeroXNS()",
+  "event BaseRoutesFrozenForName(string indexed)",
+  "event RouteActivationSet(string indexed,string indexed,bool)",
+  "event RouteFrozen(string indexed,string indexed)",
+  "event RouteSet(string indexed,string indexed,address indexed,bool,bool)",
+  "function XNS() view returns (address)",
+  "function baseRoutesFrozen(bytes32) view returns (bool)",
+  "function freezeRoute(string,string)",
+  "function freezeRoutes(string)",
+  "function getRoute(string,string) view returns (address)",
+  "function getRouteInfo(string,string) view returns (address, bool, bool)",
+  "function routeExists(string,string) view returns (bool)",
+  "function setRoute(string,string,address,bool,bool)",
+  "function setRouteActive(string,string,bool)"
+]

@@ -1,0 +1,14 @@
+[
+  "constructor(address,string,string) payable",
+  "error InvalidLabel()",
+  "error InvalidNamespace()",
+  "error InvalidRouteLabel()",
+  "error InvalidRouteNamespace()",
+  "error ZeroXNS()",
+  "function REGISTER_NAME_SELECTOR() view returns (bytes4)",
+  "function TARGET_CHAIN_ID() view returns (uint256)",
+  "function XNS() view returns (address)",
+  "function build(string,string) view returns (uint256, address, uint256, bytes)",
+  "function suggestedRouteName() pure returns (string)",
+  "function title() pure returns (string)"
+]
