@@ -1,7 +1,7 @@
 /**
  * Activate or deactivate an existing route.
- * Caller must be the address XNS currently resolves for `baseName`.
- * Allowed even after route or base freeze.
+ * Caller must be the address XNS currently resolves for `xnsName`.
+ * Allowed even after route or route book freeze.
  *
  * USAGE:
  * `npx hardhat run scripts/examples/setRouteActive.ts --network <network_name>`
@@ -26,7 +26,7 @@ const RED = "\x1b[31m";
                             USER INPUTS
 //////////////////////////////////////////////////////////////*/
 
-const baseName = "xns.action";
+const xnsName = "xns.action";
 const chain = "eth";
 const route = "register-name";
 const isActive = true;
@@ -50,17 +50,17 @@ async function main() {
   console.log(`Signer: ${GREEN}${signer.address}${RESET}`);
   const balance = await hre.ethers.provider.getBalance(signer.address);
   console.log(`Balance: ${GREEN}${formatEther(balance)} ETH${RESET}`);
-  console.log(`baseName: ${GREEN}${baseName}${RESET}`);
+  console.log(`xnsName: ${GREEN}${xnsName}${RESET}`);
   console.log(`chain: ${GREEN}${chain}${RESET}`);
   console.log(`route: ${GREEN}${route}${RESET}`);
   console.log(`isActive: ${GREEN}${isActive}${RESET}\n`);
 
-  const tx = await routes.connect(signer).setRouteActive(baseName, chain, route, isActive);
+  const tx = await routes.connect(signer).setRouteActive(xnsName, chain, route, isActive);
   console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
-  const [, active] = await routes.getRouteInfo(baseName, chain, route);
+  const [, active] = await routes.getRouteInfo(xnsName, chain, route);
   console.log(`${GREEN}✓ Confirmed. isActive=${active}${RESET}\n`);
 }
 

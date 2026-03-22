@@ -1,6 +1,6 @@
 /**
  * Create or update a route (target + active + optional immediate freeze).
- * Caller must be the address XNS currently resolves for `baseName`.
+ * Caller must be the address XNS currently resolves for `xnsName`.
  *
  * USAGE:
  * `npx hardhat run scripts/examples/setRoute.ts --network <network_name>`
@@ -25,7 +25,7 @@ const RED = "\x1b[31m";
                             USER INPUTS
 //////////////////////////////////////////////////////////////*/
 
-const baseName = "xns.action";
+const xnsName = "xns.action";
 /** Chain key (path segment before `:`), e.g. `eth` in `xns.action/eth:register-name/...` */
 const chain = "eth";
 const route = "register-name";
@@ -64,7 +64,7 @@ async function main() {
   console.log(`Signer: ${GREEN}${signer.address}${RESET}`);
   const balance = await hre.ethers.provider.getBalance(signer.address);
   console.log(`Balance: ${GREEN}${formatEther(balance)} ETH${RESET}`);
-  console.log(`baseName: ${GREEN}${baseName}${RESET}`);
+  console.log(`xnsName: ${GREEN}${xnsName}${RESET}`);
   console.log(`chain: ${GREEN}${chain}${RESET}`);
   console.log(`route: ${GREEN}${route}${RESET}`);
   console.log(`target: ${GREEN}${target}${RESET}`);
@@ -73,12 +73,12 @@ async function main() {
 
   const tx = await routes
     .connect(signer)
-    .setRoute(baseName, chain, route, target, isActive, freezeImmediately);
+    .setRoute(xnsName, chain, route, target, isActive, freezeImmediately);
   console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
-  const [t, active, frozen] = await routes.getRouteInfo(baseName, chain, route);
+  const [t, active, frozen] = await routes.getRouteInfo(xnsName, chain, route);
   console.log(
     `${GREEN}✓ Confirmed. getRouteInfo → target=${t} isActive=${active} isFrozen=${frozen}${RESET}\n`,
   );

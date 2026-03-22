@@ -152,9 +152,9 @@ freezeRoute("xns.action", "eth", "register-name");
 
 ---
 
-### Base Freeze
+### Route book freeze
 
-Locks the entire route book:
+Locks the entire route book under a name:
 
 ```solidity
 freezeRoutes("xns.action");
@@ -276,9 +276,9 @@ npx hardhat run scripts/examples/<script_name>.ts --network <network_name>
 
 * [scripts/examples/routeExists.ts](scripts/examples/routeExists.ts) — check if a route is registered
 * [scripts/examples/getRouteInfo.ts](scripts/examples/getRouteInfo.ts) — read target, `isActive`, `isFrozen`
-* [scripts/examples/isBaseRoutesFrozen.ts](scripts/examples/isBaseRoutesFrozen.ts) — base-freeze flag for a name
+* [scripts/examples/isRouteBookFrozen.ts](scripts/examples/isRouteBookFrozen.ts) — route book freeze flag for a name
 
-**Write** (signer must be the address XNS currently resolves for the script’s `baseName`)
+**Write** (signer must be the address XNS currently resolves for the script’s `xnsName`)
 
 * [scripts/examples/setRoute.ts](scripts/examples/setRoute.ts) — create or update a route
 * [scripts/examples/setRouteActive.ts](scripts/examples/setRouteActive.ts) — toggle `isActive`

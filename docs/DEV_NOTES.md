@@ -62,9 +62,9 @@ npx hardhat run scripts/examples/<script_name>.ts --network <network_name>
 
 - [routeExists.ts](../scripts/examples/routeExists.ts)
 - [getRouteInfo.ts](../scripts/examples/getRouteInfo.ts)
-- [isBaseRoutesFrozen.ts](../scripts/examples/isBaseRoutesFrozen.ts)
+- [isRouteBookFrozen.ts](../scripts/examples/isRouteBookFrozen.ts)
 
-### XNSRoutes (write — caller must be XNS-resolved owner of `baseName`)
+### XNSRoutes (write — caller must be XNS-resolved owner of `xnsName`)
 
 - [setRoute.ts](../scripts/examples/setRoute.ts)
 - [setRouteActive.ts](../scripts/examples/setRouteActive.ts)

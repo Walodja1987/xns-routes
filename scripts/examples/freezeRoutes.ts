@@ -1,6 +1,6 @@
 /**
  * Permanently base-freeze all routes under a name (no new routes, no target updates).
- * Caller must be the address XNS currently resolves for `baseName`.
+ * Caller must be the address XNS currently resolves for `xnsName`.
  * Route activation may still be toggled.
  *
  * USAGE:
@@ -26,7 +26,7 @@ const RED = "\x1b[31m";
                             USER INPUTS
 //////////////////////////////////////////////////////////////*/
 
-const baseName = "xns.action";
+const xnsName = "xns.action";
 const signerIndex = 0;
 
 async function main() {
@@ -47,16 +47,16 @@ async function main() {
   console.log(`Signer: ${GREEN}${signer.address}${RESET}`);
   const balance = await hre.ethers.provider.getBalance(signer.address);
   console.log(`Balance: ${GREEN}${formatEther(balance)} ETH${RESET}`);
-  console.log(`baseName: ${GREEN}${baseName}${RESET}\n`);
+  console.log(`xnsName: ${GREEN}${xnsName}${RESET}\n`);
 
-  const tx = await routes.connect(signer).freezeRoutes(baseName);
+  const tx = await routes.connect(signer).freezeRoutes(xnsName);
   console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
-  const baseKey = keccak256(toUtf8Bytes(baseName));
-  const frozen = await routes.baseRoutesFrozen(baseKey);
-  console.log(`${GREEN}✓ Confirmed. baseRoutesFrozen=${frozen}${RESET}\n`);
+  const xnsNameKey = keccak256(toUtf8Bytes(xnsName));
+  const frozen = await routes.routeBookFrozen(xnsNameKey);
+  console.log(`${GREEN}✓ Confirmed. routeBookFrozen=${frozen}${RESET}\n`);
 }
 
 main().catch((error: unknown) => {

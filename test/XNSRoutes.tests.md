@@ -4,7 +4,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 ## Test setup
 
-- **Unit tests** use [`MockXNS`](../contracts/src/mocks/MockXNS.sol): set `baseName → owner` via `setResolution`, and optionally mark labels invalid via `setLabelInvalid` for `InvalidChain` / `InvalidRoute` cases.
+- **Unit tests** use [`MockXNS`](../contracts/src/mocks/MockXNS.sol): set `xnsName → owner` via `setResolution`, and optionally mark labels invalid via `setLabelInvalid` for `InvalidChain` / `InvalidRoute` cases.
 - **Canonical on-chain XNS** addresses for deploy/scripts/fork work live in [`constants/addresses.ts`](../constants/addresses.ts) as `XNS_ADDRESS` (they are not used by the default local test suite).
 
 ---
@@ -28,24 +28,24 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 #### Functionality
 
-- Name owner can **create** a route for `(baseName, chain, route)` with the given `target`, `isActive`, and `isFrozen` implied by `freezeImmediately`.
-- Name owner can **update** `target` and `isActive` while the entry is not frozen and the base name is not base-frozen.
+- Name owner can **create** a route for `(xnsName, chain, route)` with the given `target`, `isActive`, and `isFrozen` implied by `freezeImmediately`.
+- Name owner can **update** `target` and `isActive` while the entry is not frozen and the route book for that XNS name is not frozen.
 - With `freezeImmediately == true`, should set `isFrozen` and emit `RouteFrozen` (in addition to `RouteSet`).
 
 #### Events
 
-- Should emit `RouteSet` with `baseName`, `chain`, `route`, `target`, `isActive`, and final `isFrozen` (three indexed fields max: `baseName`, `chain`, `target`; `route` is non-indexed).
-- Should emit `RouteFrozen` with `baseName`, `chain`, `route` when the route becomes frozen in that transaction.
+- Should emit `RouteSet` with `xnsName`, `chain`, `route`, `target`, `isActive`, and final `isFrozen` (three indexed fields max: `xnsName`, `chain`, `target`; `route` is non-indexed).
+- Should emit `RouteFrozen` with `xnsName`, `chain`, `route` when the route becomes frozen in that transaction.
 
 #### Reverts
 
-- Should revert with `NotBaseNameOwner` when `msg.sender` is not `XNS.getAddress(baseName)`.
-- Should revert with `InvalidBaseName` when `baseName` is empty.
-- Should revert with `InvalidBaseName` when `XNS.getAddress(baseName)` is zero.
-- Should revert with `InvalidChain` when `XNS.isValidLabelOrNamespace(chain)` is false.
-- Should revert with `InvalidRoute` when `XNS.isValidLabelOrNamespace(route)` is false.
+- Should revert with `NotXnsNameOwner` when `msg.sender` is not `XNS.getAddress(xnsName)`.
+- Should revert with `InvalidXnsName` when `xnsName` is empty.
+- Should revert with `InvalidXnsName` when `XNS.getAddress(xnsName)` is zero.
+- Should revert with `InvalidChain` when `chain` fails XNS label rules (`_isValidString` → `isValidLabelOrNamespace`).
+- Should revert with `InvalidRoute` when `route` fails the same rules.
 - Should revert with `InvalidTarget` when `target` is zero.
-- Should revert with `BaseRoutesFrozen` when `freezeRoutes` has already been called for that `baseName`.
+- Should revert with `RouteBookFrozen` when `freezeRoutes` has already been called for that `xnsName`.
 - Should revert with `CannotUpdateFrozenRoute` when updating a route that is already frozen.
 
 ---
@@ -54,17 +54,17 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 #### Functionality
 
-- Name owner can toggle `isActive` for an existing `(baseName, chain, route)`.
-- Should still succeed when the **route** is frozen or the **base** is base-frozen (only target updates are blocked).
+- Name owner can toggle `isActive` for an existing `(xnsName, chain, route)`.
+- Should still succeed when the **route** is frozen or the **route book** is frozen (only target updates are blocked).
 
 #### Events
 
-- Should emit `RouteActivationSet` with `baseName`, `chain`, `route`, and `isActive`.
+- Should emit `RouteActivationSet` with `xnsName`, `chain`, `route`, and `isActive`.
 
 #### Reverts
 
-- Should revert with `NotBaseNameOwner` when the caller is not the resolved owner.
-- Should revert with `RouteNotFound` when no route exists for `(baseName, chain, route)`.
+- Should revert with `NotXnsNameOwner` when the caller is not the resolved owner.
+- Should revert with `RouteNotFound` when no route exists for `(xnsName, chain, route)`.
 
 ---
 
@@ -81,7 +81,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 #### Reverts
 
-- Should revert with `NotBaseNameOwner` when the caller is not the resolved owner.
+- Should revert with `NotXnsNameOwner` when the caller is not the resolved owner.
 - Should revert with `RouteNotFound` when the route does not exist.
 
 ---
@@ -90,17 +90,17 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 #### Functionality
 
-- Name owner can set `baseRoutesFrozen[keccak256(bytes(baseName))]` permanently.
-- After base freeze, `setRoute` must revert for that `baseName` (new routes and target changes), while `setRouteActive` may still run.
+- Name owner can set `routeBookFrozen[keccak256(bytes(xnsName))]` permanently.
+- After route book freeze, `setRoute` must revert for that `xnsName` (new routes and target changes), while `setRouteActive` may still run.
 
 #### Events
 
-- Should emit `BaseRoutesFrozenForName` with `baseName` the first time the base is frozen.
+- Should emit `RouteBookFrozenForName` with `xnsName` the first time the route book is frozen.
 - Second call should not emit again (idempotent).
 
 #### Reverts
 
-- Should revert with `NotBaseNameOwner` when the caller is not the resolved owner.
+- Should revert with `NotXnsNameOwner` when the caller is not the resolved owner.
 
 ---
 
@@ -118,11 +118,11 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 ---
 
-## `baseRoutesFrozen`
+## `routeBookFrozen`
 
 #### Functionality
 
-- For a given `baseName`, `baseRoutesFrozen(keccak256(bytes(baseName)))` matches whether `freezeRoutes` was applied.
+- For a given `xnsName`, `routeBookFrozen(keccak256(bytes(xnsName)))` matches whether `freezeRoutes` was applied.
 
 ---
 
@@ -130,4 +130,4 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 #### Functionality
 
-- Routes under different `baseName`, `chain`, or `route` are independent (storage key `keccak256(abi.encode(baseName, chain, route))`).
+- Routes under different `xnsName`, `chain`, or `route` are independent (storage key `keccak256(abi.encode(xnsName, chain, route))`).

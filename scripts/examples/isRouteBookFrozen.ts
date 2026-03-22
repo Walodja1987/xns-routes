@@ -1,12 +1,12 @@
 /**
- * Check whether all routes under a base XNS name are base-frozen
+ * Check whether the entire route book under a base XNS name is frozen
  * (no new routes / no target updates; activation may still toggle).
  *
  * USAGE:
- * `npx hardhat run scripts/examples/isBaseRoutesFrozen.ts --network <network_name>`
+ * `npx hardhat run scripts/examples/isRouteBookFrozen.ts --network <network_name>`
  *
  * EXAMPLE:
- * `npx hardhat run scripts/examples/isBaseRoutesFrozen.ts --network sepolia`
+ * `npx hardhat run scripts/examples/isRouteBookFrozen.ts --network sepolia`
  *
  * REQUIRED SETUP:
  * - MNEMONIC, network RPC (see docs/DEV_NOTES.md)
@@ -26,8 +26,8 @@ const RED = "\x1b[31m";
                             USER INPUTS
 //////////////////////////////////////////////////////////////*/
 
-/** XNS name (e.g. "xns.action") */
-const baseName = "xns.action";
+/** Full XNS name whose route book to inspect (e.g. "xns.action") */
+const xnsName = "xns.action";
 
 async function main() {
   const networkName = hre.network.name;
@@ -39,20 +39,20 @@ async function main() {
   }
 
   const routes = await hre.ethers.getContractAt("XNSRoutes", contractAddress);
-  const baseKey = keccak256(toUtf8Bytes(baseName));
-  const frozen = await routes.baseRoutesFrozen(baseKey);
+  const xnsNameKey = keccak256(toUtf8Bytes(xnsName));
+  const frozen = await routes.routeBookFrozen(xnsNameKey);
 
   console.log(`\nNetwork: ${GREEN}${networkName}${RESET}`);
   console.log(`XNSRoutes: ${GREEN}${contractAddress}${RESET}`);
-  console.log(`baseName: ${GREEN}${baseName}${RESET}`);
-  console.log(`baseKey: ${GREEN}${baseKey}${RESET}\n`);
+  console.log(`xnsName: ${GREEN}${xnsName}${RESET}`);
+  console.log(`xnsNameKey: ${GREEN}${xnsNameKey}${RESET}\n`);
 
   if (frozen) {
     console.log(
-      `${YELLOW}⚠${RESET} Base routes are ${YELLOW}frozen${RESET} for this name (targets locked; new routes disabled).\n`,
+      `${YELLOW}⚠${RESET} Route book is ${YELLOW}frozen${RESET} for this name (targets locked; new routes disabled).\n`,
     );
   } else {
-    console.log(`${GREEN}✓${RESET} Base routes are ${GREEN}not${RESET} frozen.\n`);
+    console.log(`${GREEN}✓${RESET} Route book is ${GREEN}not${RESET} frozen.\n`);
   }
 }
 
