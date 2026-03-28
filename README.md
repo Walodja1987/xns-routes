@@ -284,6 +284,8 @@ npx hardhat run scripts/examples/<script_name>.ts --network <network_name>
 * [scripts/examples/setRoute.ts](scripts/examples/setRoute.ts) — create or update a route
 * [scripts/examples/activateRoute.ts](scripts/examples/activateRoute.ts) — set `isActive` true (emit only on change)
 * [scripts/examples/deactivateRoute.ts](scripts/examples/deactivateRoute.ts) — set `isActive` false (emit only on change)
+* [scripts/examples/updateTarget.ts](scripts/examples/updateTarget.ts) — change build `target` (emit only on change)
+* [scripts/examples/updateRouteType.ts](scripts/examples/updateRouteType.ts) — change `routeType` (emit only on change)
 * [scripts/examples/freezeRoute.ts](scripts/examples/freezeRoute.ts) — freeze one route forever
 * [scripts/examples/freezeRouteBook.ts](scripts/examples/freezeRouteBook.ts) — route book freeze for a name
 

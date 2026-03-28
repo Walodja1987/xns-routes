@@ -60,6 +60,20 @@ interface IXNSRoutes {
 
     function deactivateRoute(string calldata xnsName, string calldata chain, string calldata route) external;
 
+    function updateTarget(
+        string calldata xnsName,
+        string calldata chain,
+        string calldata route,
+        address newTarget
+    ) external;
+
+    function updateRouteType(
+        string calldata xnsName,
+        string calldata chain,
+        string calldata route,
+        uint32 newRouteType
+    ) external;
+
     function freezeRoute(string calldata xnsName, string calldata chain, string calldata route) external;
 
     function freezeRouteBook(string calldata xnsName) external;

@@ -48,6 +48,7 @@ interface IXNS {
 /// - route book freeze is irreversible
 /// - active/inactive can be toggled even after freeze
 /// - setRoute supports create/update + optional freeze in one tx
+/// - updateTarget / updateRouteType are narrow updates (same guards as setRoute for target/type); emit `RouteSet` only on change
 contract XNSRoutes {
     error ZeroAddress();
     error InvalidXnsName();
@@ -197,6 +198,58 @@ contract XNSRoutes {
         if (record.isActive) {
             record.isActive = false;
             emit RouteActivationSet(xnsName, chain, route, false);
+        }
+    }
+
+    /// @notice Update the build `target` for an existing route.
+    /// @dev Same constraints as `setRoute` for target changes: not route-frozen, not route-book frozen.
+    /// Emits `RouteSet` only when `newTarget` differs from the stored target.
+    function updateTarget(
+        string calldata xnsName,
+        string calldata chain,
+        string calldata route,
+        address newTarget
+    ) external {
+        _requireXnsNameOwner(xnsName);
+
+        bytes32 xnsNameKey = keccak256(bytes(xnsName));
+        if (routeBookFrozen[xnsNameKey]) revert RouteBookFrozen();
+
+        bytes32 routeKey = _routeKey(xnsName, chain, route);
+        RouteRecord storage record = _routes[routeKey];
+        if (record.target == address(0)) revert RouteNotFound();
+        if (record.isFrozen) revert CannotUpdateFrozenRoute();
+
+        if (newTarget == address(0)) revert InvalidTarget();
+
+        if (record.target != newTarget) {
+            record.target = newTarget;
+            emit RouteSet(xnsName, chain, route, newTarget, record.isActive, record.isFrozen, record.routeType);
+        }
+    }
+
+    /// @notice Update `routeType` for an existing route.
+    /// @dev Same constraints as `setRoute` for type changes: not route-frozen, not route-book frozen.
+    /// Emits `RouteSet` only when `newRouteType` differs from the stored value.
+    function updateRouteType(
+        string calldata xnsName,
+        string calldata chain,
+        string calldata route,
+        uint32 newRouteType
+    ) external {
+        _requireXnsNameOwner(xnsName);
+
+        bytes32 xnsNameKey = keccak256(bytes(xnsName));
+        if (routeBookFrozen[xnsNameKey]) revert RouteBookFrozen();
+
+        bytes32 routeKey = _routeKey(xnsName, chain, route);
+        RouteRecord storage record = _routes[routeKey];
+        if (record.target == address(0)) revert RouteNotFound();
+        if (record.isFrozen) revert CannotUpdateFrozenRoute();
+
+        if (record.routeType != newRouteType) {
+            record.routeType = newRouteType;
+            emit RouteSet(xnsName, chain, route, record.target, record.isActive, record.isFrozen, newRouteType);
         }
     }
 

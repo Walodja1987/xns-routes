@@ -42,6 +42,7 @@ Semantics:
 - route book freeze is irreversible
 - active/inactive can be toggled even after freeze
 - setRoute supports create/update + optional freeze in one tx
+- updateTarget / updateRouteType are narrow updates (same guards as setRoute for target/type); emit `RouteSet` only on change
 
 
 
@@ -96,6 +97,34 @@ function deactivateRoute(string xnsName, string chain, string route) external
 ```
 
 _Emits `RouteActivationSet` only when `isActive` changes. Allowed after route or route book freeze._
+
+
+
+### updateTarget
+
+
+Update the build `target` for an existing route.
+
+```solidity
+function updateTarget(string xnsName, string chain, string route, address newTarget) external
+```
+
+_Same constraints as `setRoute` for target changes: not route-frozen, not route-book frozen.
+Emits `RouteSet` only when `newTarget` differs from the stored target._
+
+
+
+### updateRouteType
+
+
+Update `routeType` for an existing route.
+
+```solidity
+function updateRouteType(string xnsName, string chain, string route, uint32 newRouteType) external
+```
+
+_Same constraints as `setRoute` for type changes: not route-frozen, not route-book frozen.
+Emits `RouteSet` only when `newRouteType` differs from the stored value._
 
 
 
