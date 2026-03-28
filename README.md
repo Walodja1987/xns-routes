@@ -8,7 +8,7 @@ Instead of sharing raw calldata or relying on a single frontend, protocols and u
 
 ## ✨ What are Routes?
 
-An XNS route is a **named action** under an XNS name, scoped to a **chain key** and **route** label. Paths look like `xnsName/chain:route/params…` (exactly one `:` in the action segment). For **chain-agnostic** routes (e.g. same EOA everywhere), use an empty chain in the registry and a path like `xnsName/:route/params…`.
+An XNS route is a **named action** under an XNS name, scoped to a **chain key** and **route** label. Paths look like `xnsName/chain:route/params…` when a chain is set (one `:` in the action segment). For **chain-agnostic** routes (e.g. same EOA everywhere), use an empty chain in the registry and a path like `xnsName/route/params…` (no `:` in that segment).
 
 ```
 xns.action/eth:register-name/label=bro/namespace=og

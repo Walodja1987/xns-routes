@@ -9,13 +9,13 @@ Route registry linked to the XNS contract on Ethereum (0x648E4F05aF2b7eB85109A8d
 
 Routes are scoped under an XNS name plus a chain key and route label. Human-readable paths look like:
 `bob.xns/eth:transfer-usdt/to=0x.../amount=100`
-Chain-agnostic routes (e.g. same EOA across chains): use empty `chain` — path form `bob.xns/:my-wallet/...`.
+Chain-agnostic routes (e.g. same EOA across chains): use empty `chain` — path form `bob.xns/my-wallet/...` (no `:` in the action segment).
 - xnsName: `bob.xns`
 - chain: `eth` (XNS label rules when non-empty; use hyphens for compound ids, e.g. `1-eth`, `137-poly`), or `""` for chain-agnostic
 - route: `transfer-usdt`
-Only a single `:` appears in the action segment, between `chain` and `route` (or immediately after `/` when `chain` is empty).
+With a non-empty `chain`, exactly one `:` appears in the action segment, between `chain` and `route`.
 
-Storage key: `keccak256(abi.encodePacked(xnsName, "/", chain, ":", route))`.
+Storage key: if `chain` is empty, `keccak256(abi.encodePacked(xnsName, "/", route))`; else `keccak256(abi.encodePacked(xnsName, "/", chain, ":", route))`.
 `chain` and `route` follow XNS label charset (`a-z`, `0-9`, `-`); `xnsName` is a registered XNS full name (no `/` or `:`).
 
 A route points to a `target` address; `routeType` is an opaque hint (e.g. how parsers interpret
@@ -65,7 +65,7 @@ function setRoute(string xnsName, string chain, string route, address target, ui
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | xnsName | string | The XNS name that owns the route space, e.g. "xns.action" |
-| chain | string | Chain key: non-empty must pass XNS label rules; empty string means chain-agnostic (path `xnsName/:route/...`) |
+| chain | string | Chain key: non-empty must pass XNS label rules; empty string means chain-agnostic (path `xnsName/route/...`) |
 | route | string | Action label (XNS label rules), e.g. "transfer-usdt" |
 | target | address | Address whose meaning depends on offchain agreement for `routeType` |
 | routeType | uint32 | Opaque hint for parsers (semantics offchain) |
@@ -149,46 +149,6 @@ Returns whether a route exists (`target` was ever set via `setRoute`; zero `targ
 function routeExists(string xnsName, string chain, string route) external view returns (bool)
 ```
 
-
-
-
-### _requireXnsNameOwner
-
-
-
-
-```solidity
-function _requireXnsNameOwner(string xnsName) internal view
-```
-
-_XNS `getAddress` returns zero for empty `fullName` and for unregistered names._
-
-
-
-### _routeKey
-
-
-
-
-```solidity
-function _routeKey(string xnsName, string chain, string route) internal pure returns (bytes32)
-```
-
-_Packed layout mirrors path `xnsName/chain:route` (empty `chain` yields `.../:route`)._
-
-
-
-### _isValidString
-
-
-
-
-```solidity
-function _isValidString(string s) internal view returns (bool)
-```
-
-_Whether `s` satisfies XNS label/namespace rules (length, charset, hyphen rules).
-Used for non-empty `chain` and for `route`; empty `chain` skips this check in `setRoute`._
 
 
 

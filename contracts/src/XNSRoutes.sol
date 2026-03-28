@@ -15,13 +15,13 @@ interface IXNS {
 ///
 /// Routes are scoped under an XNS name plus a chain key and route label. Human-readable paths look like:
 /// `bob.xns/eth:transfer-usdt/to=0x.../amount=100`
-/// Chain-agnostic routes (e.g. same EOA across chains): use empty `chain` — path form `bob.xns/:my-wallet/...`.
+/// Chain-agnostic routes (e.g. same EOA across chains): use empty `chain` — path form `bob.xns/my-wallet/...` (no `:` in the action segment).
 /// - xnsName: `bob.xns`
 /// - chain: `eth` (XNS label rules when non-empty; use hyphens for compound ids, e.g. `1-eth`, `137-poly`), or `""` for chain-agnostic
 /// - route: `transfer-usdt`
-/// Only a single `:` appears in the action segment, between `chain` and `route` (or immediately after `/` when `chain` is empty).
+/// With a non-empty `chain`, exactly one `:` appears in the action segment, between `chain` and `route`.
 ///
-/// Storage key: `keccak256(abi.encodePacked(xnsName, "/", chain, ":", route))`.
+/// Storage key: if `chain` is empty, `keccak256(abi.encodePacked(xnsName, "/", route))`; else `keccak256(abi.encodePacked(xnsName, "/", chain, ":", route))`.
 /// `chain` and `route` follow XNS label charset (`a-z`, `0-9`, `-`); `xnsName` is a registered XNS full name (no `/` or `:`).
 ///
 /// A route points to a `target` address; `routeType` is an opaque hint (e.g. how parsers interpret
@@ -71,7 +71,7 @@ contract XNSRoutes {
     // keccak256(bytes(xnsName)) => entire route book under that name frozen?
     mapping(bytes32 => bool) public routeBookFrozen;
 
-    // keccak256(abi.encodePacked(xnsName, "/", chain, ":", route)) => route record
+    // _routeKey(xnsName, chain, route) => route record
     mapping(bytes32 => RouteRecord) private _routes;
 
     /// @dev At most three `indexed` fields (EVM limit). `route` is non-indexed for filtering via calldata/logs.
@@ -111,7 +111,7 @@ contract XNSRoutes {
     /// @notice Create or update a route under `(xnsName, chain, route)`.
     ///
     /// @param xnsName The XNS name that owns the route space, e.g. "xns.action"
-    /// @param chain Chain key: non-empty must pass XNS label rules; empty string means chain-agnostic (path `xnsName/:route/...`)
+    /// @param chain Chain key: non-empty must pass XNS label rules; empty string means chain-agnostic (path `xnsName/route/...`)
     /// @param route Action label (XNS label rules), e.g. "transfer-usdt"
     /// @param target Address whose meaning depends on offchain agreement for `routeType`
     /// @param routeType Opaque hint for parsers (semantics offchain)
@@ -255,24 +255,27 @@ contract XNSRoutes {
     }
 
     /// @dev XNS `getAddress` returns zero for empty `fullName` and for unregistered names.
-    function _requireXnsNameOwner(string calldata xnsName) internal view {
+    function _requireXnsNameOwner(string calldata xnsName) private view {
         address xnsNameOwner = XNS.getAddress(xnsName);
         if (xnsNameOwner == address(0)) revert InvalidXnsName();
         if (msg.sender != xnsNameOwner) revert NotXnsNameOwner();
     }
 
-    /// @dev Packed layout mirrors path `xnsName/chain:route` (empty `chain` yields `.../:route`).
+    /// @dev Empty `chain`: packed `xnsName/route` (matches human path without `:`). Non-empty: `xnsName/chain:route`.
     function _routeKey(
         string calldata xnsName,
         string calldata chain,
         string calldata route
-    ) internal pure returns (bytes32) {
+    ) private pure returns (bytes32) {
+        if (bytes(chain).length == 0) {
+            return keccak256(abi.encodePacked(xnsName, "/", route));
+        }
         return keccak256(abi.encodePacked(xnsName, "/", chain, ":", route));
     }
 
     /// @dev Whether `s` satisfies XNS label/namespace rules (length, charset, hyphen rules).
     /// Used for non-empty `chain` and for `route`; empty `chain` skips this check in `setRoute`.
-    function _isValidString(string calldata s) internal view returns (bool) {
+    function _isValidString(string calldata s) private view returns (bool) {
         return XNS.isValidLabelOrNamespace(s);
     }
 }
