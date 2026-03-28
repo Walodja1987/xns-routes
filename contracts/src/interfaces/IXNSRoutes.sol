@@ -19,7 +19,6 @@ interface IXNSRoutes {
         uint32 routeType;
         bool isActive;
         bool isFrozen;
-        bool exists;
     }
 
     event RouteSet(

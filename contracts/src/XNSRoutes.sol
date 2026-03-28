@@ -29,7 +29,8 @@ interface IXNS {
 /// - only the current address resolved by XNS for `xnsName` may manage routes under that name
 ///
 /// Route state model:
-/// - target: address (e.g. builder contract or plain contract depending on `routeType`)
+/// - target: address (e.g. builder contract or plain contract depending on `routeType`); must be non-zero.
+///   An empty mapping slot has `target == address(0)`; that is the only "route does not exist" state.
 /// - routeType: parser hint; semantics are offchain (e.g. 0 = EVM address, 1 = tx calldata builder, …)
 /// - isActive: whether wallets/apps should treat the route as usable
 /// - isFrozen: whether `target` and `routeType` can still be changed
@@ -61,7 +62,6 @@ contract XNSRoutes {
         uint32 routeType;
         bool isActive;
         bool isFrozen;
-        bool exists;
     }
 
     IXNS public immutable XNS;
@@ -136,7 +136,7 @@ contract XNSRoutes {
         bytes32 routeKey = _routeKey(xnsName, chain, route);
         RouteRecord storage record = _routes[routeKey];
 
-        if (record.exists) {
+        if (record.target != address(0)) {
             if (record.isFrozen) revert CannotUpdateFrozenRoute();
 
             record.target = target;
@@ -152,13 +152,7 @@ contract XNSRoutes {
         } else {
             bool frozen = freezeImmediately;
 
-            _routes[routeKey] = RouteRecord({
-                target: target,
-                routeType: routeType,
-                isActive: isActive,
-                isFrozen: frozen,
-                exists: true
-            });
+            _routes[routeKey] = RouteRecord({target: target, routeType: routeType, isActive: isActive, isFrozen: frozen});
 
             if (frozen) {
                 emit RouteFrozen(xnsName, chain, route);
@@ -180,7 +174,7 @@ contract XNSRoutes {
 
         bytes32 routeKey = _routeKey(xnsName, chain, route);
         RouteRecord storage record = _routes[routeKey];
-        if (!record.exists) revert RouteNotFound();
+        if (record.target == address(0)) revert RouteNotFound();
 
         record.isActive = isActive;
 
@@ -199,7 +193,7 @@ contract XNSRoutes {
 
         bytes32 routeKey = _routeKey(xnsName, chain, route);
         RouteRecord storage record = _routes[routeKey];
-        if (!record.exists) revert RouteNotFound();
+        if (record.target == address(0)) revert RouteNotFound();
 
         if (!record.isFrozen) {
             record.isFrozen = true;
@@ -229,7 +223,7 @@ contract XNSRoutes {
         string calldata route
     ) external view returns (address target) {
         RouteRecord storage record = _routes[_routeKey(xnsName, chain, route)];
-        if (!record.exists) revert RouteNotFound();
+        if (record.target == address(0)) revert RouteNotFound();
         return record.target;
     }
 
@@ -244,18 +238,18 @@ contract XNSRoutes {
         returns (address target, bool isActive, bool isFrozen, uint32 routeType)
     {
         RouteRecord storage record = _routes[_routeKey(xnsName, chain, route)];
-        if (!record.exists) revert RouteNotFound();
+        if (record.target == address(0)) revert RouteNotFound();
 
         return (record.target, record.isActive, record.isFrozen, record.routeType);
     }
 
-    /// @notice Returns whether a route exists.
+    /// @notice Returns whether a route exists (`target` was ever set via `setRoute`; zero `target` is never stored).
     function routeExists(
         string calldata xnsName,
         string calldata chain,
         string calldata route
     ) external view returns (bool) {
-        return _routes[_routeKey(xnsName, chain, route)].exists;
+        return _routes[_routeKey(xnsName, chain, route)].target != address(0);
     }
 
     function _requireXnsNameOwner(string calldata xnsName) internal view {

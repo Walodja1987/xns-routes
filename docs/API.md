@@ -23,7 +23,8 @@ Ownership model:
 - only the current address resolved by XNS for `xnsName` may manage routes under that name
 
 Route state model:
-- target: address (e.g. builder contract or plain contract depending on `routeType`)
+- target: address (e.g. builder contract or plain contract depending on `routeType`); must be non-zero.
+  An empty mapping slot has `target == address(0)`; that is the only "route does not exist" state.
 - routeType: parser hint; semantics are offchain (e.g. 0 = EVM address, 1 = tx calldata builder, …)
 - isActive: whether wallets/apps should treat the route as usable
 - isFrozen: whether `target` and `routeType` can still be changed
@@ -140,7 +141,7 @@ function getRouteInfo(string xnsName, string chain, string route) external view 
 ### routeExists
 
 
-Returns whether a route exists.
+Returns whether a route exists (`target` was ever set via `setRoute`; zero `target` is never stored).
 
 ```solidity
 function routeExists(string xnsName, string chain, string route) external view returns (bool)
@@ -404,7 +405,6 @@ struct RouteRecord {
   uint32 routeType;
   bool isActive;
   bool isFrozen;
-  bool exists;
 ```
 
 
