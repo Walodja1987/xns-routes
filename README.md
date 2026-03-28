@@ -8,7 +8,7 @@ Instead of sharing raw calldata or relying on a single frontend, protocols and u
 
 ## ✨ What are Routes?
 
-An XNS route is a **named action** under an XNS name, scoped to a **chain key** and **route** label. Paths look like `base/chain:route/params…` (exactly one `:` between chain and route).
+An XNS route is a **named action** under an XNS name, scoped to a **chain key** and **route** label. Paths look like `xnsName/chain:route/params…` (exactly one `:` in the action segment). For **chain-agnostic** routes (e.g. same EOA everywhere), use an empty chain in the registry and a path like `xnsName/:route/params…`.
 
 ```
 xns.action/eth:register-name/label=bro/namespace=og
@@ -18,7 +18,7 @@ usdt.action/eth:transfer-usdt/to=0x.../amount=100
 Each route:
 
 * belongs to an XNS name (e.g. `xns.action`)
-* has a **chain** key (e.g. `eth`, `137-poly`) and **route** label (e.g. `transfer-usdt`)
+* has a **chain** key (e.g. `eth`, `137-poly`) or **empty** for chain-agnostic routes, plus a **route** label (e.g. `transfer-usdt`)
 * points to a **build contract**
 * produces transaction calldata
 
@@ -107,7 +107,7 @@ A wallet:
 
 1. Resolves `xns.action`
 2. Parses `eth` and `register-name` from `eth:register-name`
-3. Looks up `(base, chain, route)` on the registry
+3. Looks up `(xnsName, chain, route)` on the registry (`chain` may be empty for chain-agnostic routes)
 4. Calls `build(...)`
 5. Gets:
 

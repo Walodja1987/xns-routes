@@ -171,6 +171,29 @@ describe("XNSRoutes", function () {
       ).to.be.revertedWithCustomError(routes, "InvalidChain");
     });
 
+    it("Should allow empty chain without InvalidChain (chain-agnostic route)", async function () {
+      const { routes, owner, buildTarget, other } = await loadFixture(deployFixture);
+      const globalRoute = "my-wallet";
+
+      await expect(
+        routes.connect(owner).setRoute(XNS_NAME, "", globalRoute, buildTarget, RT0, true, false),
+      ).to.emit(routes, "RouteSet");
+
+      expect(await routes.routeExists(XNS_NAME, "", globalRoute)).to.equal(true);
+      expect(await routes.getRoute(XNS_NAME, "", globalRoute)).to.equal(buildTarget);
+      expect(await routes.routeExists(XNS_NAME, CHAIN, globalRoute)).to.equal(false);
+      await expect(routes.getRoute(XNS_NAME, CHAIN, globalRoute)).to.be.revertedWithCustomError(
+        routes,
+        "RouteNotFound",
+      );
+
+      await routes
+        .connect(owner)
+        .setRoute(XNS_NAME, CHAIN, globalRoute, other.address, RT0, true, false);
+      expect(await routes.getRoute(XNS_NAME, "", globalRoute)).to.equal(buildTarget);
+      expect(await routes.getRoute(XNS_NAME, CHAIN, globalRoute)).to.equal(other.address);
+    });
+
     it("Should revert with InvalidRoute when XNS marks route label invalid", async function () {
       const { routes, owner, mockXns, buildTarget } = await loadFixture(deployFixture);
       const badRoute = "bad-route";

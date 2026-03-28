@@ -42,7 +42,8 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 - Should revert with `NotXnsNameOwner` when `msg.sender` is not `XNS.getAddress(xnsName)`.
 - Should revert with `InvalidXnsName` when `xnsName` is empty.
 - Should revert with `InvalidXnsName` when `XNS.getAddress(xnsName)` is zero.
-- Should revert with `InvalidChain` when `chain` fails XNS label rules (`_isValidString` → `isValidLabelOrNamespace`).
+- Should revert with `InvalidChain` when non-empty `chain` fails XNS label rules (`_isValidString` → `isValidLabelOrNamespace`).
+- Empty `chain` is allowed (chain-agnostic route; human path `xnsName/:route/...`) and does not run the chain label check.
 - Should revert with `InvalidRoute` when `route` fails the same rules.
 - Should revert with `InvalidTarget` when `target` is zero.
 - Should revert with `RouteBookFrozen` when `freezeRoutes` has already been called for that `xnsName`.
@@ -130,4 +131,4 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 #### Functionality
 
-- Routes under different `xnsName`, `chain`, or `route` are independent (storage key `keccak256(abi.encode(xnsName, chain, route))`).
+- Routes under different `xnsName`, `chain`, or `route` are independent (storage key `keccak256(abi.encodePacked(xnsName, "/", chain, ":", route))`; empty `chain` is distinct from any non-empty `chain` for the same `route`).

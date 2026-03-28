@@ -15,12 +15,14 @@ interface IXNS {
 ///
 /// Routes are scoped under an XNS name plus a chain key and route label. Human-readable paths look like:
 /// `bob.xns/eth:transfer-usdt/to=0x.../amount=100`
+/// Chain-agnostic routes (e.g. same EOA across chains): use empty `chain` — path form `bob.xns/:my-wallet/...`.
 /// - xnsName: `bob.xns`
-/// - chain: `eth` (one label token; use hyphens for compound ids, e.g. `1-eth`, `137-poly`)
+/// - chain: `eth` (XNS label rules when non-empty; use hyphens for compound ids, e.g. `1-eth`, `137-poly`), or `""` for chain-agnostic
 /// - route: `transfer-usdt`
-/// Only a single `:` appears in the action segment, between `chain` and `route`.
+/// Only a single `:` appears in the action segment, between `chain` and `route` (or immediately after `/` when `chain` is empty).
 ///
-/// Storage key: `keccak256(abi.encode(xnsName, chain, route))`.
+/// Storage key: `keccak256(abi.encodePacked(xnsName, "/", chain, ":", route))`.
+/// `chain` and `route` follow XNS label charset (`a-z`, `0-9`, `-`); `xnsName` is a registered XNS full name (no `/` or `:`).
 ///
 /// A route points to a `target` address; `routeType` is an opaque hint (e.g. how parsers interpret
 /// `target` or its calldata output). Meaning of type ids is agreed offchain; the contract stores any `uint32`.
@@ -69,7 +71,7 @@ contract XNSRoutes {
     // keccak256(bytes(xnsName)) => entire route book under that name frozen?
     mapping(bytes32 => bool) public routeBookFrozen;
 
-    // keccak256(abi.encode(xnsName, chain, route)) => route record
+    // keccak256(abi.encodePacked(xnsName, "/", chain, ":", route)) => route record
     mapping(bytes32 => RouteRecord) private _routes;
 
     /// @dev At most three `indexed` fields (EVM limit). `route` is non-indexed for filtering via calldata/logs.
@@ -109,7 +111,7 @@ contract XNSRoutes {
     /// @notice Create or update a route under `(xnsName, chain, route)`.
     ///
     /// @param xnsName The XNS name that owns the route space, e.g. "xns.action"
-    /// @param chain Chain key (XNS label rules), e.g. "eth" or "137-poly"
+    /// @param chain Chain key: non-empty must pass XNS label rules; empty string means chain-agnostic (path `xnsName/:route/...`)
     /// @param route Action label (XNS label rules), e.g. "transfer-usdt"
     /// @param target Address whose meaning depends on offchain agreement for `routeType`
     /// @param routeType Opaque hint for parsers (semantics offchain)
@@ -126,7 +128,7 @@ contract XNSRoutes {
     ) external {
         _requireXnsNameOwner(xnsName);
 
-        if (!_isValidString(chain)) revert InvalidChain();
+        if (bytes(chain).length != 0 && !_isValidString(chain)) revert InvalidChain();
         if (!_isValidString(route)) revert InvalidRoute();
         if (target == address(0)) revert InvalidTarget();
 
@@ -260,16 +262,17 @@ contract XNSRoutes {
         if (msg.sender != xnsNameOwner) revert NotXnsNameOwner();
     }
 
+    /// @dev Packed layout mirrors path `xnsName/chain:route` (empty `chain` yields `.../:route`).
     function _routeKey(
         string calldata xnsName,
         string calldata chain,
         string calldata route
     ) internal pure returns (bytes32) {
-        return keccak256(abi.encode(xnsName, chain, route));
+        return keccak256(abi.encodePacked(xnsName, "/", chain, ":", route));
     }
 
     /// @dev Whether `s` satisfies XNS label/namespace rules (length, charset, hyphen rules).
-    /// Used for both `chain` and `route` arguments; callers choose `InvalidChain` vs `InvalidRoute`.
+    /// Used for non-empty `chain` and for `route`; empty `chain` skips this check in `setRoute`.
     function _isValidString(string calldata s) internal view returns (bool) {
         return XNS.isValidLabelOrNamespace(s);
     }

@@ -9,12 +9,14 @@ Route registry linked to the XNS contract on Ethereum (0x648E4F05aF2b7eB85109A8d
 
 Routes are scoped under an XNS name plus a chain key and route label. Human-readable paths look like:
 `bob.xns/eth:transfer-usdt/to=0x.../amount=100`
+Chain-agnostic routes (e.g. same EOA across chains): use empty `chain` — path form `bob.xns/:my-wallet/...`.
 - xnsName: `bob.xns`
-- chain: `eth` (one label token; use hyphens for compound ids, e.g. `1-eth`, `137-poly`)
+- chain: `eth` (XNS label rules when non-empty; use hyphens for compound ids, e.g. `1-eth`, `137-poly`), or `""` for chain-agnostic
 - route: `transfer-usdt`
-Only a single `:` appears in the action segment, between `chain` and `route`.
+Only a single `:` appears in the action segment, between `chain` and `route` (or immediately after `/` when `chain` is empty).
 
-Storage key: `keccak256(abi.encode(xnsName, chain, route))`.
+Storage key: `keccak256(abi.encodePacked(xnsName, "/", chain, ":", route))`.
+`chain` and `route` follow XNS label charset (`a-z`, `0-9`, `-`); `xnsName` is a registered XNS full name (no `/` or `:`).
 
 A route points to a `target` address; `routeType` is an opaque hint (e.g. how parsers interpret
 `target` or its calldata output). Meaning of type ids is agreed offchain; the contract stores any `uint32`.
@@ -63,7 +65,7 @@ function setRoute(string xnsName, string chain, string route, address target, ui
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | xnsName | string | The XNS name that owns the route space, e.g. "xns.action" |
-| chain | string | Chain key (XNS label rules), e.g. "eth" or "137-poly" |
+| chain | string | Chain key: non-empty must pass XNS label rules; empty string means chain-agnostic (path `xnsName/:route/...`) |
 | route | string | Action label (XNS label rules), e.g. "transfer-usdt" |
 | target | address | Address whose meaning depends on offchain agreement for `routeType` |
 | routeType | uint32 | Opaque hint for parsers (semantics offchain) |
@@ -171,6 +173,7 @@ function _requireXnsNameOwner(string xnsName) internal view
 function _routeKey(string xnsName, string chain, string route) internal pure returns (bytes32)
 ```
 
+_Packed layout mirrors path `xnsName/chain:route` (empty `chain` yields `.../:route`)._
 
 
 
@@ -184,7 +187,7 @@ function _isValidString(string s) internal view returns (bool)
 ```
 
 _Whether `s` satisfies XNS label/namespace rules (length, charset, hyphen rules).
-Used for both `chain` and `route` arguments; callers choose `InvalidChain` vs `InvalidRoute`._
+Used for non-empty `chain` and for `route`; empty `chain` skips this check in `setRoute`._
 
 
 
