@@ -13,12 +13,13 @@
   "event RouteFrozen(string indexed,string indexed,string)",
   "event RouteSet(string indexed,string indexed,string,address indexed,bool,bool,uint32)",
   "function XNS() view returns (address)",
+  "function activateRoute(string,string,string)",
+  "function deactivateRoute(string,string,string)",
   "function freezeRoute(string,string,string)",
-  "function freezeRoutes(string)",
+  "function freezeRouteBook(string)",
   "function getRoute(string,string,string) view returns (address)",
   "function getRouteInfo(string,string,string) view returns (address, bool, bool, uint32)",
   "function routeBookFrozen(bytes32) view returns (bool)",
   "function routeExists(string,string,string) view returns (bool)",
-  "function setRoute(string,string,string,address,uint32,bool,bool)",
-  "function setRouteActive(string,string,string,bool)"
+  "function setRoute(string,string,string,address,uint32,bool,bool)"
 ]

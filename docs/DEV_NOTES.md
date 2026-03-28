@@ -67,9 +67,10 @@ npx hardhat run scripts/examples/<script_name>.ts --network <network_name>
 ### XNSRoutes (write — caller must be XNS-resolved owner of `xnsName`)
 
 - [setRoute.ts](../scripts/examples/setRoute.ts)
-- [setRouteActive.ts](../scripts/examples/setRouteActive.ts)
+- [activateRoute.ts](../scripts/examples/activateRoute.ts)
+- [deactivateRoute.ts](../scripts/examples/deactivateRoute.ts)
 - [freezeRoute.ts](../scripts/examples/freezeRoute.ts)
-- [freezeRoutes.ts](../scripts/examples/freezeRoutes.ts)
+- [freezeRouteBook.ts](../scripts/examples/freezeRouteBook.ts)
 
 > Note: each script has a `USER INPUTS` section at the top.
 

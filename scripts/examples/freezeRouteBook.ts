@@ -1,12 +1,13 @@
 /**
- * Create or update a route (target + activate + optional freeze in this tx).
+ * Permanently base-freeze all routes under a name (no new routes, no target updates).
  * Caller must be the address XNS currently resolves for `xnsName`.
+ * Route activation may still be toggled.
  *
  * USAGE:
- * `npx hardhat run scripts/examples/setRoute.ts --network <network_name>`
+ * `npx hardhat run scripts/examples/freezeRouteBook.ts --network <network_name>`
  *
  * EXAMPLE:
- * `npx hardhat run scripts/examples/setRoute.ts --network sepolia`
+ * `npx hardhat run scripts/examples/freezeRouteBook.ts --network sepolia`
  *
  * REQUIRED SETUP:
  * - MNEMONIC, network RPC (see docs/DEV_NOTES.md)
@@ -14,7 +15,7 @@
  */
 
 import hre from "hardhat";
-import { formatEther } from "ethers";
+import { formatEther, keccak256, toUtf8Bytes } from "ethers";
 import { XNS_ROUTES_ADDRESS } from "../../constants/addresses";
 
 const RESET = "\x1b[0m";
@@ -26,32 +27,10 @@ const RED = "\x1b[31m";
 //////////////////////////////////////////////////////////////*/
 
 const xnsName = "xns.action";
-/** Chain key (path segment before `:`), e.g. `eth` in `xns.action/eth:register-name/...` */
-const chain = "eth";
-const route = "register-name";
-
-/** Build contract address for this route */
-const target = "0x0000000000000000000000000000000000000001";
-
-/** Parser hint; semantics are offchain (e.g. 0 = plain address, 1 = calldata builder) */
-const routeType = 0;
-
-/** Stored as `isActive` on the route record */
-const activate = true;
-
-/** If true, route target cannot be changed after this tx */
-const freeze = false;
-
-/** Signer index (0 = first account from mnemonic) */
 const signerIndex = 0;
 
 async function main() {
   const networkName = hre.network.name;
-
-  if (!hre.ethers.isAddress(target)) {
-    throw new Error(`Invalid target address: ${target}`);
-  }
-
   const contractAddress = XNS_ROUTES_ADDRESS[networkName];
   if (!contractAddress) {
     throw new Error(
@@ -68,25 +47,16 @@ async function main() {
   console.log(`Signer: ${GREEN}${signer.address}${RESET}`);
   const balance = await hre.ethers.provider.getBalance(signer.address);
   console.log(`Balance: ${GREEN}${formatEther(balance)} ETH${RESET}`);
-  console.log(`xnsName: ${GREEN}${xnsName}${RESET}`);
-  console.log(`chain: ${GREEN}${chain}${RESET}`);
-  console.log(`route: ${GREEN}${route}${RESET}`);
-  console.log(`target: ${GREEN}${target}${RESET}`);
-  console.log(`routeType: ${GREEN}${routeType}${RESET}`);
-  console.log(`activate: ${GREEN}${activate}${RESET}`);
-  console.log(`freeze: ${GREEN}${freeze}${RESET}\n`);
+  console.log(`xnsName: ${GREEN}${xnsName}${RESET}\n`);
 
-  const tx = await routes
-    .connect(signer)
-    .setRoute(xnsName, chain, route, target, routeType, activate, freeze);
+  const tx = await routes.connect(signer).freezeRouteBook(xnsName);
   console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
-  const [t, active, frozen, rt] = await routes.getRouteInfo(xnsName, chain, route);
-  console.log(
-    `${GREEN}✓ Confirmed. getRouteInfo → target=${t} routeType=${rt} isActive=${active} isFrozen=${frozen}${RESET}\n`,
-  );
+  const xnsNameKey = keccak256(toUtf8Bytes(xnsName));
+  const frozen = await routes.routeBookFrozen(xnsNameKey);
+  console.log(`${GREEN}✓ Confirmed. routeBookFrozen=${frozen}${RESET}\n`);
 }
 
 main().catch((error: unknown) => {

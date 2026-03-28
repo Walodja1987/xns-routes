@@ -47,7 +47,7 @@ interface IXNS {
 /// - route freeze is irreversible
 /// - route book freeze is irreversible
 /// - active/inactive can be toggled even after freeze
-/// - setRoute supports create/update + optional immediate freeze in one tx
+/// - setRoute supports create/update + optional freeze in one tx
 contract XNSRoutes {
     error ZeroAddress();
     error InvalidXnsName();
@@ -80,8 +80,8 @@ contract XNSRoutes {
         string indexed chain,
         string route,
         address indexed target,
-        bool isActive,
-        bool isFrozen,
+        bool activate,
+        bool freeze,
         uint32 routeType
     );
 
@@ -115,21 +115,24 @@ contract XNSRoutes {
     /// @param route Action label (XNS label rules), e.g. "transfer-usdt"
     /// @param target Address whose meaning depends on offchain agreement for `routeType`
     /// @param routeType Opaque hint for parsers (semantics offchain)
-    /// @param isActive Initial or updated active flag
-    /// @param freezeImmediately If true, the route is frozen as part of this same tx
+    /// @param activate Initial or updated value for stored `isActive`
+    /// @param freeze If true, set stored `isFrozen` in this same tx (irreversible for that route)
     function setRoute(
         string calldata xnsName,
         string calldata chain,
         string calldata route,
         address target,
         uint32 routeType,
-        bool isActive,
-        bool freezeImmediately
+        bool activate,
+        bool freeze
     ) external {
         _requireXnsNameOwner(xnsName);
 
         if (bytes(chain).length != 0 && !_isValidString(chain)) revert InvalidChain();
         if (!_isValidString(route)) revert InvalidRoute();
+
+        // `address(0)` is reserved for "route does not exist"; for a burn `target`
+        // use a non-zero address (e.g. 0x000000000000000000000000000000000000dEaD).
         if (target == address(0)) revert InvalidTarget();
 
         bytes32 xnsNameKey = keccak256(bytes(xnsName));
@@ -143,44 +146,58 @@ contract XNSRoutes {
 
             record.target = target;
             record.routeType = routeType;
-            record.isActive = isActive;
+            record.isActive = activate;
 
-            if (freezeImmediately) {
+            if (freeze) {
                 record.isFrozen = true;
                 emit RouteFrozen(xnsName, chain, route);
             }
 
             emit RouteSet(xnsName, chain, route, target, record.isActive, record.isFrozen, record.routeType);
         } else {
-            bool frozen = freezeImmediately;
+            _routes[routeKey] = RouteRecord({
+                target: target,
+                routeType: routeType,
+                isActive: activate,
+                isFrozen: freeze
+            });
 
-            _routes[routeKey] = RouteRecord({target: target, routeType: routeType, isActive: isActive, isFrozen: frozen});
-
-            if (frozen) {
+            if (freeze) {
                 emit RouteFrozen(xnsName, chain, route);
             }
 
-            emit RouteSet(xnsName, chain, route, target, isActive, frozen, routeType);
+            emit RouteSet(xnsName, chain, route, target, activate, freeze, routeType);
         }
     }
 
-    /// @notice Activate or deactivate a route.
-    /// @dev Can be called even after route freeze or route book freeze.
-    function setRouteActive(
-        string calldata xnsName,
-        string calldata chain,
-        string calldata route,
-        bool isActive
-    ) external {
+    /// @notice Mark an existing route as active.
+    /// @dev Emits `RouteActivationSet` only when `isActive` changes. Allowed after route or route book freeze.
+    function activateRoute(string calldata xnsName, string calldata chain, string calldata route) external {
         _requireXnsNameOwner(xnsName);
 
         bytes32 routeKey = _routeKey(xnsName, chain, route);
         RouteRecord storage record = _routes[routeKey];
         if (record.target == address(0)) revert RouteNotFound();
 
-        record.isActive = isActive;
+        if (!record.isActive) {
+            record.isActive = true;
+            emit RouteActivationSet(xnsName, chain, route, true);
+        }
+    }
 
-        emit RouteActivationSet(xnsName, chain, route, isActive);
+    /// @notice Mark an existing route as inactive.
+    /// @dev Emits `RouteActivationSet` only when `isActive` changes. Allowed after route or route book freeze.
+    function deactivateRoute(string calldata xnsName, string calldata chain, string calldata route) external {
+        _requireXnsNameOwner(xnsName);
+
+        bytes32 routeKey = _routeKey(xnsName, chain, route);
+        RouteRecord storage record = _routes[routeKey];
+        if (record.target == address(0)) revert RouteNotFound();
+
+        if (record.isActive) {
+            record.isActive = false;
+            emit RouteActivationSet(xnsName, chain, route, false);
+        }
     }
 
     /// @notice Freeze a single route forever.
@@ -208,7 +225,7 @@ contract XNSRoutes {
     /// - no new routes may be added under `xnsName`
     /// - no existing route targets may be changed under `xnsName`
     /// - route activation can still be toggled
-    function freezeRoutes(string calldata xnsName) external {
+    function freezeRouteBook(string calldata xnsName) external {
         _requireXnsNameOwner(xnsName);
 
         bytes32 xnsNameKey = keccak256(bytes(xnsName));

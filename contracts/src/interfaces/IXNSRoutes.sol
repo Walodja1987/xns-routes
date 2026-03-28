@@ -26,8 +26,8 @@ interface IXNSRoutes {
         string indexed chain,
         string route,
         address indexed target,
-        bool isActive,
-        bool isFrozen,
+        bool activate,
+        bool freeze,
         uint32 routeType
     );
 
@@ -52,20 +52,17 @@ interface IXNSRoutes {
         string calldata route,
         address target,
         uint32 routeType,
-        bool isActive,
-        bool freezeImmediately
+        bool activate,
+        bool freeze
     ) external;
 
-    function setRouteActive(
-        string calldata xnsName,
-        string calldata chain,
-        string calldata route,
-        bool isActive
-    ) external;
+    function activateRoute(string calldata xnsName, string calldata chain, string calldata route) external;
+
+    function deactivateRoute(string calldata xnsName, string calldata chain, string calldata route) external;
 
     function freezeRoute(string calldata xnsName, string calldata chain, string calldata route) external;
 
-    function freezeRoutes(string calldata xnsName) external;
+    function freezeRouteBook(string calldata xnsName) external;
 
     function getRoute(string calldata xnsName, string calldata chain, string calldata route)
         external

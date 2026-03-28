@@ -70,8 +70,8 @@ setRoute(
   "register-name", // route
   address(builder),
   0,      // routeType (offchain-defined parser hint)
-  true,   // active
-  true    // freeze immediately
+  true,   // activate → stored isActive
+  true    // freeze → set isFrozen in this tx
 );
 ```
 
@@ -149,7 +149,7 @@ freezeRoute("xns.action", "eth", "register-name");
 ```
 
 * Target can never change again
-* Active flag can still be toggled
+* Active flag can still be toggled (`activateRoute` / `deactivateRoute`)
 
 ---
 
@@ -158,12 +158,12 @@ freezeRoute("xns.action", "eth", "register-name");
 Locks the entire route book under a name:
 
 ```solidity
-freezeRoutes("xns.action");
+freezeRouteBook("xns.action");
 ```
 
 * No new routes can be added
 * No route targets can be changed
-* Activation still allowed
+* Activation still allowed (`activateRoute` / `deactivateRoute`)
 
 > This is useful for publishers who want to finalize their entire action set.
 
@@ -282,9 +282,10 @@ npx hardhat run scripts/examples/<script_name>.ts --network <network_name>
 **Write** (signer must be the address XNS currently resolves for the script’s `xnsName`)
 
 * [scripts/examples/setRoute.ts](scripts/examples/setRoute.ts) — create or update a route
-* [scripts/examples/setRouteActive.ts](scripts/examples/setRouteActive.ts) — toggle `isActive`
+* [scripts/examples/activateRoute.ts](scripts/examples/activateRoute.ts) — set `isActive` true (emit only on change)
+* [scripts/examples/deactivateRoute.ts](scripts/examples/deactivateRoute.ts) — set `isActive` false (emit only on change)
 * [scripts/examples/freezeRoute.ts](scripts/examples/freezeRoute.ts) — freeze one route forever
-* [scripts/examples/freezeRoutes.ts](scripts/examples/freezeRoutes.ts) — route book freeze for a name
+* [scripts/examples/freezeRouteBook.ts](scripts/examples/freezeRouteBook.ts) — route book freeze for a name
 
 Each script has a `USER INPUTS` section at the top. Fill in [constants/addresses.ts](constants/addresses.ts) for `XNS_ROUTES_ADDRESS` on your network before running.
 

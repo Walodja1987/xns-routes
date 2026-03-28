@@ -1,13 +1,13 @@
 /**
- * Permanently base-freeze all routes under a name (no new routes, no target updates).
+ * Mark an existing route as inactive. Emits `RouteActivationSet` only if `isActive` changes.
  * Caller must be the address XNS currently resolves for `xnsName`.
- * Route activation may still be toggled.
+ * Allowed even after route or route book freeze.
  *
  * USAGE:
- * `npx hardhat run scripts/examples/freezeRoutes.ts --network <network_name>`
+ * `npx hardhat run scripts/examples/deactivateRoute.ts --network <network_name>`
  *
  * EXAMPLE:
- * `npx hardhat run scripts/examples/freezeRoutes.ts --network sepolia`
+ * `npx hardhat run scripts/examples/deactivateRoute.ts --network sepolia`
  *
  * REQUIRED SETUP:
  * - MNEMONIC, network RPC (see docs/DEV_NOTES.md)
@@ -15,7 +15,7 @@
  */
 
 import hre from "hardhat";
-import { formatEther, keccak256, toUtf8Bytes } from "ethers";
+import { formatEther } from "ethers";
 import { XNS_ROUTES_ADDRESS } from "../../constants/addresses";
 
 const RESET = "\x1b[0m";
@@ -27,6 +27,8 @@ const RED = "\x1b[31m";
 //////////////////////////////////////////////////////////////*/
 
 const xnsName = "xns.action";
+const chain = "eth";
+const route = "register-name";
 const signerIndex = 0;
 
 async function main() {
@@ -47,16 +49,17 @@ async function main() {
   console.log(`Signer: ${GREEN}${signer.address}${RESET}`);
   const balance = await hre.ethers.provider.getBalance(signer.address);
   console.log(`Balance: ${GREEN}${formatEther(balance)} ETH${RESET}`);
-  console.log(`xnsName: ${GREEN}${xnsName}${RESET}\n`);
+  console.log(`xnsName: ${GREEN}${xnsName}${RESET}`);
+  console.log(`chain: ${GREEN}${chain}${RESET}`);
+  console.log(`route: ${GREEN}${route}${RESET}\n`);
 
-  const tx = await routes.connect(signer).freezeRoutes(xnsName);
+  const tx = await routes.connect(signer).deactivateRoute(xnsName, chain, route);
   console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
-  const xnsNameKey = keccak256(toUtf8Bytes(xnsName));
-  const frozen = await routes.routeBookFrozen(xnsNameKey);
-  console.log(`${GREEN}✓ Confirmed. routeBookFrozen=${frozen}${RESET}\n`);
+  const [, active] = await routes.getRouteInfo(xnsName, chain, route);
+  console.log(`${GREEN}✓ Confirmed. isActive=${active}${RESET}\n`);
 }
 
 main().catch((error: unknown) => {

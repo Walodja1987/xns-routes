@@ -41,7 +41,7 @@ Semantics:
 - route freeze is irreversible
 - route book freeze is irreversible
 - active/inactive can be toggled even after freeze
-- setRoute supports create/update + optional immediate freeze in one tx
+- setRoute supports create/update + optional freeze in one tx
 
 
 
@@ -56,7 +56,7 @@ Semantics:
 Create or update a route under `(xnsName, chain, route)`.
 
 ```solidity
-function setRoute(string xnsName, string chain, string route, address target, uint32 routeType, bool isActive, bool freezeImmediately) external
+function setRoute(string xnsName, string chain, string route, address target, uint32 routeType, bool activate, bool freeze) external
 ```
 
 
@@ -69,20 +69,33 @@ function setRoute(string xnsName, string chain, string route, address target, ui
 | route | string | Action label (XNS label rules), e.g. "transfer-usdt" |
 | target | address | Address whose meaning depends on offchain agreement for `routeType` |
 | routeType | uint32 | Opaque hint for parsers (semantics offchain) |
-| isActive | bool | Initial or updated active flag |
-| freezeImmediately | bool | If true, the route is frozen as part of this same tx |
+| activate | bool | Initial or updated value for stored `isActive` |
+| freeze | bool | If true, set stored `isFrozen` in this same tx (irreversible for that route) |
 
 
-### setRouteActive
+### activateRoute
 
 
-Activate or deactivate a route.
+Mark an existing route as active.
 
 ```solidity
-function setRouteActive(string xnsName, string chain, string route, bool isActive) external
+function activateRoute(string xnsName, string chain, string route) external
 ```
 
-_Can be called even after route freeze or route book freeze._
+_Emits `RouteActivationSet` only when `isActive` changes. Allowed after route or route book freeze._
+
+
+
+### deactivateRoute
+
+
+Mark an existing route as inactive.
+
+```solidity
+function deactivateRoute(string xnsName, string chain, string route) external
+```
+
+_Emits `RouteActivationSet` only when `isActive` changes. Allowed after route or route book freeze._
 
 
 
@@ -100,13 +113,13 @@ Active/inactive can still be toggled._
 
 
 
-### freezeRoutes
+### freezeRouteBook
 
 
 Freeze the entire route book under an XNS name forever.
 
 ```solidity
-function freezeRoutes(string xnsName) external
+function freezeRouteBook(string xnsName) external
 ```
 
 _After this:
@@ -161,7 +174,7 @@ function routeExists(string xnsName, string chain, string route) external view r
 
 
 ```solidity
-event RouteSet(string xnsName, string chain, string route, address target, bool isActive, bool isFrozen, uint32 routeType)
+event RouteSet(string xnsName, string chain, string route, address target, bool activate, bool freeze, uint32 routeType)
 ```
 
 _At most three `indexed` fields (EVM limit). `route` is non-indexed for filtering via calldata/logs._

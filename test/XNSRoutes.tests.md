@@ -28,13 +28,13 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 #### Functionality
 
-- Name owner can **create** a route for `(xnsName, chain, route)` with the given `target`, `routeType`, `isActive`, and `isFrozen` implied by `freezeImmediately`.
-- Name owner can **update** `target`, `routeType`, and `isActive` while the entry is not frozen and the route book for that XNS name is not frozen.
-- With `freezeImmediately == true`, should set `isFrozen` and emit `RouteFrozen` (in addition to `RouteSet`).
+- Name owner can **create** a route for `(xnsName, chain, route)` with the given `target`, `routeType`, stored `isActive` from `activate`, and stored `isFrozen` from `freeze`.
+- Name owner can **update** `target`, `routeType`, and `isActive` (via `activate`) while the entry is not frozen and the route book for that XNS name is not frozen.
+- With `freeze == true`, should set `isFrozen` and emit `RouteFrozen` (in addition to `RouteSet`).
 
 #### Events
 
-- Should emit `RouteSet` with `xnsName`, `chain`, `route`, `target`, `isActive`, final `isFrozen`, and `routeType` (three indexed fields max: `xnsName`, `chain`, `target`; `route` and `routeType` are non-indexed).
+- Should emit `RouteSet` with `xnsName`, `chain`, `route`, `target`, `activate`, `freeze`, and `routeType` (payload: final stored `isActive` / `isFrozen` on create; on update, current `record.isActive` / `record.isFrozen`). Three indexed fields max: `xnsName`, `chain`, `target`; `route` and `routeType` are non-indexed.
 - Should emit `RouteFrozen` with `xnsName`, `chain`, `route` when the route becomes frozen in that transaction.
 
 #### Reverts
@@ -45,21 +45,22 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 - Empty `chain` is allowed (chain-agnostic route; human path `xnsName/route/...`) and does not run the chain label check.
 - Should revert with `InvalidRoute` when `route` fails the same rules.
 - Should revert with `InvalidTarget` when `target` is zero.
-- Should revert with `RouteBookFrozen` when `freezeRoutes` has already been called for that `xnsName`.
+- Should revert with `RouteBookFrozen` when `freezeRouteBook` has already been called for that `xnsName`.
 - Should revert with `CannotUpdateFrozenRoute` when updating a route that is already frozen (including changing only `routeType` or only `target`).
 
 ---
 
-## `setRouteActive`
+## `activateRoute` / `deactivateRoute`
 
 #### Functionality
 
-- Name owner can toggle `isActive` for an existing `(xnsName, chain, route)`.
+- Name owner can set `isActive` to true / false for an existing `(xnsName, chain, route)`.
 - Should still succeed when the **route** is frozen or the **route book** is frozen (only target updates are blocked).
+- Like `freezeRoute`, should emit `RouteActivationSet` **only when `isActive` actually changes** (second `deactivateRoute` or `activateRoute` when already in that state is a no-op for events).
 
 #### Events
 
-- Should emit `RouteActivationSet` with `xnsName`, `chain`, `route`, and `isActive`.
+- Should emit `RouteActivationSet` with `xnsName`, `chain`, `route`, and `isActive` when transitioning.
 
 #### Reverts
 
@@ -86,12 +87,12 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 ---
 
-## `freezeRoutes`
+## `freezeRouteBook`
 
 #### Functionality
 
 - Name owner can set `routeBookFrozen[keccak256(bytes(xnsName))]` permanently.
-- After route book freeze, `setRoute` must revert for that `xnsName` (new routes and target changes), while `setRouteActive` may still run.
+- After route book freeze, `setRoute` must revert for that `xnsName` (new routes and target changes), while `activateRoute` / `deactivateRoute` may still run.
 
 #### Events
 
@@ -110,7 +111,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 - `routeExists` returns `false` before a route is created and `true` after.
 - `getRoute` returns the stored `target` when the route exists.
-- `getRouteInfo` returns `(target, isActive, isFrozen, routeType)` consistent with `setRoute` / `setRouteActive` / `freezeRoute`.
+- `getRouteInfo` returns `(target, isActive, isFrozen, routeType)` consistent with `setRoute` / `activateRoute` / `deactivateRoute` / `freezeRoute`.
 
 #### Reverts
 
@@ -122,7 +123,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 #### Functionality
 
-- For a given `xnsName`, `routeBookFrozen(keccak256(bytes(xnsName)))` matches whether `freezeRoutes` was applied.
+- For a given `xnsName`, `routeBookFrozen(keccak256(bytes(xnsName)))` matches whether `freezeRouteBook` was applied.
 
 ---
 

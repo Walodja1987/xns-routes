@@ -84,7 +84,7 @@ describe("XNSRoutes", function () {
       expect(routeType).to.equal(RT0);
     });
 
-    it("Should emit RouteFrozen when freezeImmediately is true on create", async function () {
+    it("Should emit RouteFrozen when freeze is true on create", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
 
       await expect(
@@ -123,7 +123,7 @@ describe("XNSRoutes", function () {
       expect(routeType).to.equal(1);
     });
 
-    it("Should emit RouteFrozen when freezeImmediately on update", async function () {
+    it("Should emit RouteFrozen when freeze is true on update", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes.connect(owner).setRoute(XNS_NAME, CHAIN, ROUTE, buildTarget, RT0, true, false);
 
@@ -212,9 +212,9 @@ describe("XNSRoutes", function () {
       ).to.be.revertedWithCustomError(routes, "InvalidTarget");
     });
 
-    it("Should revert with RouteBookFrozen after freezeRoutes", async function () {
+    it("Should revert with RouteBookFrozen after freezeRouteBook", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
-      await routes.connect(owner).freezeRoutes(XNS_NAME);
+      await routes.connect(owner).freezeRouteBook(XNS_NAME);
 
       await expect(
         routes.connect(owner).setRoute(XNS_NAME, CHAIN, ROUTE, buildTarget, RT0, true, false),
@@ -247,23 +247,58 @@ describe("XNSRoutes", function () {
     });
   });
 
-  describe("setRouteActive", function () {
-    it("Should toggle isActive and emit RouteActivationSet", async function () {
+  describe("activateRoute and deactivateRoute", function () {
+    it("Should deactivate, emit RouteActivationSet, and set isActive false", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes.connect(owner).setRoute(XNS_NAME, CHAIN, ROUTE, buildTarget, RT0, true, false);
 
-      await expect(routes.connect(owner).setRouteActive(XNS_NAME, CHAIN, ROUTE, false))
+      await expect(routes.connect(owner).deactivateRoute(XNS_NAME, CHAIN, ROUTE))
         .to.emit(routes, "RouteActivationSet")
         .withArgs(XNS_NAME, CHAIN, ROUTE, false);
 
       expect((await routes.getRouteInfo(XNS_NAME, CHAIN, ROUTE))[1]).to.equal(false);
     });
 
+    it("Should activate after deactivate and emit RouteActivationSet", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes.connect(owner).setRoute(XNS_NAME, CHAIN, ROUTE, buildTarget, RT0, true, false);
+      await routes.connect(owner).deactivateRoute(XNS_NAME, CHAIN, ROUTE);
+
+      await expect(routes.connect(owner).activateRoute(XNS_NAME, CHAIN, ROUTE))
+        .to.emit(routes, "RouteActivationSet")
+        .withArgs(XNS_NAME, CHAIN, ROUTE, true);
+
+      expect((await routes.getRouteInfo(XNS_NAME, CHAIN, ROUTE))[1]).to.equal(true);
+    });
+
+    it("Should not emit RouteActivationSet when deactivate called twice", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes.connect(owner).setRoute(XNS_NAME, CHAIN, ROUTE, buildTarget, RT0, true, false);
+      await routes.connect(owner).deactivateRoute(XNS_NAME, CHAIN, ROUTE);
+
+      const filter = routes.filters.RouteActivationSet();
+      const before = (await routes.queryFilter(filter)).length;
+      await routes.connect(owner).deactivateRoute(XNS_NAME, CHAIN, ROUTE);
+      const after = (await routes.queryFilter(filter)).length;
+      expect(after).to.equal(before);
+    });
+
+    it("Should not emit RouteActivationSet when activate called while already active", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes.connect(owner).setRoute(XNS_NAME, CHAIN, ROUTE, buildTarget, RT0, true, false);
+
+      const filter = routes.filters.RouteActivationSet();
+      const before = (await routes.queryFilter(filter)).length;
+      await routes.connect(owner).activateRoute(XNS_NAME, CHAIN, ROUTE);
+      const after = (await routes.queryFilter(filter)).length;
+      expect(after).to.equal(before);
+    });
+
     it("Should succeed after route freeze", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes.connect(owner).setRoute(XNS_NAME, CHAIN, ROUTE, buildTarget, RT0, true, true);
 
-      await expect(routes.connect(owner).setRouteActive(XNS_NAME, CHAIN, ROUTE, false)).to.emit(
+      await expect(routes.connect(owner).deactivateRoute(XNS_NAME, CHAIN, ROUTE)).to.emit(
         routes,
         "RouteActivationSet",
       );
@@ -273,9 +308,9 @@ describe("XNSRoutes", function () {
     it("Should succeed after route book freeze", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes.connect(owner).setRoute(XNS_NAME, CHAIN, ROUTE, buildTarget, RT0, true, false);
-      await routes.connect(owner).freezeRoutes(XNS_NAME);
+      await routes.connect(owner).freezeRouteBook(XNS_NAME);
 
-      await expect(routes.connect(owner).setRouteActive(XNS_NAME, CHAIN, ROUTE, false)).to.emit(
+      await expect(routes.connect(owner).deactivateRoute(XNS_NAME, CHAIN, ROUTE)).to.emit(
         routes,
         "RouteActivationSet",
       );
@@ -286,7 +321,7 @@ describe("XNSRoutes", function () {
       await routes.connect(owner).setRoute(XNS_NAME, CHAIN, ROUTE, buildTarget, RT0, true, false);
 
       await expect(
-        routes.connect(other).setRouteActive(XNS_NAME, CHAIN, ROUTE, false),
+        routes.connect(other).deactivateRoute(XNS_NAME, CHAIN, ROUTE),
       ).to.be.revertedWithCustomError(routes, "NotXnsNameOwner");
     });
 
@@ -294,7 +329,7 @@ describe("XNSRoutes", function () {
       const { routes, owner } = await loadFixture(deployFixture);
 
       await expect(
-        routes.connect(owner).setRouteActive(XNS_NAME, CHAIN, "missing", false),
+        routes.connect(owner).deactivateRoute(XNS_NAME, CHAIN, "missing"),
       ).to.be.revertedWithCustomError(routes, "RouteNotFound");
     });
   });
@@ -344,12 +379,12 @@ describe("XNSRoutes", function () {
     });
   });
 
-  describe("freezeRoutes", function () {
+  describe("freezeRouteBook", function () {
     it("Should set routeBookFrozen and emit RouteBookFrozenForName", async function () {
       const { routes, owner } = await loadFixture(deployFixture);
       const xnsNameKey = ethers.keccak256(ethers.toUtf8Bytes(XNS_NAME));
 
-      await expect(routes.connect(owner).freezeRoutes(XNS_NAME)).to.emit(
+      await expect(routes.connect(owner).freezeRouteBook(XNS_NAME)).to.emit(
         routes,
         "RouteBookFrozenForName",
       );
@@ -357,16 +392,16 @@ describe("XNSRoutes", function () {
       expect(await routes.routeBookFrozen(xnsNameKey)).to.equal(true);
     });
 
-    it("Should block setRoute but allow setRouteActive", async function () {
+    it("Should block setRoute but allow deactivateRoute", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes.connect(owner).setRoute(XNS_NAME, CHAIN, ROUTE, buildTarget, RT0, true, false);
-      await routes.connect(owner).freezeRoutes(XNS_NAME);
+      await routes.connect(owner).freezeRouteBook(XNS_NAME);
 
       await expect(
         routes.connect(owner).setRoute(XNS_NAME, CHAIN, "new-one", buildTarget, RT0, true, false),
       ).to.be.revertedWithCustomError(routes, "RouteBookFrozen");
 
-      await expect(routes.connect(owner).setRouteActive(XNS_NAME, CHAIN, ROUTE, false)).to.emit(
+      await expect(routes.connect(owner).deactivateRoute(XNS_NAME, CHAIN, ROUTE)).to.emit(
         routes,
         "RouteActivationSet",
       );
@@ -374,11 +409,11 @@ describe("XNSRoutes", function () {
 
     it("Should not emit RouteBookFrozenForName on second call", async function () {
       const { routes, owner } = await loadFixture(deployFixture);
-      await routes.connect(owner).freezeRoutes(XNS_NAME);
+      await routes.connect(owner).freezeRouteBook(XNS_NAME);
 
       const filter = routes.filters.RouteBookFrozenForName();
       const before = (await routes.queryFilter(filter)).length;
-      await routes.connect(owner).freezeRoutes(XNS_NAME);
+      await routes.connect(owner).freezeRouteBook(XNS_NAME);
       const after = (await routes.queryFilter(filter)).length;
       expect(after).to.equal(before);
     });
@@ -386,7 +421,7 @@ describe("XNSRoutes", function () {
     it("Should revert with NotXnsNameOwner", async function () {
       const { routes, other } = await loadFixture(deployFixture);
 
-      await expect(routes.connect(other).freezeRoutes(XNS_NAME)).to.be.revertedWithCustomError(
+      await expect(routes.connect(other).freezeRouteBook(XNS_NAME)).to.be.revertedWithCustomError(
         routes,
         "NotXnsNameOwner",
       );
