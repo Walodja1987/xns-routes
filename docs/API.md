@@ -161,6 +161,7 @@ function routeExists(string xnsName, string chain, string route) external view r
 function _requireXnsNameOwner(string xnsName) internal view
 ```
 
+_XNS `getAddress` returns zero for empty `fullName` and for unregistered names._
 
 
 

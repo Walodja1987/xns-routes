@@ -40,8 +40,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 #### Reverts
 
 - Should revert with `NotXnsNameOwner` when `msg.sender` is not `XNS.getAddress(xnsName)`.
-- Should revert with `InvalidXnsName` when `xnsName` is empty.
-- Should revert with `InvalidXnsName` when `XNS.getAddress(xnsName)` is zero.
+- Should revert with `InvalidXnsName` when `XNS.getAddress(xnsName)` is zero (empty `xnsName` is included: XNS returns zero for `len == 0`).
 - Should revert with `InvalidChain` when non-empty `chain` fails XNS label rules (`_isValidString` → `isValidLabelOrNamespace`).
 - Empty `chain` is allowed (chain-agnostic route; human path `xnsName/:route/...`) and does not run the chain label check.
 - Should revert with `InvalidRoute` when `route` fails the same rules.

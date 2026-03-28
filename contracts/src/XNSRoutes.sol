@@ -254,9 +254,8 @@ contract XNSRoutes {
         return _routes[_routeKey(xnsName, chain, route)].target != address(0);
     }
 
+    /// @dev XNS `getAddress` returns zero for empty `fullName` and for unregistered names.
     function _requireXnsNameOwner(string calldata xnsName) internal view {
-        if (bytes(xnsName).length == 0) revert InvalidXnsName();
-
         address xnsNameOwner = XNS.getAddress(xnsName);
         if (xnsNameOwner == address(0)) revert InvalidXnsName();
         if (msg.sender != xnsNameOwner) revert NotXnsNameOwner();
