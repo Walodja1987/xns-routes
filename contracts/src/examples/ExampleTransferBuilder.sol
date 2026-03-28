@@ -22,7 +22,7 @@ contract ExampleTransferBuilder is IXNSRouteBuilderV1 {
     }
 
     function getParamSpecs() external pure returns (ParamSpec[] memory specs) {
-        specs = new ParamSpec;
+        specs = new ParamSpec[](2);
         specs[0] = ParamSpec({name: "to", paramType: "address"});
         specs[1] = ParamSpec({name: "amount", paramType: "uint256"});
     }

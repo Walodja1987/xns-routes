@@ -69,6 +69,7 @@ setRoute(
   "eth",           // chain
   "register-name", // route
   address(builder),
+  0,      // routeType (offchain-defined parser hint)
   true,   // active
   true    // freeze immediately
 );
@@ -275,7 +276,7 @@ npx hardhat run scripts/examples/<script_name>.ts --network <network_name>
 **Read-only**
 
 * [scripts/examples/routeExists.ts](scripts/examples/routeExists.ts) — check if a route is registered
-* [scripts/examples/getRouteInfo.ts](scripts/examples/getRouteInfo.ts) — read target, `isActive`, `isFrozen`
+* [scripts/examples/getRouteInfo.ts](scripts/examples/getRouteInfo.ts) — read target, `isActive`, `isFrozen`, `routeType`
 * [scripts/examples/isRouteBookFrozen.ts](scripts/examples/isRouteBookFrozen.ts) — route book freeze flag for a name
 
 **Write** (signer must be the address XNS currently resolves for the script’s `xnsName`)
@@ -283,7 +284,7 @@ npx hardhat run scripts/examples/<script_name>.ts --network <network_name>
 * [scripts/examples/setRoute.ts](scripts/examples/setRoute.ts) — create or update a route
 * [scripts/examples/setRouteActive.ts](scripts/examples/setRouteActive.ts) — toggle `isActive`
 * [scripts/examples/freezeRoute.ts](scripts/examples/freezeRoute.ts) — freeze one route forever
-* [scripts/examples/freezeRoutes.ts](scripts/examples/freezeRoutes.ts) — base-freeze all routes under a name
+* [scripts/examples/freezeRoutes.ts](scripts/examples/freezeRoutes.ts) — route book freeze for a name
 
 Each script has a `USER INPUTS` section at the top. Fill in [constants/addresses.ts](constants/addresses.ts) for `XNS_ROUTES_ADDRESS` on your network before running.
 

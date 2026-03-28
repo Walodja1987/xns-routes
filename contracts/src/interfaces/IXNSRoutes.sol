@@ -16,6 +16,7 @@ interface IXNSRoutes {
 
     struct RouteRecord {
         address target;
+        uint32 routeType;
         bool isActive;
         bool isFrozen;
         bool exists;
@@ -27,7 +28,8 @@ interface IXNSRoutes {
         string route,
         address indexed target,
         bool isActive,
-        bool isFrozen
+        bool isFrozen,
+        uint32 routeType
     );
 
     event RouteActivationSet(
@@ -50,6 +52,7 @@ interface IXNSRoutes {
         string calldata chain,
         string calldata route,
         address target,
+        uint32 routeType,
         bool isActive,
         bool freezeImmediately
     ) external;
@@ -73,7 +76,7 @@ interface IXNSRoutes {
     function getRouteInfo(string calldata xnsName, string calldata chain, string calldata route)
         external
         view
-        returns (address target, bool isActive, bool isFrozen);
+        returns (address target, bool isActive, bool isFrozen, uint32 routeType);
 
     function routeExists(string calldata xnsName, string calldata chain, string calldata route)
         external

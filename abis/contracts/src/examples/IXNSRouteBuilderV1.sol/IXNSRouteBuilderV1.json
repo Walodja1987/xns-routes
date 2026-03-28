@@ -1,0 +1,6 @@
+[
+  "function build() view returns (uint256, address, uint256, bytes)",
+  "function getParamSpecs() pure returns (tuple(string,string)[])",
+  "function suggestedRouteName() pure returns (string)",
+  "function title() pure returns (string)"
+]

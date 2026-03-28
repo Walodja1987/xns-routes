@@ -22,15 +22,17 @@ interface IXNS {
 ///
 /// Storage key: `keccak256(abi.encode(xnsName, chain, route))`.
 ///
-/// A route points to a build contract that returns tx calldata.
+/// A route points to a `target` address; `routeType` is an opaque hint (e.g. how parsers interpret
+/// `target` or its calldata output). Meaning of type ids is agreed offchain; the contract stores any `uint32`.
 ///
 /// Ownership model:
 /// - only the current address resolved by XNS for `xnsName` may manage routes under that name
 ///
 /// Route state model:
-/// - target: build contract address
+/// - target: address (e.g. builder contract or plain contract depending on `routeType`)
+/// - routeType: parser hint; semantics are offchain (e.g. 0 = EVM address, 1 = tx calldata builder, …)
 /// - isActive: whether wallets/apps should treat the route as usable
-/// - isFrozen: whether the target pointer can still be changed
+/// - isFrozen: whether `target` and `routeType` can still be changed
 ///
 /// Route book freeze model (`routeBookFrozen` keyed by `keccak256(bytes(xnsName))`):
 /// - no new routes may be added under that `xnsName`
@@ -38,7 +40,7 @@ interface IXNS {
 /// - route activation can still be toggled even after route book freeze
 ///
 /// Semantics:
-/// - while the route is not frozen and the route book for that XNS name is not frozen, owner may update the target
+/// - while the route is not frozen and the route book for that XNS name is not frozen, owner may update `target` and `routeType`
 /// - route freeze is irreversible
 /// - route book freeze is irreversible
 /// - active/inactive can be toggled even after freeze
@@ -56,6 +58,7 @@ contract XNSRoutes {
 
     struct RouteRecord {
         address target;
+        uint32 routeType;
         bool isActive;
         bool isFrozen;
         bool exists;
@@ -76,7 +79,8 @@ contract XNSRoutes {
         string route,
         address indexed target,
         bool isActive,
-        bool isFrozen
+        bool isFrozen,
+        uint32 routeType
     );
 
     event RouteActivationSet(
@@ -107,7 +111,8 @@ contract XNSRoutes {
     /// @param xnsName The XNS name that owns the route space, e.g. "xns.action"
     /// @param chain Chain key (XNS label rules), e.g. "eth" or "137-poly"
     /// @param route Action label (XNS label rules), e.g. "transfer-usdt"
-    /// @param target The build contract address
+    /// @param target Address whose meaning depends on offchain agreement for `routeType`
+    /// @param routeType Opaque hint for parsers (semantics offchain)
     /// @param isActive Initial or updated active flag
     /// @param freezeImmediately If true, the route is frozen as part of this same tx
     function setRoute(
@@ -115,6 +120,7 @@ contract XNSRoutes {
         string calldata chain,
         string calldata route,
         address target,
+        uint32 routeType,
         bool isActive,
         bool freezeImmediately
     ) external {
@@ -134,6 +140,7 @@ contract XNSRoutes {
             if (record.isFrozen) revert CannotUpdateFrozenRoute();
 
             record.target = target;
+            record.routeType = routeType;
             record.isActive = isActive;
 
             if (freezeImmediately) {
@@ -141,12 +148,13 @@ contract XNSRoutes {
                 emit RouteFrozen(xnsName, chain, route);
             }
 
-            emit RouteSet(xnsName, chain, route, target, record.isActive, record.isFrozen);
+            emit RouteSet(xnsName, chain, route, target, record.isActive, record.isFrozen, record.routeType);
         } else {
             bool frozen = freezeImmediately;
 
             _routes[routeKey] = RouteRecord({
                 target: target,
+                routeType: routeType,
                 isActive: isActive,
                 isFrozen: frozen,
                 exists: true
@@ -156,7 +164,7 @@ contract XNSRoutes {
                 emit RouteFrozen(xnsName, chain, route);
             }
 
-            emit RouteSet(xnsName, chain, route, target, isActive, frozen);
+            emit RouteSet(xnsName, chain, route, target, isActive, frozen, routeType);
         }
     }
 
@@ -180,7 +188,7 @@ contract XNSRoutes {
     }
 
     /// @notice Freeze a single route forever.
-    /// @dev After freezing, the route target can never be changed again.
+    /// @dev After freezing, `target` and `routeType` can never be changed again.
     /// Active/inactive can still be toggled.
     function freezeRoute(
         string calldata xnsName,
@@ -233,12 +241,12 @@ contract XNSRoutes {
     )
         external
         view
-        returns (address target, bool isActive, bool isFrozen)
+        returns (address target, bool isActive, bool isFrozen, uint32 routeType)
     {
         RouteRecord storage record = _routes[_routeKey(xnsName, chain, route)];
         if (!record.exists) revert RouteNotFound();
 
-        return (record.target, record.isActive, record.isFrozen);
+        return (record.target, record.isActive, record.isFrozen, record.routeType);
     }
 
     /// @notice Returns whether a route exists.

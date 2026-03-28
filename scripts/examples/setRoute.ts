@@ -33,6 +33,9 @@ const route = "register-name";
 /** Build contract address for this route */
 const target = "0x0000000000000000000000000000000000000001";
 
+/** Parser hint; semantics are offchain (e.g. 0 = plain address, 1 = calldata builder) */
+const routeType = 0;
+
 const isActive = true;
 
 /** If true, route target cannot be changed after this tx */
@@ -68,19 +71,20 @@ async function main() {
   console.log(`chain: ${GREEN}${chain}${RESET}`);
   console.log(`route: ${GREEN}${route}${RESET}`);
   console.log(`target: ${GREEN}${target}${RESET}`);
+  console.log(`routeType: ${GREEN}${routeType}${RESET}`);
   console.log(`isActive: ${GREEN}${isActive}${RESET}`);
   console.log(`freezeImmediately: ${GREEN}${freezeImmediately}${RESET}\n`);
 
   const tx = await routes
     .connect(signer)
-    .setRoute(xnsName, chain, route, target, isActive, freezeImmediately);
+    .setRoute(xnsName, chain, route, target, routeType, isActive, freezeImmediately);
   console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
-  const [t, active, frozen] = await routes.getRouteInfo(xnsName, chain, route);
+  const [t, active, frozen, rt] = await routes.getRouteInfo(xnsName, chain, route);
   console.log(
-    `${GREEN}✓ Confirmed. getRouteInfo → target=${t} isActive=${active} isFrozen=${frozen}${RESET}\n`,
+    `${GREEN}✓ Confirmed. getRouteInfo → target=${t} routeType=${rt} isActive=${active} isFrozen=${frozen}${RESET}\n`,
   );
 }
 

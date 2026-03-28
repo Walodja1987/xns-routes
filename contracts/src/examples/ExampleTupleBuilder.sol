@@ -27,7 +27,7 @@ contract ExampleTupleBuilder is IXNSRouteBuilderV1 {
     }
 
     function getParamSpecs() external pure returns (ParamSpec[] memory specs) {
-        specs = new ParamSpec;
+        specs = new ParamSpec[](1);
         specs[0] = ParamSpec({
             name: "payment",
             paramType: "(address,uint256)"

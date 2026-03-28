@@ -16,15 +16,17 @@ Only a single `:` appears in the action segment, between `chain` and `route`.
 
 Storage key: `keccak256(abi.encode(xnsName, chain, route))`.
 
-A route points to a build contract that returns tx calldata.
+A route points to a `target` address; `routeType` is an opaque hint (e.g. how parsers interpret
+`target` or its calldata output). Meaning of type ids is agreed offchain; the contract stores any `uint32`.
 
 Ownership model:
 - only the current address resolved by XNS for `xnsName` may manage routes under that name
 
 Route state model:
-- target: build contract address
+- target: address (e.g. builder contract or plain contract depending on `routeType`)
+- routeType: parser hint; semantics are offchain (e.g. 0 = EVM address, 1 = tx calldata builder, …)
 - isActive: whether wallets/apps should treat the route as usable
-- isFrozen: whether the target pointer can still be changed
+- isFrozen: whether `target` and `routeType` can still be changed
 
 Route book freeze model (`routeBookFrozen` keyed by `keccak256(bytes(xnsName))`):
 - no new routes may be added under that `xnsName`
@@ -32,7 +34,7 @@ Route book freeze model (`routeBookFrozen` keyed by `keccak256(bytes(xnsName))`)
 - route activation can still be toggled even after route book freeze
 
 Semantics:
-- while the route is not frozen and the route book for that XNS name is not frozen, owner may update the target
+- while the route is not frozen and the route book for that XNS name is not frozen, owner may update `target` and `routeType`
 - route freeze is irreversible
 - route book freeze is irreversible
 - active/inactive can be toggled even after freeze
@@ -51,7 +53,7 @@ Semantics:
 Create or update a route under `(xnsName, chain, route)`.
 
 ```solidity
-function setRoute(string xnsName, string chain, string route, address target, bool isActive, bool freezeImmediately) external
+function setRoute(string xnsName, string chain, string route, address target, uint32 routeType, bool isActive, bool freezeImmediately) external
 ```
 
 
@@ -62,7 +64,8 @@ function setRoute(string xnsName, string chain, string route, address target, bo
 | xnsName | string | The XNS name that owns the route space, e.g. "xns.action" |
 | chain | string | Chain key (XNS label rules), e.g. "eth" or "137-poly" |
 | route | string | Action label (XNS label rules), e.g. "transfer-usdt" |
-| target | address | The build contract address |
+| target | address | Address whose meaning depends on offchain agreement for `routeType` |
+| routeType | uint32 | Opaque hint for parsers (semantics offchain) |
 | isActive | bool | Initial or updated active flag |
 | freezeImmediately | bool | If true, the route is frozen as part of this same tx |
 
@@ -89,7 +92,7 @@ Freeze a single route forever.
 function freezeRoute(string xnsName, string chain, string route) external
 ```
 
-_After freezing, the route target can never be changed again.
+_After freezing, `target` and `routeType` can never be changed again.
 Active/inactive can still be toggled._
 
 
@@ -128,7 +131,7 @@ function getRoute(string xnsName, string chain, string route) external view retu
 Return full route metadata. Reverts if not found.
 
 ```solidity
-function getRouteInfo(string xnsName, string chain, string route) external view returns (address target, bool isActive, bool isFrozen)
+function getRouteInfo(string xnsName, string chain, string route) external view returns (address target, bool isActive, bool isFrozen, uint32 routeType)
 ```
 
 
@@ -193,7 +196,7 @@ Used for both `chain` and `route` arguments; callers choose `InvalidChain` vs `I
 
 
 ```solidity
-event RouteSet(string xnsName, string chain, string route, address target, bool isActive, bool isFrozen)
+event RouteSet(string xnsName, string chain, string route, address target, bool isActive, bool isFrozen, uint32 routeType)
 ```
 
 _At most three `indexed` fields (EVM limit). `route` is non-indexed for filtering via calldata/logs._
@@ -398,6 +401,7 @@ mapping(bytes32 => bool) routeBookFrozen
 ```solidity
 struct RouteRecord {
   address target;
+  uint32 routeType;
   bool isActive;
   bool isFrozen;
   bool exists;
