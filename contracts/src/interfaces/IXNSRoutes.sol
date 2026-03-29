@@ -23,13 +23,23 @@ interface IXNSRoutes {
         bool isFrozen;
     }
 
-    event RouteSet(
+    event RouteCreated(
         string xnsName,
         string routePrefix,
         string route,
         address indexed target,
-        bool activate,
-        bool freeze,
+        bool isActive,
+        bool isFrozen,
+        uint32 routeType
+    );
+
+    event RouteUpdated(
+        string xnsName,
+        string routePrefix,
+        string route,
+        address indexed target,
+        bool isActive,
+        bool isFrozen,
         uint32 routeType
     );
 

@@ -1,5 +1,5 @@
 /**
- * Update the build target for an existing route. Emits `RouteSet` only if the target changes.
+ * Update the build target for an existing route. Emits `RouteUpdated` only if the target changes.
  * Caller must be the address XNS currently resolves for `xnsName`.
  * Reverts if the route or route book is frozen, or if `newTarget` is zero.
  *

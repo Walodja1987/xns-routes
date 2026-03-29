@@ -30,11 +30,11 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 - Name owner can **create** a route for `(xnsName, routePrefix, route)` with the given `target`, `routeType`, stored `isActive` from `activate`, and stored `isFrozen` from `freeze`.
 - Second `createRoute` for the same key should revert with `RouteAlreadyExists`.
-- With `freeze == true`, should set `isFrozen` and emit `RouteFrozen` (in addition to `RouteSet`).
+- With `freeze == true`, should set `isFrozen` and emit `RouteFrozen` (in addition to `RouteCreated`).
 
 #### Events
 
-- Should emit `RouteSet` with `xnsName`, `routePrefix`, `route`, `target`, `activate`, `freeze`, and `routeType`. String parameters are non-indexed (full values in log data); `target` is indexed.
+- Should emit `RouteCreated` with `xnsName`, `routePrefix`, `route`, `target`, `isActive`, `isFrozen`, and `routeType`. String parameters are non-indexed (full values in log data); `target` is indexed.
 - Should emit `RouteFrozen` with `xnsName`, `routePrefix`, `route` when `freeze` is true on create.
 
 #### Reverts
@@ -49,11 +49,11 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 - Name owner can **update** `target`, `routeType`, and `isActive` (via `activate`) on an **existing** route while the entry is not frozen and the route book for that XNS name is not frozen.
 - Should revert with `RouteNotFound` if no route exists for the key.
-- With `freeze == true`, should set `isFrozen` and emit `RouteFrozen` (in addition to `RouteSet`).
+- With `freeze == true`, should set `isFrozen` and emit `RouteFrozen` (in addition to `RouteUpdated`).
 
 #### Events
 
-- Should emit `RouteSet` with final `record.isActive` / `record.isFrozen` after the write.
+- Should emit `RouteUpdated` with final `record.isActive` / `record.isFrozen` / `record.routeType` after the write.
 - Should emit `RouteFrozen` when `freeze` is true on update.
 
 #### Reverts
@@ -112,11 +112,11 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 - Name owner can change `target` or `routeType` on an existing route (not for create).
 - Same freeze rules as `updateRoute` for those fields: reverts with `CannotUpdateFrozenRoute` if the route is frozen, `RouteBookFrozen` if the route book for `xnsName` is frozen.
-- Should emit `RouteSet` **only when** the value actually changes (no-op otherwise).
+- Should emit `RouteUpdated` **only when** the value actually changes (no-op otherwise).
 
 #### Events
 
-- `RouteSet` with current `activate` / `freeze` (stored `isActive` / `isFrozen`) and updated `target` or `routeType`.
+- `RouteUpdated` with stored `isActive` / `isFrozen` and updated `target` or `routeType`.
 
 #### Reverts
 

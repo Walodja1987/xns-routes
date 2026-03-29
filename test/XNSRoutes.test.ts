@@ -67,13 +67,13 @@ describe("XNSRoutes", function () {
   });
 
   describe("createRoute and updateRoute", function () {
-    it("Should let the name owner create a route and emit RouteSet", async function () {
+    it("Should let the name owner create a route and emit RouteCreated", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
 
       await expect(
         routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false),
       )
-        .to.emit(routes, "RouteSet")
+        .to.emit(routes, "RouteCreated")
         .and.to.not.emit(routes, "RouteFrozen");
 
       expect(await routes.routeExists(XNS_NAME, ROUTE_PREFIX, ROUTE)).to.equal(true);
@@ -90,7 +90,7 @@ describe("XNSRoutes", function () {
       await expect(
         routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, true),
       )
-        .to.emit(routes, "RouteSet")
+        .to.emit(routes, "RouteCreated")
         .and.to.emit(routes, "RouteFrozen");
 
       expect((await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE))[2]).to.equal(true);
@@ -103,7 +103,7 @@ describe("XNSRoutes", function () {
       const newTarget = other.address;
       await expect(
         routes.connect(owner).updateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, newTarget, RT0, false, false),
-      ).to.emit(routes, "RouteSet");
+      ).to.emit(routes, "RouteUpdated");
 
       const [target, isActive, isFrozen] = await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE);
       expect(target).to.equal(newTarget);
@@ -117,7 +117,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(owner).updateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, 1, true, false),
-      ).to.emit(routes, "RouteSet");
+      ).to.emit(routes, "RouteUpdated");
 
       const [, , , routeType] = await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE);
       expect(routeType).to.equal(1);
@@ -131,7 +131,7 @@ describe("XNSRoutes", function () {
         routes.connect(owner).updateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, true),
       )
         .to.emit(routes, "RouteFrozen")
-        .and.to.emit(routes, "RouteSet");
+        .and.to.emit(routes, "RouteUpdated");
 
       expect((await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE))[2]).to.equal(true);
     });
@@ -177,7 +177,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(owner).createRoute(XNS_NAME, "", globalRoute, buildTarget, RT0, true, false),
-      ).to.emit(routes, "RouteSet");
+      ).to.emit(routes, "RouteCreated");
 
       expect(await routes.routeExists(XNS_NAME, "", globalRoute)).to.equal(true);
       expect((await routes.getRouteInfo(XNS_NAME, "", globalRoute))[0]).to.equal(buildTarget);
@@ -368,7 +368,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, other.address, RT0, false, false),
-      ).to.emit(routes, "RouteSet");
+      ).to.emit(routes, "RouteCreated");
 
       expect((await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE))[0]).to.equal(other.address);
     });
@@ -412,22 +412,22 @@ describe("XNSRoutes", function () {
   });
 
   describe("updateTarget and updateRouteType", function () {
-    it("Should update target and emit RouteSet", async function () {
+    it("Should update target and emit RouteUpdated", async function () {
       const { routes, owner, buildTarget, other } = await loadFixture(deployFixture);
       await routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
 
       await expect(routes.connect(owner).updateTarget(XNS_NAME, ROUTE_PREFIX, ROUTE, other.address))
-        .to.emit(routes, "RouteSet")
+        .to.emit(routes, "RouteUpdated")
         .withArgs(XNS_NAME, ROUTE_PREFIX, ROUTE, other.address, true, false, RT0);
 
       expect((await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE))[0]).to.equal(other.address);
     });
 
-    it("Should not emit RouteSet when updateTarget is no-op", async function () {
+    it("Should not emit RouteUpdated when updateTarget is no-op", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
 
-      const filter = routes.filters.RouteSet();
+      const filter = routes.filters.RouteUpdated();
       const before = (await routes.queryFilter(filter)).length;
       await routes.connect(owner).updateTarget(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget);
       const after = (await routes.queryFilter(filter)).length;
@@ -443,22 +443,22 @@ describe("XNSRoutes", function () {
       ).to.be.revertedWithCustomError(routes, "InvalidTarget");
     });
 
-    it("Should update routeType and emit RouteSet", async function () {
+    it("Should update routeType and emit RouteUpdated", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
 
       await expect(routes.connect(owner).updateRouteType(XNS_NAME, ROUTE_PREFIX, ROUTE, 7))
-        .to.emit(routes, "RouteSet")
+        .to.emit(routes, "RouteUpdated")
         .withArgs(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, true, false, 7);
 
       expect((await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE))[3]).to.equal(7);
     });
 
-    it("Should not emit RouteSet when updateRouteType is no-op", async function () {
+    it("Should not emit RouteUpdated when updateRouteType is no-op", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
 
-      const filter = routes.filters.RouteSet();
+      const filter = routes.filters.RouteUpdated();
       const before = (await routes.queryFilter(filter)).length;
       await routes.connect(owner).updateRouteType(XNS_NAME, ROUTE_PREFIX, ROUTE, RT0);
       const after = (await routes.queryFilter(filter)).length;

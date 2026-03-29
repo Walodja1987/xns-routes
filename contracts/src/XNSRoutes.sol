@@ -48,7 +48,7 @@ interface IXNS {
 /// - route book freeze is irreversible
 /// - active/inactive can be toggled even after freeze
 /// - createRoute / updateRoute for full-record writes (+ optional freeze on create/update)
-/// - updateTarget / updateRouteType are narrow updates (same guards as updateRoute for target/type); emit `RouteSet` only on change
+/// - updateTarget / updateRouteType are narrow updates (same guards as updateRoute for target/type); emit `RouteUpdated` only on change
 /// - deleteRoute clears a route when it is not per-route frozen and the route book is not frozen (`createRoute` may reuse the key afterward)
 contract XNSRoutes {
     error ZeroAddress();
@@ -79,13 +79,23 @@ contract XNSRoutes {
     mapping(bytes32 => RouteRecord) private _routes;
 
     /// @dev Strings are non-indexed so logs carry full values (e.g. subgraphs). `target` is indexed for address filters.
-    event RouteSet(
+    event RouteCreated(
         string xnsName,
         string routePrefix,
         string route,
         address indexed target,
-        bool activate,
-        bool freeze,
+        bool isActive,
+        bool isFrozen,
+        uint32 routeType
+    );
+
+    event RouteUpdated(
+        string xnsName,
+        string routePrefix,
+        string route,
+        address indexed target,
+        bool isActive,
+        bool isFrozen,
         uint32 routeType
     );
 
@@ -156,8 +166,7 @@ contract XNSRoutes {
             emit RouteFrozen(xnsName, routePrefix, route);
         }
 
-        // Emit the `RouteSet` event
-        emit RouteSet(xnsName, routePrefix, route, target, activate, freeze, routeType);
+        emit RouteCreated(xnsName, routePrefix, route, target, activate, freeze, routeType);
     }
 
     /// @notice Update an existing route (target, routeType, activate, optional freeze in one tx).
@@ -204,8 +213,7 @@ contract XNSRoutes {
             emit RouteFrozen(xnsName, routePrefix, route);
         }
 
-        // Emit the `RouteSet` event
-        emit RouteSet(xnsName, routePrefix, route, target, activate, freeze, routeType);
+        emit RouteUpdated(xnsName, routePrefix, route, target, record.isActive, record.isFrozen, record.routeType);
     }
 
     /// @notice Mark an existing route as active.
@@ -235,7 +243,7 @@ contract XNSRoutes {
         RouteRecord storage record = _routes[routeKey];
         if (record.target == address(0)) revert RouteNotFound();
         
-        // Update the route active status
+        // Update the route active status and emit the `RouteActiveStatusUpdated` event, if the active status changes
         if (record.isActive != active) {
             record.isActive = active;
             emit RouteActiveStatusUpdated(xnsName, routePrefix, route, active);
@@ -258,7 +266,7 @@ contract XNSRoutes {
 
     /// @notice Update the build `target` for an existing route.
     /// @dev Same constraints as `updateRoute` for target changes: not route-frozen, not route-book frozen.
-    /// Emits `RouteSet` only when `newTarget` differs from the stored target.
+    /// Emits `RouteUpdated` only when `newTarget` differs from the stored target.
     function updateTarget(
         string calldata xnsName,
         string calldata routePrefix,
@@ -275,13 +283,13 @@ contract XNSRoutes {
 
         if (record.target != newTarget) {
             record.target = newTarget;
-            emit RouteSet(xnsName, routePrefix, route, newTarget, record.isActive, record.isFrozen, record.routeType);
+            emit RouteUpdated(xnsName, routePrefix, route, newTarget, record.isActive, record.isFrozen, record.routeType);
         }
     }
 
     /// @notice Update `routeType` for an existing route.
     /// @dev Same constraints as `updateRoute` for type changes: not route-frozen, not route-book frozen.
-    /// Emits `RouteSet` only when `newRouteType` differs from the stored value.
+    /// Emits `RouteUpdated` only when `newRouteType` differs from the stored value.
     function updateRouteType(
         string calldata xnsName,
         string calldata routePrefix,
@@ -296,7 +304,7 @@ contract XNSRoutes {
 
         if (record.routeType != newRouteType) {
             record.routeType = newRouteType;
-            emit RouteSet(xnsName, routePrefix, route, record.target, record.isActive, record.isFrozen, newRouteType);
+            emit RouteUpdated(xnsName, routePrefix, route, record.target, record.isActive, record.isFrozen, newRouteType);
         }
     }
 

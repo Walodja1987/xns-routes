@@ -42,8 +42,8 @@ Semantics:
 - route freeze is irreversible
 - route book freeze is irreversible
 - active/inactive can be toggled even after freeze
-- createRoute / updateRoute for full-record writes (+ optional freeze on create/update)
-- updateTarget / updateRouteType are narrow updates (same guards as updateRoute for target/type); emit `RouteSet` only on change
+- createRoute / updateRoute for full-record writes (+ optional freeze on create/update); emit `RouteCreated` / `RouteUpdated` respectively
+- updateTarget / updateRouteType are narrow updates (same guards as updateRoute for target/type); emit `RouteUpdated` only on change
 - deleteRoute clears a route when it is not per-route frozen and the route book is not frozen (`createRoute` may reuse the key afterward)
 
 
@@ -149,7 +149,7 @@ function updateTarget(string xnsName, string routePrefix, string route, address 
 ```
 
 _Same constraints as `updateRoute` for target changes: not route-frozen, not route-book frozen.
-Emits `RouteSet` only when `newTarget` differs from the stored target._
+Emits `RouteUpdated` only when `newTarget` differs from the stored target._
 
 
 
@@ -163,7 +163,7 @@ function updateRouteType(string xnsName, string routePrefix, string route, uint3
 ```
 
 _Same constraints as `updateRoute` for type changes: not route-frozen, not route-book frozen.
-Emits `RouteSet` only when `newRouteType` differs from the stored value._
+Emits `RouteUpdated` only when `newRouteType` differs from the stored value._
 
 
 
@@ -225,16 +225,29 @@ function routeExists(string xnsName, string routePrefix, string route) external 
 
 ## Events
 
-### RouteSet
+### RouteCreated
 
 
 
 
 ```solidity
-event RouteSet(string xnsName, string routePrefix, string route, address indexed target, bool activate, bool freeze, uint32 routeType)
+event RouteCreated(string xnsName, string routePrefix, string route, address indexed target, bool isActive, bool isFrozen, uint32 routeType)
 ```
 
-_String parameters are non-indexed so logs carry full values (e.g. subgraphs). `target` is indexed for address filters._
+_Emitted when `createRoute` succeeds. String parameters are non-indexed so logs carry full values (e.g. subgraphs). `target` is indexed for address filters._
+
+
+
+### RouteUpdated
+
+
+
+
+```solidity
+event RouteUpdated(string xnsName, string routePrefix, string route, address indexed target, bool isActive, bool isFrozen, uint32 routeType)
+```
+
+_Emitted when `updateRoute`, `updateTarget`, or `updateRouteType` persists a change (narrow updaters only when the field actually changes). Payload reflects stored `isActive` / `isFrozen` after the write. Same indexing as `RouteCreated`._
 
 
 
