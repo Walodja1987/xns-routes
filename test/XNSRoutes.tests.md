@@ -34,7 +34,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 #### Events
 
-- Should emit `RouteSet` with `xnsName`, `chain`, `route`, `target`, `activate`, `freeze`, and `routeType`. Three indexed fields max: `xnsName`, `chain`, `target`; `route` and `routeType` are non-indexed.
+- Should emit `RouteSet` with `xnsName`, `chain`, `route`, `target`, `activate`, `freeze`, and `routeType`. String parameters are non-indexed (full values in log data); `target` is indexed.
 - Should emit `RouteFrozen` with `xnsName`, `chain`, `route` when `freeze` is true on create.
 
 #### Reverts
@@ -76,11 +76,11 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 - Name owner can set `isActive` to true / false for an existing `(xnsName, chain, route)`.
 - Should still succeed when the **route** is frozen or the **route book** is frozen (only target updates are blocked).
-- Like `freezeRoute`, should emit `RouteActivationSet` **only when `isActive` actually changes** (second `deactivateRoute` or `activateRoute` when already in that state is a no-op for events).
+- Like `freezeRoute`, should emit `RouteActiveStatusUpdated` **only when `isActive` actually changes** (second `deactivateRoute` or `activateRoute` when already in that state is a no-op for events).
 
 #### Events
 
-- Should emit `RouteActivationSet` with `xnsName`, `chain`, `route`, and `isActive` when transitioning.
+- Should emit `RouteActiveStatusUpdated` with `xnsName`, `chain`, `route`, and `isActive` when transitioning.
 
 #### Reverts
 
@@ -163,17 +163,17 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 ---
 
-## `getRoute` / `getRouteInfo` / `routeExists`
+## `getRouteTarget` / `getRouteInfo` / `routeExists`
 
 #### Functionality
 
 - `routeExists` returns `false` before a route is created and `true` after.
-- `getRoute` returns the stored `target` when the route exists.
+- `getRouteTarget` returns the stored `target` when the route exists.
 - `getRouteInfo` returns `(target, isActive, isFrozen, routeType)` consistent with `createRoute` / `updateRoute` / `updateTarget` / `updateRouteType` / `activateRoute` / `deactivateRoute` / `freezeRoute` (until `deleteRoute` clears the slot).
 
 #### Reverts
 
-- `getRoute` and `getRouteInfo` should revert with `RouteNotFound` when the route does not exist.
+- `getRouteTarget` and `getRouteInfo` should revert with `RouteNotFound` when the route does not exist.
 
 ---
 

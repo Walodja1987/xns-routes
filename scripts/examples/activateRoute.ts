@@ -1,5 +1,5 @@
 /**
- * Mark an existing route as active. Emits `RouteActivationSet` only if `isActive` changes.
+ * Mark an existing route as active. Emits `RouteActiveStatusUpdated` only if `isActive` changes.
  * Caller must be the address XNS currently resolves for `xnsName`.
  * Allowed even after route or route book freeze.
  *

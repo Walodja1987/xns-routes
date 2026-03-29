@@ -108,7 +108,7 @@ Mark an existing route as active.
 function activateRoute(string xnsName, string chain, string route) external
 ```
 
-_Emits `RouteActivationSet` only when `isActive` changes. Allowed after route or route book freeze._
+_Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after route or route book freeze._
 
 
 
@@ -121,7 +121,7 @@ Mark an existing route as inactive.
 function deactivateRoute(string xnsName, string chain, string route) external
 ```
 
-_Emits `RouteActivationSet` only when `isActive` changes. Allowed after route or route book freeze._
+_Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after route or route book freeze._
 
 
 
@@ -198,13 +198,13 @@ _After this:
 
 
 
-### getRoute
+### getRouteTarget
 
 
 Return route target only. Reverts if not found.
 
 ```solidity
-function getRoute(string xnsName, string chain, string route) external view returns (address target)
+function getRouteTarget(string xnsName, string chain, string route) external view returns (address target)
 ```
 
 
@@ -243,21 +243,21 @@ function routeExists(string xnsName, string chain, string route) external view r
 
 
 ```solidity
-event RouteSet(string xnsName, string chain, string route, address target, bool activate, bool freeze, uint32 routeType)
+event RouteSet(string xnsName, string chain, string route, address indexed target, bool activate, bool freeze, uint32 routeType)
 ```
 
-_At most three `indexed` fields (EVM limit). `route` is non-indexed for filtering via calldata/logs._
+_String parameters are non-indexed so logs carry full values (e.g. subgraphs). `target` is indexed for address filters._
 
 
 
 
-### RouteActivationSet
+### RouteActiveStatusUpdated
 
 
 
 
 ```solidity
-event RouteActivationSet(string xnsName, string chain, string route, bool isActive)
+event RouteActiveStatusUpdated(string xnsName, string chain, string route, bool isActive)
 ```
 
 

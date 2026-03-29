@@ -24,8 +24,8 @@ interface IXNSRoutes {
     }
 
     event RouteSet(
-        string indexed xnsName,
-        string indexed chain,
+        string xnsName,
+        string chain,
         string route,
         address indexed target,
         bool activate,
@@ -33,18 +33,13 @@ interface IXNSRoutes {
         uint32 routeType
     );
 
-    event RouteActivationSet(
-        string indexed xnsName,
-        string indexed chain,
-        string route,
-        bool isActive
-    );
+    event RouteActiveStatusUpdated(string xnsName, string chain, string route, bool isActive);
 
-    event RouteFrozen(string indexed xnsName, string indexed chain, string route);
+    event RouteFrozen(string xnsName, string chain, string route);
 
-    event RouteBookFrozenForName(string indexed xnsName);
+    event RouteBookFrozenForName(string xnsName);
 
-    event RouteDeleted(string indexed xnsName, string indexed chain, string route);
+    event RouteDeleted(string xnsName, string chain, string route);
 
     function XNS() external view returns (address);
 
@@ -94,7 +89,7 @@ interface IXNSRoutes {
 
     function freezeRouteBook(string calldata xnsName) external;
 
-    function getRoute(string calldata xnsName, string calldata chain, string calldata route)
+    function getRouteTarget(string calldata xnsName, string calldata chain, string calldata route)
         external
         view
         returns (address target);

@@ -78,10 +78,10 @@ contract XNSRoutes {
     // _routeKey(xnsName, chain, route) => route record
     mapping(bytes32 => RouteRecord) private _routes;
 
-    /// @dev At most three `indexed` fields (EVM limit). `route` is non-indexed for filtering via calldata/logs.
+    /// @dev Strings are non-indexed so logs carry full values (e.g. subgraphs). `target` is indexed for address filters.
     event RouteSet(
-        string indexed xnsName,
-        string indexed chain,
+        string xnsName,
+        string chain,
         string route,
         address indexed target,
         bool activate,
@@ -89,18 +89,13 @@ contract XNSRoutes {
         uint32 routeType
     );
 
-    event RouteActivationSet(
-        string indexed xnsName,
-        string indexed chain,
-        string route,
-        bool isActive
-    );
+    event RouteActiveStatusUpdated(string xnsName, string chain, string route, bool isActive);
 
-    event RouteFrozen(string indexed xnsName, string indexed chain, string route);
+    event RouteFrozen(string xnsName, string chain, string route);
 
-    event RouteBookFrozenForName(string indexed xnsName);
+    event RouteBookFrozenForName(string xnsName);
 
-    event RouteDeleted(string indexed xnsName, string indexed chain, string route);
+    event RouteDeleted(string xnsName, string chain, string route);
 
     /// @param xns_ XNS registry implementing `IXNS`.
     /// @dev Payable: forwards `msg.value` to `registerName("routes","xns")` so `routes.xns` resolves to `address(this)`.
@@ -185,15 +180,15 @@ contract XNSRoutes {
     }
 
     /// @notice Mark an existing route as active.
-    /// @dev Emits `RouteActivationSet` only when `isActive` changes. Allowed after route or route book freeze.
+    /// @dev Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after route or route book freeze.
     function activateRoute(string calldata xnsName, string calldata chain, string calldata route) external {
-        _setRouteActivation(xnsName, chain, route, true);
+        _updateRouteActiveStatus(xnsName, chain, route, true);
     }
 
     /// @notice Mark an existing route as inactive.
-    /// @dev Emits `RouteActivationSet` only when `isActive` changes. Allowed after route or route book freeze.
+    /// @dev Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after route or route book freeze.
     function deactivateRoute(string calldata xnsName, string calldata chain, string calldata route) external {
-        _setRouteActivation(xnsName, chain, route, false);
+        _updateRouteActiveStatus(xnsName, chain, route, false);
     }
 
     /// @notice Remove a route so `createRoute` may register the same key again.
@@ -279,7 +274,7 @@ contract XNSRoutes {
     }
 
     /// @notice Return route target only. Reverts if not found.
-    function getRoute(
+    function getRouteTarget(
         string calldata xnsName,
         string calldata chain,
         string calldata route
@@ -321,8 +316,8 @@ contract XNSRoutes {
         if (msg.sender != xnsNameOwner) revert NotXnsNameOwner();
     }
 
-    /// @dev Allowed after route or route book freeze. Emits `RouteActivationSet` only when `isActive` changes.
-    function _setRouteActivation(
+    /// @dev Allowed after route or route book freeze. Emits `RouteActiveStatusUpdated` only when `isActive` changes.
+    function _updateRouteActiveStatus(
         string calldata xnsName,
         string calldata chain,
         string calldata route,
@@ -334,7 +329,7 @@ contract XNSRoutes {
         if (record.target == address(0)) revert RouteNotFound();
         if (record.isActive != active) {
             record.isActive = active;
-            emit RouteActivationSet(xnsName, chain, route, active);
+            emit RouteActiveStatusUpdated(xnsName, chain, route, active);
         }
     }
 
