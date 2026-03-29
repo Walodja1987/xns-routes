@@ -217,7 +217,7 @@ contract XNSRoutes {
     ) external {
         RouteRecord storage record = _mutableRouteRecord(xnsName, chain, route);
 
-        _requireNonZeroTarget(newTarget);
+        if (newTarget == address(0)) revert InvalidTarget();
 
         if (record.target != newTarget) {
             record.target = newTarget;
@@ -361,11 +361,6 @@ contract XNSRoutes {
         if (!_isValidString(route)) revert InvalidRoute();
     }
 
-    /// @dev `address(0)` is reserved for "route does not exist"; for a burn `target` use e.g. `0x…dEaD`.
-    function _requireNonZeroTarget(address target) private pure {
-        if (target == address(0)) revert InvalidTarget();
-    }
-
     /// @dev Owner, label checks, non-zero target, route book not frozen. Returns `(xnsNameKey, routeKey)`.
     function _prepareFullRouteWrite(
         string calldata xnsName,
@@ -375,7 +370,7 @@ contract XNSRoutes {
     ) private view returns (bytes32 xnsNameKey, bytes32 routeKey) {
         _requireXnsNameOwner(xnsName);
         _validateChainAndRoute(chain, route);
-        _requireNonZeroTarget(target);
+        if (target == address(0)) revert InvalidTarget();
         xnsNameKey = keccak256(bytes(xnsName));
         if (routeBookFrozen[xnsNameKey]) revert RouteBookFrozen();
         routeKey = _routeKey(xnsName, chain, route);
