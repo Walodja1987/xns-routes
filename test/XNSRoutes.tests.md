@@ -163,17 +163,16 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 ---
 
-## `getRouteTarget` / `getRouteInfo` / `routeExists`
+## `getRouteInfo` / `routeExists`
 
 #### Functionality
 
 - `routeExists` returns `false` before a route is created and `true` after.
-- `getRouteTarget` returns the stored `target` when the route exists.
 - `getRouteInfo` returns `(target, isActive, isFrozen, routeType)` consistent with `createRoute` / `updateRoute` / `updateTarget` / `updateRouteType` / `activateRoute` / `deactivateRoute` / `freezeRoute` (until `deleteRoute` clears the slot).
 
 #### Reverts
 
-- `getRouteTarget` and `getRouteInfo` should revert with `RouteNotFound` when the route does not exist.
+- `getRouteInfo` should revert with `RouteNotFound` when the route does not exist.
 
 ---
 

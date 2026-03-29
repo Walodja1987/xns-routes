@@ -198,18 +198,6 @@ _After this:
 
 
 
-### getRouteTarget
-
-
-Return route target only. Reverts if not found.
-
-```solidity
-function getRouteTarget(string xnsName, string chain, string route) external view returns (address target)
-```
-
-
-
-
 ### getRouteInfo
 
 

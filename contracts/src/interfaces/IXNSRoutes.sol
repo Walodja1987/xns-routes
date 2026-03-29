@@ -89,11 +89,6 @@ interface IXNSRoutes {
 
     function freezeRouteBook(string calldata xnsName) external;
 
-    function getRouteTarget(string calldata xnsName, string calldata chain, string calldata route)
-        external
-        view
-        returns (address target);
-
     function getRouteInfo(string calldata xnsName, string calldata chain, string calldata route)
         external
         view

@@ -273,17 +273,6 @@ contract XNSRoutes {
         }
     }
 
-    /// @notice Return route target only. Reverts if not found.
-    function getRouteTarget(
-        string calldata xnsName,
-        string calldata chain,
-        string calldata route
-    ) external view returns (address target) {
-        RouteRecord storage record = _routes[_routeKey(xnsName, chain, route)];
-        if (record.target == address(0)) revert RouteNotFound();
-        return record.target;
-    }
-
     /// @notice Return full route metadata. Reverts if not found.
     function getRouteInfo(
         string calldata xnsName,
