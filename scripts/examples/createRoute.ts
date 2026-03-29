@@ -1,5 +1,5 @@
 /**
- * Register a new route under `(xnsName, chain, route)`. Reverts if that key already exists (`RouteAlreadyExists`).
+ * Register a new route under `(xnsName, routePrefix, route)`. Reverts if that key already exists (`RouteAlreadyExists`).
  * Caller must be the address XNS currently resolves for `xnsName`.
  *
  * USAGE:
@@ -26,8 +26,8 @@ const RED = "\x1b[31m";
 //////////////////////////////////////////////////////////////*/
 
 const xnsName = "xns.action";
-/** Chain key (path segment before `:`), e.g. `eth` in `xns.action/eth:register-name/...` */
-const chain = "eth";
+/** Optional route prefix (path segment before `:`), e.g. `eth` in `xns.action/eth:register-name/...` */
+const routePrefix = "eth";
 const route = "register-name";
 
 /** Build contract address for this route */
@@ -69,7 +69,7 @@ async function main() {
   const balance = await hre.ethers.provider.getBalance(signer.address);
   console.log(`Balance: ${GREEN}${formatEther(balance)} ETH${RESET}`);
   console.log(`xnsName: ${GREEN}${xnsName}${RESET}`);
-  console.log(`chain: ${GREEN}${chain}${RESET}`);
+  console.log(`routePrefix: ${GREEN}${routePrefix}${RESET}`);
   console.log(`route: ${GREEN}${route}${RESET}`);
   console.log(`target: ${GREEN}${target}${RESET}`);
   console.log(`routeType: ${GREEN}${routeType}${RESET}`);
@@ -78,12 +78,12 @@ async function main() {
 
   const tx = await routes
     .connect(signer)
-    .createRoute(xnsName, chain, route, target, routeType, activate, freeze);
+    .createRoute(xnsName, routePrefix, route, target, routeType, activate, freeze);
   console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
-  const [t, active, frozen, rt] = await routes.getRouteInfo(xnsName, chain, route);
+  const [t, active, frozen, rt] = await routes.getRouteInfo(xnsName, routePrefix, route);
   console.log(
     `${GREEN}✓ Confirmed. getRouteInfo → target=${t} routeType=${rt} isActive=${active} isFrozen=${frozen}${RESET}\n`,
   );

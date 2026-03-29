@@ -8,7 +8,7 @@ Instead of sharing raw calldata or relying on a single frontend, protocols and u
 
 ## ✨ What are Routes?
 
-An XNS route is a **named action** under an XNS name, scoped to a **chain key** and **route** label. Paths look like `xnsName/chain:route/params…` when a chain is set (one `:` in the action segment). For **chain-agnostic** routes (e.g. same EOA everywhere), use an empty chain in the registry and a path like `xnsName/route/params…` (no `:` in that segment).
+An XNS route is a **named action** under an XNS name, with optional **route prefix** and required **route** label. Paths look like `xnsName/routePrefix:route/params…` when a prefix is set (one `:` in the action segment). For routes **without** a prefix (e.g. same EOA everywhere), use an empty `routePrefix` in the registry and a path like `xnsName/route/params…` (no `:` in that segment).
 
 ```
 xns.action/eth:register-name/label=bro/namespace=og
@@ -18,7 +18,7 @@ usdt.action/eth:transfer-usdt/to=0x.../amount=100
 Each route:
 
 * belongs to an XNS name (e.g. `xns.action`)
-* has a **chain** key (e.g. `eth`, `137-poly`) or **empty** for chain-agnostic routes, plus a **route** label (e.g. `transfer-usdt`)
+* has an optional **route prefix** (e.g. `eth`, `137-poly`) or **empty** for single-segment routes, plus a **route** label (e.g. `transfer-usdt`)
 * points to a **build contract**
 * produces transaction calldata
 
@@ -29,7 +29,7 @@ Each route:
 | Component      | Meaning                                      |
 | -------------- | -------------------------------------------- |
 | XNS name       | Identity / publisher                         |
-| Chain key      | Where the action runs (label, e.g. `eth`)   |
+| Route prefix   | Optional disambiguator before `:` (e.g. `eth`); often network/context |
 | Route          | Action / intent (label, e.g. `transfer-usdt`) |
 | Build contract | How the transaction is built                 |
 
@@ -66,7 +66,7 @@ A route is registered under an XNS name:
 ```solidity
 createRoute(
   "xns.action",
-  "eth",           // chain
+  "eth",           // routePrefix
   "register-name", // route
   address(builder),
   0,      // routeType (offchain-defined parser hint)
@@ -107,7 +107,7 @@ A wallet:
 
 1. Resolves `xns.action`
 2. Parses `eth` and `register-name` from `eth:register-name`
-3. Looks up `(xnsName, chain, route)` on the registry (`chain` may be empty for chain-agnostic routes)
+3. Looks up `(xnsName, routePrefix, route)` on the registry (`routePrefix` may be empty)
 4. Calls `build(...)`
 5. Gets:
 
@@ -194,9 +194,9 @@ usdt.action/eth:transfer-usdt/to=0x.../amount=100
 
 ---
 
-## 🧭 Suggested route label (and chain)
+## 🧭 Suggested route label (and prefix)
 
-Build contracts can suggest the **route** label (the part after `chain:` in the path). The **chain** key (e.g. `eth`) usually comes from the builder’s target network or app defaults.
+Build contracts can suggest the **route** label (the part after `routePrefix:` in the path). The **route prefix** (e.g. `eth`) often comes from the builder’s target network or app defaults.
 
 ```solidity
 function suggestedRouteName() external pure returns (string memory);
@@ -205,8 +205,8 @@ function suggestedRouteName() external pure returns (string memory);
 ### UX Flow
 
 * User picks builder from library
-* App reads suggested **route** label and sets **chain** (e.g. from `TARGET_CHAIN_ID` or user choice)
-* Prefills `chain:route` in the path
+* App reads suggested **route** label and sets **route prefix** (e.g. from `TARGET_CHAIN_ID` or user choice)
+* Prefills `routePrefix:route` in the path
 * User accepts or edits
 
 ---
@@ -303,7 +303,7 @@ Each script has a `USER INPUTS` section at the top. Fill in [constants/addresses
 * Wallets should clearly display:
 
   * route
-  * chain
+  * route prefix (if any)
   * target contract
   * calldata summary
 

@@ -27,8 +27,8 @@ const RED = "\x1b[31m";
 /** XNS name that owns the route space (e.g. "xns.action") */
 const xnsName = "xns.action";
 
-/** Chain key (e.g. "eth" in `base/eth:route/...`) */
-const chain = "eth";
+/** Route prefix (e.g. "eth" in `base/eth:route/...`) */
+const routePrefix = "eth";
 
 /** Route label (e.g. "register-name") */
 const route = "register-name";
@@ -47,16 +47,16 @@ async function main() {
   console.log(`\nNetwork: ${GREEN}${networkName}${RESET}`);
   console.log(`XNSRoutes: ${GREEN}${contractAddress}${RESET}`);
   console.log(`xnsName: ${GREEN}${xnsName}${RESET}`);
-  console.log(`chain: ${GREEN}${chain}${RESET}`);
+  console.log(`routePrefix: ${GREEN}${routePrefix}${RESET}`);
   console.log(`route: ${GREEN}${route}${RESET}\n`);
 
-  const exists = await routes.routeExists(xnsName, chain, route);
+  const exists = await routes.routeExists(xnsName, routePrefix, route);
   if (!exists) {
     console.log(`${YELLOW}⚠${RESET} Route not found (no record).\n`);
     return;
   }
 
-  const [target, isActive, isFrozen, routeType] = await routes.getRouteInfo(xnsName, chain, route);
+  const [target, isActive, isFrozen, routeType] = await routes.getRouteInfo(xnsName, routePrefix, route);
 
   console.log(`target:    ${GREEN}${target}${RESET}`);
   console.log(`isActive:  ${GREEN}${isActive}${RESET}`);

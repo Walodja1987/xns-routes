@@ -27,7 +27,7 @@ const RED = "\x1b[31m";
 //////////////////////////////////////////////////////////////*/
 
 const xnsName = "xns.action";
-const chain = "eth";
+const routePrefix = "eth";
 const route = "register-name";
 /** Must be non-zero */
 const newTarget = "0x0000000000000000000000000000000000000002";
@@ -56,16 +56,16 @@ async function main() {
   const balance = await hre.ethers.provider.getBalance(signer.address);
   console.log(`Balance: ${GREEN}${formatEther(balance)} ETH${RESET}`);
   console.log(`xnsName: ${GREEN}${xnsName}${RESET}`);
-  console.log(`chain: ${GREEN}${chain}${RESET}`);
+  console.log(`routePrefix: ${GREEN}${routePrefix}${RESET}`);
   console.log(`route: ${GREEN}${route}${RESET}`);
   console.log(`newTarget: ${GREEN}${newTarget}${RESET}\n`);
 
-  const tx = await routes.connect(signer).updateTarget(xnsName, chain, route, newTarget);
+  const tx = await routes.connect(signer).updateTarget(xnsName, routePrefix, route, newTarget);
   console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
-  const [t] = await routes.getRouteInfo(xnsName, chain, route);
+  const [t] = await routes.getRouteInfo(xnsName, routePrefix, route);
   console.log(`${GREEN}✓ Confirmed. getRouteInfo → target=${t}${RESET}\n`);
 }
 

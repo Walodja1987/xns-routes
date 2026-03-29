@@ -1,5 +1,5 @@
 /**
- * Remove a route under `(xnsName, chain, route)` so the key can be registered again with `createRoute`.
+ * Remove a route under `(xnsName, routePrefix, route)` so the key can be registered again with `createRoute`.
  * Reverts if the route is frozen (`CannotDeleteFrozenRoute`) or the route book is frozen (`RouteBookFrozen`).
  * Caller must be the address XNS currently resolves for `xnsName`.
  *
@@ -27,7 +27,7 @@ const RED = "\x1b[31m";
 //////////////////////////////////////////////////////////////*/
 
 const xnsName = "xns.action";
-const chain = "eth";
+const routePrefix = "eth";
 const route = "register-name";
 const signerIndex = 0;
 
@@ -50,15 +50,15 @@ async function main() {
   const balance = await hre.ethers.provider.getBalance(signer.address);
   console.log(`Balance: ${GREEN}${formatEther(balance)} ETH${RESET}`);
   console.log(`xnsName: ${GREEN}${xnsName}${RESET}`);
-  console.log(`chain: ${GREEN}${chain}${RESET}`);
+  console.log(`routePrefix: ${GREEN}${routePrefix}${RESET}`);
   console.log(`route: ${GREEN}${route}${RESET}\n`);
 
-  const tx = await routes.connect(signer).deleteRoute(xnsName, chain, route);
+  const tx = await routes.connect(signer).deleteRoute(xnsName, routePrefix, route);
   console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
-  const exists = await routes.routeExists(xnsName, chain, route);
+  const exists = await routes.routeExists(xnsName, routePrefix, route);
   console.log(`${GREEN}✓ Confirmed. routeExists=${exists}${RESET}\n`);
 }
 

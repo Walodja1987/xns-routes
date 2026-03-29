@@ -1,8 +1,8 @@
 [
   "error CannotDeleteFrozenRoute()",
   "error CannotUpdateFrozenRoute()",
-  "error InvalidChain()",
   "error InvalidRoute()",
+  "error InvalidRoutePrefix()",
   "error InvalidTarget()",
   "error InvalidXnsName()",
   "error NotXnsNameOwner()",

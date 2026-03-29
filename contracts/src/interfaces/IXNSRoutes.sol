@@ -6,7 +6,7 @@ pragma solidity 0.8.28;
 interface IXNSRoutes {
     error ZeroAddress();
     error InvalidXnsName();
-    error InvalidChain();
+    error InvalidRoutePrefix();
     error InvalidRoute();
     error InvalidTarget();
     error NotXnsNameOwner();
@@ -25,7 +25,7 @@ interface IXNSRoutes {
 
     event RouteSet(
         string xnsName,
-        string chain,
+        string routePrefix,
         string route,
         address indexed target,
         bool activate,
@@ -33,13 +33,13 @@ interface IXNSRoutes {
         uint32 routeType
     );
 
-    event RouteActiveStatusUpdated(string xnsName, string chain, string route, bool isActive);
+    event RouteActiveStatusUpdated(string xnsName, string routePrefix, string route, bool isActive);
 
-    event RouteFrozen(string xnsName, string chain, string route);
+    event RouteFrozen(string xnsName, string routePrefix, string route);
 
     event RouteBookFrozenForName(string xnsName);
 
-    event RouteDeleted(string xnsName, string chain, string route);
+    event RouteDeleted(string xnsName, string routePrefix, string route);
 
     function XNS() external view returns (address);
 
@@ -47,7 +47,7 @@ interface IXNSRoutes {
 
     function createRoute(
         string calldata xnsName,
-        string calldata chain,
+        string calldata routePrefix,
         string calldata route,
         address target,
         uint32 routeType,
@@ -57,7 +57,7 @@ interface IXNSRoutes {
 
     function updateRoute(
         string calldata xnsName,
-        string calldata chain,
+        string calldata routePrefix,
         string calldata route,
         address target,
         uint32 routeType,
@@ -65,36 +65,36 @@ interface IXNSRoutes {
         bool freeze
     ) external;
 
-    function activateRoute(string calldata xnsName, string calldata chain, string calldata route) external;
+    function activateRoute(string calldata xnsName, string calldata routePrefix, string calldata route) external;
 
-    function deactivateRoute(string calldata xnsName, string calldata chain, string calldata route) external;
+    function deactivateRoute(string calldata xnsName, string calldata routePrefix, string calldata route) external;
 
-    function deleteRoute(string calldata xnsName, string calldata chain, string calldata route) external;
+    function deleteRoute(string calldata xnsName, string calldata routePrefix, string calldata route) external;
 
     function updateTarget(
         string calldata xnsName,
-        string calldata chain,
+        string calldata routePrefix,
         string calldata route,
         address newTarget
     ) external;
 
     function updateRouteType(
         string calldata xnsName,
-        string calldata chain,
+        string calldata routePrefix,
         string calldata route,
         uint32 newRouteType
     ) external;
 
-    function freezeRoute(string calldata xnsName, string calldata chain, string calldata route) external;
+    function freezeRoute(string calldata xnsName, string calldata routePrefix, string calldata route) external;
 
     function freezeRouteBook(string calldata xnsName) external;
 
-    function getRouteInfo(string calldata xnsName, string calldata chain, string calldata route)
+    function getRouteInfo(string calldata xnsName, string calldata routePrefix, string calldata route)
         external
         view
         returns (address target, bool isActive, bool isFrozen, uint32 routeType);
 
-    function routeExists(string calldata xnsName, string calldata chain, string calldata route)
+    function routeExists(string calldata xnsName, string calldata routePrefix, string calldata route)
         external
         view
         returns (bool);

@@ -7,16 +7,16 @@ This is an automatically generated documentation (using `solidity-docgen` packag
 
 Route registry linked to the XNS contract on Ethereum (0x648E4F05aF2b7eB85109A8dc8AE81D8E006457D8).
 
-Routes are scoped under an XNS name plus a chain key and route label. Human-readable paths look like:
+Routes are scoped under an XNS name plus optional `routePrefix` and a required `route` label. Human-readable paths look like:
 `bob.xns/eth:transfer-usdt/to=0x.../amount=100`
-Chain-agnostic routes (e.g. same EOA across chains): use empty `chain` — path form `bob.xns/my-wallet/...` (no `:` in the action segment).
+Prefix-agnostic routes: use empty `routePrefix` — path form `bob.xns/my-wallet/...` (no `:` in the action segment).
 - xnsName: `bob.xns`
-- chain: `eth` (XNS label rules when non-empty; use hyphens for compound ids, e.g. `1-eth`, `137-poly`), or `""` for chain-agnostic
-- route: `transfer-usdt`
-With a non-empty `chain`, exactly one `:` appears in the action segment, between `chain` and `route`.
+- routePrefix: optional segment before `:` (XNS label rules when non-empty; e.g. `eth`, `1-eth`, `137-poly`), or `""` when omitted
+- route: required action label (e.g. `transfer-usdt`)
+With a non-empty `routePrefix`, exactly one `:` appears in the action segment, between `routePrefix` and `route`.
 
-Storage key: if `chain` is empty, `keccak256(abi.encodePacked(xnsName, "/", route))`; else `keccak256(abi.encodePacked(xnsName, "/", chain, ":", route))`.
-`chain` and `route` follow XNS label charset (`a-z`, `0-9`, `-`); `xnsName` is a registered XNS full name (no `/` or `:`).
+Storage key: if `routePrefix` is empty, `keccak256(abi.encodePacked(xnsName, "/", route))`; else `keccak256(abi.encodePacked(xnsName, "/", routePrefix, ":", route))`.
+`routePrefix` and `route` follow XNS label charset (`a-z`, `0-9`, `-`); `xnsName` is a registered XNS full name (no `/` or `:`).
 
 A route points to a `target` address; `routeType` is an opaque hint (e.g. how parsers interpret
 `target` or its calldata output). Meaning of type ids is agreed offchain; the contract stores any `uint32`.
@@ -56,10 +56,10 @@ Semantics:
 ### createRoute
 
 
-Create a route under `(xnsName, chain, route)`. Reverts if that key already exists.
+Create a route under `(xnsName, routePrefix, route)`. Reverts if that key already exists.
 
 ```solidity
-function createRoute(string xnsName, string chain, string route, address target, uint32 routeType, bool activate, bool freeze) external
+function createRoute(string xnsName, string routePrefix, string route, address target, uint32 routeType, bool activate, bool freeze) external
 ```
 
 
@@ -68,7 +68,7 @@ function createRoute(string xnsName, string chain, string route, address target,
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | xnsName | string | The XNS name that owns the route space, e.g. "xns.action" |
-| chain | string | Chain key: non-empty must pass XNS label rules; empty string means chain-agnostic (path `xnsName/route/...`) |
+| routePrefix | string | Optional segment before `:`; non-empty must pass XNS label rules; empty means `xnsName/route/...` only (no `:` in the action segment). |
 | route | string | Action label (XNS label rules), e.g. "transfer-usdt" |
 | target | address | Build address for `routeType`; must be non-zero (`address(0)` is reserved for "missing route"). |
 | routeType | uint32 | Opaque hint for parsers (semantics offchain) |
@@ -79,10 +79,10 @@ function createRoute(string xnsName, string chain, string route, address target,
 ### updateRoute
 
 
-Update an existing route (target, routeType, activate, optional freeze in one tx).
+Update an existing route (target, routeType, activate, optional freeze in one tx). Unlike `createRoute`, this function does not re-validate `routePrefix`/`route` against XNS label rules (lower gas); invalid or mistyped strings usually fail with `RouteNotFound` when no matching slot exists.
 
 ```solidity
-function updateRoute(string xnsName, string chain, string route, address target, uint32 routeType, bool activate, bool freeze) external
+function updateRoute(string xnsName, string routePrefix, string route, address target, uint32 routeType, bool activate, bool freeze) external
 ```
 
 
@@ -91,7 +91,7 @@ function updateRoute(string xnsName, string chain, string route, address target,
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | xnsName | string | The XNS name that owns the route space, e.g. "xns.action" |
-| chain | string | Chain key (same as at create time) |
+| routePrefix | string | Same as at create time (may be empty). |
 | route | string | Action label (same as at create time) |
 | target | address | Must be non-zero; use a burn address if an unusable target is required. |
 | routeType | uint32 | Opaque hint for parsers (semantics offchain) |
@@ -105,7 +105,7 @@ function updateRoute(string xnsName, string chain, string route, address target,
 Mark an existing route as active.
 
 ```solidity
-function activateRoute(string xnsName, string chain, string route) external
+function activateRoute(string xnsName, string routePrefix, string route) external
 ```
 
 _Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after route or route book freeze._
@@ -118,7 +118,7 @@ _Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after ro
 Mark an existing route as inactive.
 
 ```solidity
-function deactivateRoute(string xnsName, string chain, string route) external
+function deactivateRoute(string xnsName, string routePrefix, string route) external
 ```
 
 _Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after route or route book freeze._
@@ -131,7 +131,7 @@ _Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after ro
 Remove a route so `createRoute` may register the same key again.
 
 ```solidity
-function deleteRoute(string xnsName, string chain, string route) external
+function deleteRoute(string xnsName, string routePrefix, string route) external
 ```
 
 _Reverts if the route is frozen (`CannotDeleteFrozenRoute`) or the route book is frozen (`RouteBookFrozen`).
@@ -145,7 +145,7 @@ Does not check `isActive`; use `deactivateRoute` for a soft disable without dele
 Update the build `target` for an existing route.
 
 ```solidity
-function updateTarget(string xnsName, string chain, string route, address newTarget) external
+function updateTarget(string xnsName, string routePrefix, string route, address newTarget) external
 ```
 
 _Same constraints as `updateRoute` for target changes: not route-frozen, not route-book frozen.
@@ -159,7 +159,7 @@ Emits `RouteSet` only when `newTarget` differs from the stored target._
 Update `routeType` for an existing route.
 
 ```solidity
-function updateRouteType(string xnsName, string chain, string route, uint32 newRouteType) external
+function updateRouteType(string xnsName, string routePrefix, string route, uint32 newRouteType) external
 ```
 
 _Same constraints as `updateRoute` for type changes: not route-frozen, not route-book frozen.
@@ -173,7 +173,7 @@ Emits `RouteSet` only when `newRouteType` differs from the stored value._
 Freeze a single route forever.
 
 ```solidity
-function freezeRoute(string xnsName, string chain, string route) external
+function freezeRoute(string xnsName, string routePrefix, string route) external
 ```
 
 _After freezing, `target` and `routeType` can never be changed again.
@@ -204,7 +204,7 @@ _After this:
 Return full route metadata. Reverts if not found.
 
 ```solidity
-function getRouteInfo(string xnsName, string chain, string route) external view returns (address target, bool isActive, bool isFrozen, uint32 routeType)
+function getRouteInfo(string xnsName, string routePrefix, string route) external view returns (address target, bool isActive, bool isFrozen, uint32 routeType)
 ```
 
 
@@ -216,7 +216,7 @@ function getRouteInfo(string xnsName, string chain, string route) external view 
 Returns whether a route exists (`target` was ever set via `createRoute`; zero `target` is never stored).
 
 ```solidity
-function routeExists(string xnsName, string chain, string route) external view returns (bool)
+function routeExists(string xnsName, string routePrefix, string route) external view returns (bool)
 ```
 
 
@@ -231,7 +231,7 @@ function routeExists(string xnsName, string chain, string route) external view r
 
 
 ```solidity
-event RouteSet(string xnsName, string chain, string route, address indexed target, bool activate, bool freeze, uint32 routeType)
+event RouteSet(string xnsName, string routePrefix, string route, address indexed target, bool activate, bool freeze, uint32 routeType)
 ```
 
 _String parameters are non-indexed so logs carry full values (e.g. subgraphs). `target` is indexed for address filters._
@@ -245,7 +245,7 @@ _String parameters are non-indexed so logs carry full values (e.g. subgraphs). `
 
 
 ```solidity
-event RouteActiveStatusUpdated(string xnsName, string chain, string route, bool isActive)
+event RouteActiveStatusUpdated(string xnsName, string routePrefix, string route, bool isActive)
 ```
 
 
@@ -258,7 +258,7 @@ event RouteActiveStatusUpdated(string xnsName, string chain, string route, bool 
 
 
 ```solidity
-event RouteFrozen(string xnsName, string chain, string route)
+event RouteFrozen(string xnsName, string routePrefix, string route)
 ```
 
 
@@ -284,7 +284,7 @@ event RouteBookFrozenForName(string xnsName)
 
 
 ```solidity
-event RouteDeleted(string xnsName, string chain, string route)
+event RouteDeleted(string xnsName, string routePrefix, string route)
 ```
 
 
@@ -321,13 +321,13 @@ error InvalidXnsName()
 
 
 
-### InvalidChain
+### InvalidRoutePrefix
 
 
 
 
 ```solidity
-error InvalidChain()
+error InvalidRoutePrefix()
 ```
 
 

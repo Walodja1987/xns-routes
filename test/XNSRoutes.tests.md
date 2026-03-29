@@ -4,7 +4,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 ## Test setup
 
-- **Unit tests** use [`MockXNS`](../contracts/src/mocks/MockXNS.sol): set `xnsName → owner` via `setResolution`, and optionally mark labels invalid via `setLabelInvalid` for `InvalidChain` / `InvalidRoute` cases.
+- **Unit tests** use [`MockXNS`](../contracts/src/mocks/MockXNS.sol): set `xnsName → owner` via `setResolution`, and optionally mark labels invalid via `setLabelInvalid` for `InvalidRoutePrefix` / `InvalidRoute` cases.
 - **Canonical on-chain XNS** addresses for deploy/scripts/fork work live in [`constants/addresses.ts`](../constants/addresses.ts) as `XNS_ADDRESS` (they are not used by the default local test suite).
 
 ---
@@ -28,18 +28,18 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 #### Functionality
 
-- Name owner can **create** a route for `(xnsName, chain, route)` with the given `target`, `routeType`, stored `isActive` from `activate`, and stored `isFrozen` from `freeze`.
+- Name owner can **create** a route for `(xnsName, routePrefix, route)` with the given `target`, `routeType`, stored `isActive` from `activate`, and stored `isFrozen` from `freeze`.
 - Second `createRoute` for the same key should revert with `RouteAlreadyExists`.
 - With `freeze == true`, should set `isFrozen` and emit `RouteFrozen` (in addition to `RouteSet`).
 
 #### Events
 
-- Should emit `RouteSet` with `xnsName`, `chain`, `route`, `target`, `activate`, `freeze`, and `routeType`. String parameters are non-indexed (full values in log data); `target` is indexed.
-- Should emit `RouteFrozen` with `xnsName`, `chain`, `route` when `freeze` is true on create.
+- Should emit `RouteSet` with `xnsName`, `routePrefix`, `route`, `target`, `activate`, `freeze`, and `routeType`. String parameters are non-indexed (full values in log data); `target` is indexed.
+- Should emit `RouteFrozen` with `xnsName`, `routePrefix`, `route` when `freeze` is true on create.
 
 #### Reverts
 
-- Same validation as `updateRoute` for owner, labels, non-zero `target`, and `RouteBookFrozen` (see below), plus `RouteAlreadyExists` if the route key already exists.
+- Owner, XNS label rules on non-empty `routePrefix` and on `route`, non-zero `target`, and `RouteBookFrozen`, plus `RouteAlreadyExists` if the route key already exists.
 
 ---
 
@@ -60,9 +60,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 - Should revert with `NotXnsNameOwner` when `msg.sender` is not `XNS.getAddress(xnsName)`.
 - Should revert with `InvalidXnsName` when `XNS.getAddress(xnsName)` is zero (empty `xnsName` is included: XNS returns zero for `len == 0`).
-- Should revert with `InvalidChain` when non-empty `chain` fails XNS label rules (`_isValidString` → `isValidLabelOrNamespace`).
-- Empty `chain` is allowed (chain-agnostic route; human path `xnsName/route/...`) and does not run the chain label check.
-- Should revert with `InvalidRoute` when `route` fails the same rules.
+- Does **not** revert with `InvalidRoutePrefix` / `InvalidRoute` for bad `routePrefix`/`route` (no XNS label check on this path for gas); mismatched keys typically yield `RouteNotFound`.
 - Should revert with `InvalidTarget` when `target` is zero.
 - Should revert with `RouteBookFrozen` when `freezeRouteBook` has already been called for that `xnsName`.
 - Should revert with `CannotUpdateFrozenRoute` when updating a route that is already frozen (including changing only `routeType` or only `target`).
@@ -74,18 +72,18 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 #### Functionality
 
-- Name owner can set `isActive` to true / false for an existing `(xnsName, chain, route)`.
+- Name owner can set `isActive` to true / false for an existing `(xnsName, routePrefix, route)`.
 - Should still succeed when the **route** is frozen or the **route book** is frozen (only target updates are blocked).
 - Like `freezeRoute`, should emit `RouteActiveStatusUpdated` **only when `isActive` actually changes** (second `deactivateRoute` or `activateRoute` when already in that state is a no-op for events).
 
 #### Events
 
-- Should emit `RouteActiveStatusUpdated` with `xnsName`, `chain`, `route`, and `isActive` when transitioning.
+- Should emit `RouteActiveStatusUpdated` with `xnsName`, `routePrefix`, `route`, and `isActive` when transitioning.
 
 #### Reverts
 
 - Should revert with `NotXnsNameOwner` when the caller is not the resolved owner.
-- Should revert with `RouteNotFound` when no route exists for `(xnsName, chain, route)`.
+- Should revert with `RouteNotFound` when no route exists for `(xnsName, routePrefix, route)`.
 
 ---
 
@@ -93,14 +91,14 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 #### Functionality
 
-- Name owner can clear a route slot (`routeExists` false); `createRoute` may register the same `(xnsName, chain, route)` again afterward.
+- Name owner can clear a route slot (`routeExists` false); `createRoute` may register the same `(xnsName, routePrefix, route)` again afterward.
 - Reverts with `CannotDeleteFrozenRoute` if the route is per-route frozen.
 - Reverts with `RouteBookFrozen` if the route book for `xnsName` is frozen (same as `updateRoute`).
 - Independent of `isActive`; use `deactivateRoute` for a soft disable without removing the record.
 
 #### Events
 
-- Should emit `RouteDeleted` with `xnsName`, `chain`, `route`.
+- Should emit `RouteDeleted` with `xnsName`, `routePrefix`, `route`.
 
 #### Reverts
 
@@ -188,4 +186,4 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 #### Functionality
 
-- Routes under different `xnsName`, `chain`, or `route` are independent: key is `keccak256(abi.encodePacked(xnsName, "/", route))` if `chain` is empty, else `keccak256(abi.encodePacked(xnsName, "/", chain, ":", route))` (empty `chain` is distinct from any non-empty `chain` for the same `route` given XNS label rules).
+- Routes under different `xnsName`, `routePrefix`, or `route` are independent: key is `keccak256(abi.encodePacked(xnsName, "/", route))` if `routePrefix` is empty, else `keccak256(abi.encodePacked(xnsName, "/", routePrefix, ":", route))` (empty `routePrefix` is distinct from any non-empty `routePrefix` for the same `route` given XNS label rules).
