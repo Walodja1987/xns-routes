@@ -41,8 +41,8 @@ Semantics:
 - route freeze is irreversible
 - route book freeze is irreversible
 - active/inactive can be toggled even after freeze
-- setRoute supports create/update + optional freeze in one tx
-- updateTarget / updateRouteType are narrow updates (same guards as setRoute for target/type); emit `RouteSet` only on change
+- createRoute / updateRoute for full-record writes (+ optional freeze on create/update)
+- updateTarget / updateRouteType are narrow updates (same guards as updateRoute for target/type); emit `RouteSet` only on change
 
 
 
@@ -51,13 +51,13 @@ Semantics:
 
 ## Functions
 
-### setRoute
+### createRoute
 
 
-Create or update a route under `(xnsName, chain, route)`.
+Create a route under `(xnsName, chain, route)`. Reverts if that key already exists.
 
 ```solidity
-function setRoute(string xnsName, string chain, string route, address target, uint32 routeType, bool activate, bool freeze) external
+function createRoute(string xnsName, string chain, string route, address target, uint32 routeType, bool activate, bool freeze) external
 ```
 
 
@@ -68,9 +68,32 @@ function setRoute(string xnsName, string chain, string route, address target, ui
 | xnsName | string | The XNS name that owns the route space, e.g. "xns.action" |
 | chain | string | Chain key: non-empty must pass XNS label rules; empty string means chain-agnostic (path `xnsName/route/...`) |
 | route | string | Action label (XNS label rules), e.g. "transfer-usdt" |
-| target | address | Address whose meaning depends on offchain agreement for `routeType` |
+| target | address | Build address for `routeType`; must be non-zero (`address(0)` is reserved for "missing route"). |
 | routeType | uint32 | Opaque hint for parsers (semantics offchain) |
-| activate | bool | Initial or updated value for stored `isActive` |
+| activate | bool | Initial value for stored `isActive` |
+| freeze | bool | If true, set stored `isFrozen` in this same tx (irreversible for that route) |
+
+
+### updateRoute
+
+
+Update an existing route (target, routeType, activate, optional freeze in one tx).
+
+```solidity
+function updateRoute(string xnsName, string chain, string route, address target, uint32 routeType, bool activate, bool freeze) external
+```
+
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| xnsName | string | The XNS name that owns the route space, e.g. "xns.action" |
+| chain | string | Chain key (same as at create time) |
+| route | string | Action label (same as at create time) |
+| target | address | Must be non-zero; use a burn address if an unusable target is required. |
+| routeType | uint32 | Opaque hint for parsers (semantics offchain) |
+| activate | bool | New value for stored `isActive` |
 | freeze | bool | If true, set stored `isFrozen` in this same tx (irreversible for that route) |
 
 
@@ -109,7 +132,7 @@ Update the build `target` for an existing route.
 function updateTarget(string xnsName, string chain, string route, address newTarget) external
 ```
 
-_Same constraints as `setRoute` for target changes: not route-frozen, not route-book frozen.
+_Same constraints as `updateRoute` for target changes: not route-frozen, not route-book frozen.
 Emits `RouteSet` only when `newTarget` differs from the stored target._
 
 
@@ -123,7 +146,7 @@ Update `routeType` for an existing route.
 function updateRouteType(string xnsName, string chain, string route, uint32 newRouteType) external
 ```
 
-_Same constraints as `setRoute` for type changes: not route-frozen, not route-book frozen.
+_Same constraints as `updateRoute` for type changes: not route-frozen, not route-book frozen.
 Emits `RouteSet` only when `newRouteType` differs from the stored value._
 
 
@@ -185,7 +208,7 @@ function getRouteInfo(string xnsName, string chain, string route) external view 
 ### routeExists
 
 
-Returns whether a route exists (`target` was ever set via `setRoute`; zero `target` is never stored).
+Returns whether a route exists (`target` was ever set via `createRoute`; zero `target` is never stored).
 
 ```solidity
 function routeExists(string xnsName, string chain, string route) external view returns (bool)
@@ -365,6 +388,19 @@ error CannotUpdateFrozenRoute()
 
 ```solidity
 error RouteBookFrozen()
+```
+
+
+
+
+
+### RouteAlreadyExists
+
+
+
+
+```solidity
+error RouteAlreadyExists()
 ```
 
 

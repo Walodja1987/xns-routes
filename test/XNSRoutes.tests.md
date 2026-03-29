@@ -24,18 +24,37 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 ---
 
-## `setRoute`
+## `createRoute`
 
 #### Functionality
 
 - Name owner can **create** a route for `(xnsName, chain, route)` with the given `target`, `routeType`, stored `isActive` from `activate`, and stored `isFrozen` from `freeze`.
-- Name owner can **update** `target`, `routeType`, and `isActive` (via `activate`) while the entry is not frozen and the route book for that XNS name is not frozen.
+- Second `createRoute` for the same key should revert with `RouteAlreadyExists`.
 - With `freeze == true`, should set `isFrozen` and emit `RouteFrozen` (in addition to `RouteSet`).
 
 #### Events
 
-- Should emit `RouteSet` with `xnsName`, `chain`, `route`, `target`, `activate`, `freeze`, and `routeType` (payload: final stored `isActive` / `isFrozen` on create; on update, current `record.isActive` / `record.isFrozen`). Three indexed fields max: `xnsName`, `chain`, `target`; `route` and `routeType` are non-indexed.
-- Should emit `RouteFrozen` with `xnsName`, `chain`, `route` when the route becomes frozen in that transaction.
+- Should emit `RouteSet` with `xnsName`, `chain`, `route`, `target`, `activate`, `freeze`, and `routeType`. Three indexed fields max: `xnsName`, `chain`, `target`; `route` and `routeType` are non-indexed.
+- Should emit `RouteFrozen` with `xnsName`, `chain`, `route` when `freeze` is true on create.
+
+#### Reverts
+
+- Same validation as `updateRoute` for owner, labels, non-zero `target`, and `RouteBookFrozen` (see below), plus `RouteAlreadyExists` if the route key already exists.
+
+---
+
+## `updateRoute`
+
+#### Functionality
+
+- Name owner can **update** `target`, `routeType`, and `isActive` (via `activate`) on an **existing** route while the entry is not frozen and the route book for that XNS name is not frozen.
+- Should revert with `RouteNotFound` if no route exists for the key.
+- With `freeze == true`, should set `isFrozen` and emit `RouteFrozen` (in addition to `RouteSet`).
+
+#### Events
+
+- Should emit `RouteSet` with final `record.isActive` / `record.isFrozen` after the write.
+- Should emit `RouteFrozen` when `freeze` is true on update.
 
 #### Reverts
 
@@ -47,6 +66,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 - Should revert with `InvalidTarget` when `target` is zero.
 - Should revert with `RouteBookFrozen` when `freezeRouteBook` has already been called for that `xnsName`.
 - Should revert with `CannotUpdateFrozenRoute` when updating a route that is already frozen (including changing only `routeType` or only `target`).
+- Should revert with `RouteNotFound` when the route does not exist.
 
 ---
 
@@ -74,7 +94,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 #### Functionality
 
 - Name owner can change `target` or `routeType` on an existing route (not for create).
-- Same freeze rules as `setRoute` for those fields: reverts with `CannotUpdateFrozenRoute` if the route is frozen, `RouteBookFrozen` if the route book for `xnsName` is frozen.
+- Same freeze rules as `updateRoute` for those fields: reverts with `CannotUpdateFrozenRoute` if the route is frozen, `RouteBookFrozen` if the route book for `xnsName` is frozen.
 - Should emit `RouteSet` **only when** the value actually changes (no-op otherwise).
 
 #### Events
@@ -111,7 +131,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 #### Functionality
 
 - Name owner can set `routeBookFrozen[keccak256(bytes(xnsName))]` permanently.
-- After route book freeze, `setRoute`, `updateTarget`, and `updateRouteType` must revert for that `xnsName`, while `activateRoute` / `deactivateRoute` may still run.
+- After route book freeze, `createRoute`, `updateRoute`, `updateTarget`, and `updateRouteType` must revert for that `xnsName`, while `activateRoute` / `deactivateRoute` may still run.
 
 #### Events
 
@@ -130,7 +150,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 - `routeExists` returns `false` before a route is created and `true` after.
 - `getRoute` returns the stored `target` when the route exists.
-- `getRouteInfo` returns `(target, isActive, isFrozen, routeType)` consistent with `setRoute` / `updateTarget` / `updateRouteType` / `activateRoute` / `deactivateRoute` / `freezeRoute`.
+- `getRouteInfo` returns `(target, isActive, isFrozen, routeType)` consistent with `createRoute` / `updateRoute` / `updateTarget` / `updateRouteType` / `activateRoute` / `deactivateRoute` / `freezeRoute`.
 
 #### Reverts
 

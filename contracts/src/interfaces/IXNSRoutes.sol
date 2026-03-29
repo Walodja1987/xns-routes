@@ -13,6 +13,7 @@ interface IXNSRoutes {
     error RouteNotFound();
     error CannotUpdateFrozenRoute();
     error RouteBookFrozen();
+    error RouteAlreadyExists();
 
     struct RouteRecord {
         address target;
@@ -46,7 +47,17 @@ interface IXNSRoutes {
 
     function routeBookFrozen(bytes32 xnsNameKey) external view returns (bool);
 
-    function setRoute(
+    function createRoute(
+        string calldata xnsName,
+        string calldata chain,
+        string calldata route,
+        address target,
+        uint32 routeType,
+        bool activate,
+        bool freeze
+    ) external;
+
+    function updateRoute(
         string calldata xnsName,
         string calldata chain,
         string calldata route,

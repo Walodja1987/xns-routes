@@ -64,7 +64,7 @@ Each route:
 A route is registered under an XNS name:
 
 ```solidity
-setRoute(
+createRoute(
   "xns.action",
   "eth",           // chain
   "register-name", // route
@@ -281,7 +281,8 @@ npx hardhat run scripts/examples/<script_name>.ts --network <network_name>
 
 **Write** (signer must be the address XNS currently resolves for the script’s `xnsName`)
 
-* [scripts/examples/setRoute.ts](scripts/examples/setRoute.ts) — create or update a route
+* [scripts/examples/createRoute.ts](scripts/examples/createRoute.ts) — register a new route key
+* [scripts/examples/updateRoute.ts](scripts/examples/updateRoute.ts) — full update of an existing route
 * [scripts/examples/activateRoute.ts](scripts/examples/activateRoute.ts) — set `isActive` true (emit only on change)
 * [scripts/examples/deactivateRoute.ts](scripts/examples/deactivateRoute.ts) — set `isActive` false (emit only on change)
 * [scripts/examples/updateTarget.ts](scripts/examples/updateTarget.ts) — change build `target` (emit only on change)

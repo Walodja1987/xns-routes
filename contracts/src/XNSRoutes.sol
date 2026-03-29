@@ -47,8 +47,8 @@ interface IXNS {
 /// - route freeze is irreversible
 /// - route book freeze is irreversible
 /// - active/inactive can be toggled even after freeze
-/// - setRoute supports create/update + optional freeze in one tx
-/// - updateTarget / updateRouteType are narrow updates (same guards as setRoute for target/type); emit `RouteSet` only on change
+/// - createRoute / updateRoute for full-record writes (+ optional freeze on create/update)
+/// - updateTarget / updateRouteType are narrow updates (same guards as updateRoute for target/type); emit `RouteSet` only on change
 contract XNSRoutes {
     error ZeroAddress();
     error InvalidXnsName();
@@ -59,6 +59,7 @@ contract XNSRoutes {
     error RouteNotFound();
     error CannotUpdateFrozenRoute();
     error RouteBookFrozen();
+    error RouteAlreadyExists();
 
     struct RouteRecord {
         address target;
@@ -100,25 +101,25 @@ contract XNSRoutes {
     /// @param xns_ XNS registry implementing `IXNS`.
     /// @dev Payable: forwards `msg.value` to `registerName("routes","xns")` so `routes.xns` resolves to `address(this)`.
     /// Requirements on XNS side (payment, exclusivity, name availability, etc.) apply — deployment reverts if registration fails.
-    /// @dev Because the owner of `routes.xns` is this contract, `setRoute` with `xnsName == "routes.xns"` requires
+    /// @dev Because the owner of `routes.xns` is this contract, `createRoute` / `updateRoute` with `xnsName == "routes.xns"` require
     /// `msg.sender == address(this)`. To let an EOA or multisig manage that namespace, add an authorized entrypoint
-    /// that performs an external `this.setRoute(...)` (or use another XNS name owned by the operator for routes).
+    /// that performs an external `this.createRoute(...)` / `this.updateRoute(...)` (or use another XNS name owned by the operator).
     constructor(address xns_) payable {
         if (xns_ == address(0)) revert ZeroAddress();
         XNS = IXNS(xns_);
         XNS.registerName{value: msg.value}("routes", "xns");
     }
 
-    /// @notice Create or update a route under `(xnsName, chain, route)`.
+    /// @notice Create a route under `(xnsName, chain, route)`. Reverts if that key already exists.
     ///
     /// @param xnsName The XNS name that owns the route space, e.g. "xns.action"
     /// @param chain Chain key: non-empty must pass XNS label rules; empty string means chain-agnostic (path `xnsName/route/...`)
     /// @param route Action label (XNS label rules), e.g. "transfer-usdt"
-    /// @param target Address whose meaning depends on offchain agreement for `routeType`
+    /// @param target Build address for `routeType`; must be non-zero (`address(0)` is reserved for "missing route").
     /// @param routeType Opaque hint for parsers (semantics offchain)
-    /// @param activate Initial or updated value for stored `isActive`
+    /// @param activate Initial value for stored `isActive`
     /// @param freeze If true, set stored `isFrozen` in this same tx (irreversible for that route)
-    function setRoute(
+    function createRoute(
         string calldata xnsName,
         string calldata chain,
         string calldata route,
@@ -127,48 +128,56 @@ contract XNSRoutes {
         bool activate,
         bool freeze
     ) external {
-        _requireXnsNameOwner(xnsName);
-
-        if (bytes(chain).length != 0 && !_isValidString(chain)) revert InvalidChain();
-        if (!_isValidString(route)) revert InvalidRoute();
-
-        // `address(0)` is reserved for "route does not exist"; for a burn `target`
-        // use a non-zero address (e.g. 0x000000000000000000000000000000000000dEaD).
-        if (target == address(0)) revert InvalidTarget();
-
-        bytes32 xnsNameKey = keccak256(bytes(xnsName));
-        if (routeBookFrozen[xnsNameKey]) revert RouteBookFrozen();
-
-        bytes32 routeKey = _routeKey(xnsName, chain, route);
+        (, bytes32 routeKey) = _prepareFullRouteWrite(xnsName, chain, route, target);
         RouteRecord storage record = _routes[routeKey];
+        if (record.target != address(0)) revert RouteAlreadyExists();
 
-        if (record.target != address(0)) {
-            if (record.isFrozen) revert CannotUpdateFrozenRoute();
+        _routes[routeKey] = RouteRecord({
+            target: target,
+            routeType: routeType,
+            isActive: activate,
+            isFrozen: freeze
+        });
 
-            record.target = target;
-            record.routeType = routeType;
-            record.isActive = activate;
-
-            if (freeze) {
-                record.isFrozen = true;
-                emit RouteFrozen(xnsName, chain, route);
-            }
-
-            emit RouteSet(xnsName, chain, route, target, record.isActive, record.isFrozen, record.routeType);
-        } else {
-            _routes[routeKey] = RouteRecord({
-                target: target,
-                routeType: routeType,
-                isActive: activate,
-                isFrozen: freeze
-            });
-
-            if (freeze) {
-                emit RouteFrozen(xnsName, chain, route);
-            }
-
-            emit RouteSet(xnsName, chain, route, target, activate, freeze, routeType);
+        if (freeze) {
+            emit RouteFrozen(xnsName, chain, route);
         }
+
+        emit RouteSet(xnsName, chain, route, target, activate, freeze, routeType);
+    }
+
+    /// @notice Update an existing route (target, routeType, activate, optional freeze in one tx).
+    /// @param xnsName The XNS name that owns the route space, e.g. "xns.action"
+    /// @param chain Chain key (same as at create time)
+    /// @param route Action label (same as at create time)
+    /// @param target Must be non-zero; use a burn address if an unusable target is required.
+    /// @param routeType Opaque hint for parsers (semantics offchain)
+    /// @param activate New value for stored `isActive`
+    /// @param freeze If true, set stored `isFrozen` in this same tx (irreversible for that route)
+    function updateRoute(
+        string calldata xnsName,
+        string calldata chain,
+        string calldata route,
+        address target,
+        uint32 routeType,
+        bool activate,
+        bool freeze
+    ) external {
+        (, bytes32 routeKey) = _prepareFullRouteWrite(xnsName, chain, route, target);
+        RouteRecord storage record = _routes[routeKey];
+        if (record.target == address(0)) revert RouteNotFound();
+        if (record.isFrozen) revert CannotUpdateFrozenRoute();
+
+        record.target = target;
+        record.routeType = routeType;
+        record.isActive = activate;
+
+        if (freeze) {
+            record.isFrozen = true;
+            emit RouteFrozen(xnsName, chain, route);
+        }
+
+        emit RouteSet(xnsName, chain, route, target, record.isActive, record.isFrozen, record.routeType);
     }
 
     /// @notice Mark an existing route as active.
@@ -202,7 +211,7 @@ contract XNSRoutes {
     }
 
     /// @notice Update the build `target` for an existing route.
-    /// @dev Same constraints as `setRoute` for target changes: not route-frozen, not route-book frozen.
+    /// @dev Same constraints as `updateRoute` for target changes: not route-frozen, not route-book frozen.
     /// Emits `RouteSet` only when `newTarget` differs from the stored target.
     function updateTarget(
         string calldata xnsName,
@@ -210,17 +219,9 @@ contract XNSRoutes {
         string calldata route,
         address newTarget
     ) external {
-        _requireXnsNameOwner(xnsName);
+        RouteRecord storage record = _mutableRouteRecord(xnsName, chain, route);
 
-        bytes32 xnsNameKey = keccak256(bytes(xnsName));
-        if (routeBookFrozen[xnsNameKey]) revert RouteBookFrozen();
-
-        bytes32 routeKey = _routeKey(xnsName, chain, route);
-        RouteRecord storage record = _routes[routeKey];
-        if (record.target == address(0)) revert RouteNotFound();
-        if (record.isFrozen) revert CannotUpdateFrozenRoute();
-
-        if (newTarget == address(0)) revert InvalidTarget();
+        _requireNonZeroTarget(newTarget);
 
         if (record.target != newTarget) {
             record.target = newTarget;
@@ -229,7 +230,7 @@ contract XNSRoutes {
     }
 
     /// @notice Update `routeType` for an existing route.
-    /// @dev Same constraints as `setRoute` for type changes: not route-frozen, not route-book frozen.
+    /// @dev Same constraints as `updateRoute` for type changes: not route-frozen, not route-book frozen.
     /// Emits `RouteSet` only when `newRouteType` differs from the stored value.
     function updateRouteType(
         string calldata xnsName,
@@ -237,15 +238,7 @@ contract XNSRoutes {
         string calldata route,
         uint32 newRouteType
     ) external {
-        _requireXnsNameOwner(xnsName);
-
-        bytes32 xnsNameKey = keccak256(bytes(xnsName));
-        if (routeBookFrozen[xnsNameKey]) revert RouteBookFrozen();
-
-        bytes32 routeKey = _routeKey(xnsName, chain, route);
-        RouteRecord storage record = _routes[routeKey];
-        if (record.target == address(0)) revert RouteNotFound();
-        if (record.isFrozen) revert CannotUpdateFrozenRoute();
+        RouteRecord storage record = _mutableRouteRecord(xnsName, chain, route);
 
         if (record.routeType != newRouteType) {
             record.routeType = newRouteType;
@@ -315,7 +308,7 @@ contract XNSRoutes {
         return (record.target, record.isActive, record.isFrozen, record.routeType);
     }
 
-    /// @notice Returns whether a route exists (`target` was ever set via `setRoute`; zero `target` is never stored).
+    /// @notice Returns whether a route exists (`target` was ever set via `createRoute`; zero `target` is never stored).
     function routeExists(
         string calldata xnsName,
         string calldata chain,
@@ -344,8 +337,48 @@ contract XNSRoutes {
     }
 
     /// @dev Whether `s` satisfies XNS label/namespace rules (length, charset, hyphen rules).
-    /// Used for non-empty `chain` and for `route`; empty `chain` skips this check in `setRoute`.
+    /// Used for non-empty `chain` and for `route` in `createRoute` / `updateRoute`.
     function _isValidString(string calldata s) private view returns (bool) {
         return XNS.isValidLabelOrNamespace(s);
+    }
+
+    function _validateChainAndRoute(string calldata chain, string calldata route) private view {
+        if (bytes(chain).length != 0 && !_isValidString(chain)) revert InvalidChain();
+        if (!_isValidString(route)) revert InvalidRoute();
+    }
+
+    /// @dev `address(0)` is reserved for "route does not exist"; for a burn `target` use e.g. `0x…dEaD`.
+    function _requireNonZeroTarget(address target) private pure {
+        if (target == address(0)) revert InvalidTarget();
+    }
+
+    /// @dev Owner, label checks, non-zero target, route book not frozen. Returns `(xnsNameKey, routeKey)`.
+    function _prepareFullRouteWrite(
+        string calldata xnsName,
+        string calldata chain,
+        string calldata route,
+        address target
+    ) private view returns (bytes32 xnsNameKey, bytes32 routeKey) {
+        _requireXnsNameOwner(xnsName);
+        _validateChainAndRoute(chain, route);
+        _requireNonZeroTarget(target);
+        xnsNameKey = keccak256(bytes(xnsName));
+        if (routeBookFrozen[xnsNameKey]) revert RouteBookFrozen();
+        routeKey = _routeKey(xnsName, chain, route);
+    }
+
+    /// @dev Owner, route book open, route exists, not per-route frozen.
+    function _mutableRouteRecord(
+        string calldata xnsName,
+        string calldata chain,
+        string calldata route
+    ) private view returns (RouteRecord storage record) {
+        _requireXnsNameOwner(xnsName);
+        bytes32 xnsNameKey = keccak256(bytes(xnsName));
+        if (routeBookFrozen[xnsNameKey]) revert RouteBookFrozen();
+        bytes32 routeKey = _routeKey(xnsName, chain, route);
+        record = _routes[routeKey];
+        if (record.target == address(0)) revert RouteNotFound();
+        if (record.isFrozen) revert CannotUpdateFrozenRoute();
     }
 }

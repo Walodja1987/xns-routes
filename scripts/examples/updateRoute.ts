@@ -1,12 +1,13 @@
 /**
- * Create or update a route (target + activate + optional freeze in this tx).
+ * Update an existing route (target, routeType, activate, optional freeze in one tx).
+ * Reverts with `RouteNotFound` if the route does not exist, or if frozen / route book frozen when applicable.
  * Caller must be the address XNS currently resolves for `xnsName`.
  *
  * USAGE:
- * `npx hardhat run scripts/examples/setRoute.ts --network <network_name>`
+ * `npx hardhat run scripts/examples/updateRoute.ts --network <network_name>`
  *
  * EXAMPLE:
- * `npx hardhat run scripts/examples/setRoute.ts --network sepolia`
+ * `npx hardhat run scripts/examples/updateRoute.ts --network sepolia`
  *
  * REQUIRED SETUP:
  * - MNEMONIC, network RPC (see docs/DEV_NOTES.md)
@@ -26,23 +27,14 @@ const RED = "\x1b[31m";
 //////////////////////////////////////////////////////////////*/
 
 const xnsName = "xns.action";
-/** Chain key (path segment before `:`), e.g. `eth` in `xns.action/eth:register-name/...` */
 const chain = "eth";
 const route = "register-name";
 
-/** Build contract address for this route */
 const target = "0x0000000000000000000000000000000000000001";
-
-/** Parser hint; semantics are offchain (e.g. 0 = plain address, 1 = calldata builder) */
 const routeType = 0;
-
-/** Stored as `isActive` on the route record */
 const activate = true;
-
-/** If true, route target cannot be changed after this tx */
 const freeze = false;
 
-/** Signer index (0 = first account from mnemonic) */
 const signerIndex = 0;
 
 async function main() {
@@ -78,7 +70,7 @@ async function main() {
 
   const tx = await routes
     .connect(signer)
-    .setRoute(xnsName, chain, route, target, routeType, activate, freeze);
+    .updateRoute(xnsName, chain, route, target, routeType, activate, freeze);
   console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
   console.log("Waiting for confirmation...\n");
   await tx.wait();
