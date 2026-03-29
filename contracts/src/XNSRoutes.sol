@@ -5,7 +5,6 @@ pragma solidity 0.8.28;
 interface IXNS {
     function getAddress(string calldata fullName) external view returns (address addr);
     function isValidLabelOrNamespace(string calldata labelOrNamespace) external pure returns (bool isValid);
-    /// @dev Assigns `label.namespace` to `msg.sender` (at deploy, the new `XNSRoutes` instance).
     function registerName(string calldata label, string calldata namespace) external payable;
 }
 
@@ -40,6 +39,7 @@ interface IXNS {
 /// Route book freeze model (`routeBookFrozen` keyed by `keccak256(bytes(xnsName))`):
 /// - no new routes may be added under that `xnsName`
 /// - no existing route targets under that name may be changed anymore
+/// - routes may not be deleted under that name
 /// - route activation can still be toggled even after route book freeze
 ///
 /// Semantics:
@@ -49,6 +49,7 @@ interface IXNS {
 /// - active/inactive can be toggled even after freeze
 /// - createRoute / updateRoute for full-record writes (+ optional freeze on create/update)
 /// - updateTarget / updateRouteType are narrow updates (same guards as updateRoute for target/type); emit `RouteSet` only on change
+/// - deleteRoute clears a route when it is not per-route frozen and the route book is not frozen (`createRoute` may reuse the key afterward)
 contract XNSRoutes {
     error ZeroAddress();
     error InvalidXnsName();
@@ -60,6 +61,7 @@ contract XNSRoutes {
     error CannotUpdateFrozenRoute();
     error RouteBookFrozen();
     error RouteAlreadyExists();
+    error CannotDeleteFrozenRoute();
 
     struct RouteRecord {
         address target;
@@ -97,6 +99,8 @@ contract XNSRoutes {
     event RouteFrozen(string indexed xnsName, string indexed chain, string route);
 
     event RouteBookFrozenForName(string indexed xnsName);
+
+    event RouteDeleted(string indexed xnsName, string indexed chain, string route);
 
     /// @param xns_ XNS registry implementing `IXNS`.
     /// @dev Payable: forwards `msg.value` to `registerName("routes","xns")` so `routes.xns` resolves to `address(this)`.
@@ -183,31 +187,23 @@ contract XNSRoutes {
     /// @notice Mark an existing route as active.
     /// @dev Emits `RouteActivationSet` only when `isActive` changes. Allowed after route or route book freeze.
     function activateRoute(string calldata xnsName, string calldata chain, string calldata route) external {
-        _requireXnsNameOwner(xnsName);
-
-        bytes32 routeKey = _routeKey(xnsName, chain, route);
-        RouteRecord storage record = _routes[routeKey];
-        if (record.target == address(0)) revert RouteNotFound();
-
-        if (!record.isActive) {
-            record.isActive = true;
-            emit RouteActivationSet(xnsName, chain, route, true);
-        }
+        _setRouteActivation(xnsName, chain, route, true);
     }
 
     /// @notice Mark an existing route as inactive.
     /// @dev Emits `RouteActivationSet` only when `isActive` changes. Allowed after route or route book freeze.
     function deactivateRoute(string calldata xnsName, string calldata chain, string calldata route) external {
-        _requireXnsNameOwner(xnsName);
+        _setRouteActivation(xnsName, chain, route, false);
+    }
 
-        bytes32 routeKey = _routeKey(xnsName, chain, route);
-        RouteRecord storage record = _routes[routeKey];
-        if (record.target == address(0)) revert RouteNotFound();
-
-        if (record.isActive) {
-            record.isActive = false;
-            emit RouteActivationSet(xnsName, chain, route, false);
-        }
+    /// @notice Remove a route so `createRoute` may register the same key again.
+    /// @dev Reverts if the route is frozen (`CannotDeleteFrozenRoute`) or the route book is frozen (`RouteBookFrozen`).
+    /// Does not check `isActive`; use `deactivateRoute` for a soft disable without deleting.
+    function deleteRoute(string calldata xnsName, string calldata chain, string calldata route) external {
+        (RouteRecord storage record, bytes32 routeKey) = _ownedRouteSlotOpenBook(xnsName, chain, route);
+        if (record.isFrozen) revert CannotDeleteFrozenRoute();
+        delete _routes[routeKey];
+        emit RouteDeleted(xnsName, chain, route);
     }
 
     /// @notice Update the build `target` for an existing route.
@@ -270,6 +266,7 @@ contract XNSRoutes {
     /// @dev After this:
     /// - no new routes may be added under `xnsName`
     /// - no existing route targets may be changed under `xnsName`
+    /// - routes may not be deleted under `xnsName`
     /// - route activation can still be toggled
     function freezeRouteBook(string calldata xnsName) external {
         _requireXnsNameOwner(xnsName);
@@ -324,6 +321,23 @@ contract XNSRoutes {
         if (msg.sender != xnsNameOwner) revert NotXnsNameOwner();
     }
 
+    /// @dev Allowed after route or route book freeze. Emits `RouteActivationSet` only when `isActive` changes.
+    function _setRouteActivation(
+        string calldata xnsName,
+        string calldata chain,
+        string calldata route,
+        bool active
+    ) private {
+        _requireXnsNameOwner(xnsName);
+        bytes32 routeKey = _routeKey(xnsName, chain, route);
+        RouteRecord storage record = _routes[routeKey];
+        if (record.target == address(0)) revert RouteNotFound();
+        if (record.isActive != active) {
+            record.isActive = active;
+            emit RouteActivationSet(xnsName, chain, route, active);
+        }
+    }
+
     /// @dev Empty `chain`: packed `xnsName/route` (matches human path without `:`). Non-empty: `xnsName/chain:route`.
     function _routeKey(
         string calldata xnsName,
@@ -367,18 +381,27 @@ contract XNSRoutes {
         routeKey = _routeKey(xnsName, chain, route);
     }
 
+    /// @dev Owner, route book not frozen, route exists. Caller enforces per-route frozen rules separately.
+    function _ownedRouteSlotOpenBook(
+        string calldata xnsName,
+        string calldata chain,
+        string calldata route
+    ) private view returns (RouteRecord storage record, bytes32 routeKey) {
+        _requireXnsNameOwner(xnsName);
+        bytes32 xnsNameKey = keccak256(bytes(xnsName));
+        if (routeBookFrozen[xnsNameKey]) revert RouteBookFrozen();
+        routeKey = _routeKey(xnsName, chain, route);
+        record = _routes[routeKey];
+        if (record.target == address(0)) revert RouteNotFound();
+    }
+
     /// @dev Owner, route book open, route exists, not per-route frozen.
     function _mutableRouteRecord(
         string calldata xnsName,
         string calldata chain,
         string calldata route
     ) private view returns (RouteRecord storage record) {
-        _requireXnsNameOwner(xnsName);
-        bytes32 xnsNameKey = keccak256(bytes(xnsName));
-        if (routeBookFrozen[xnsNameKey]) revert RouteBookFrozen();
-        bytes32 routeKey = _routeKey(xnsName, chain, route);
-        record = _routes[routeKey];
-        if (record.target == address(0)) revert RouteNotFound();
+        (record, ) = _ownedRouteSlotOpenBook(xnsName, chain, route);
         if (record.isFrozen) revert CannotUpdateFrozenRoute();
     }
 }

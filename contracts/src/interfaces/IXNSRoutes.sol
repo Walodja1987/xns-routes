@@ -14,6 +14,7 @@ interface IXNSRoutes {
     error CannotUpdateFrozenRoute();
     error RouteBookFrozen();
     error RouteAlreadyExists();
+    error CannotDeleteFrozenRoute();
 
     struct RouteRecord {
         address target;
@@ -43,6 +44,8 @@ interface IXNSRoutes {
 
     event RouteBookFrozenForName(string indexed xnsName);
 
+    event RouteDeleted(string indexed xnsName, string indexed chain, string route);
+
     function XNS() external view returns (address);
 
     function routeBookFrozen(bytes32 xnsNameKey) external view returns (bool);
@@ -70,6 +73,8 @@ interface IXNSRoutes {
     function activateRoute(string calldata xnsName, string calldata chain, string calldata route) external;
 
     function deactivateRoute(string calldata xnsName, string calldata chain, string calldata route) external;
+
+    function deleteRoute(string calldata xnsName, string calldata chain, string calldata route) external;
 
     function updateTarget(
         string calldata xnsName,

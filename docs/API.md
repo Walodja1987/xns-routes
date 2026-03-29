@@ -34,6 +34,7 @@ Route state model:
 Route book freeze model (`routeBookFrozen` keyed by `keccak256(bytes(xnsName))`):
 - no new routes may be added under that `xnsName`
 - no existing route targets under that name may be changed anymore
+- routes may not be deleted under that name
 - route activation can still be toggled even after route book freeze
 
 Semantics:
@@ -43,6 +44,7 @@ Semantics:
 - active/inactive can be toggled even after freeze
 - createRoute / updateRoute for full-record writes (+ optional freeze on create/update)
 - updateTarget / updateRouteType are narrow updates (same guards as updateRoute for target/type); emit `RouteSet` only on change
+- deleteRoute clears a route when it is not per-route frozen and the route book is not frozen (`createRoute` may reuse the key afterward)
 
 
 
@@ -123,6 +125,20 @@ _Emits `RouteActivationSet` only when `isActive` changes. Allowed after route or
 
 
 
+### deleteRoute
+
+
+Remove a route so `createRoute` may register the same key again.
+
+```solidity
+function deleteRoute(string xnsName, string chain, string route) external
+```
+
+_Reverts if the route is frozen (`CannotDeleteFrozenRoute`) or the route book is frozen (`RouteBookFrozen`).
+Does not check `isActive`; use `deactivateRoute` for a soft disable without deleting._
+
+
+
 ### updateTarget
 
 
@@ -177,6 +193,7 @@ function freezeRouteBook(string xnsName) external
 _After this:
 - no new routes may be added under `xnsName`
 - no existing route targets may be changed under `xnsName`
+- routes may not be deleted under `xnsName`
 - route activation can still be toggled_
 
 
@@ -267,6 +284,19 @@ event RouteFrozen(string xnsName, string chain, string route)
 
 ```solidity
 event RouteBookFrozenForName(string xnsName)
+```
+
+
+
+
+
+### RouteDeleted
+
+
+
+
+```solidity
+event RouteDeleted(string xnsName, string chain, string route)
 ```
 
 
@@ -401,6 +431,19 @@ error RouteBookFrozen()
 
 ```solidity
 error RouteAlreadyExists()
+```
+
+
+
+
+
+### CannotDeleteFrozenRoute
+
+
+
+
+```solidity
+error CannotDeleteFrozenRoute()
 ```
 
 

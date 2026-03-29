@@ -148,7 +148,7 @@ Locks a route forever:
 freezeRoute("xns.action", "eth", "register-name");
 ```
 
-* Target can never change again
+* Target can never change again and the route cannot be deleted
 * Active flag can still be toggled (`activateRoute` / `deactivateRoute`)
 
 ---
@@ -163,6 +163,7 @@ freezeRouteBook("xns.action");
 
 * No new routes can be added
 * No route targets can be changed
+* Routes cannot be deleted (`deleteRoute` reverts)
 * Activation still allowed (`activateRoute` / `deactivateRoute`)
 
 > This is useful for publishers who want to finalize their entire action set.
@@ -285,6 +286,7 @@ npx hardhat run scripts/examples/<script_name>.ts --network <network_name>
 * [scripts/examples/updateRoute.ts](scripts/examples/updateRoute.ts) — full update of an existing route
 * [scripts/examples/activateRoute.ts](scripts/examples/activateRoute.ts) — set `isActive` true (emit only on change)
 * [scripts/examples/deactivateRoute.ts](scripts/examples/deactivateRoute.ts) — set `isActive` false (emit only on change)
+* [scripts/examples/deleteRoute.ts](scripts/examples/deleteRoute.ts) — remove route if not frozen / route book open
 * [scripts/examples/updateTarget.ts](scripts/examples/updateTarget.ts) — change build `target` (emit only on change)
 * [scripts/examples/updateRouteType.ts](scripts/examples/updateRouteType.ts) — change `routeType` (emit only on change)
 * [scripts/examples/freezeRoute.ts](scripts/examples/freezeRoute.ts) — freeze one route forever

@@ -351,6 +351,66 @@ describe("XNSRoutes", function () {
     });
   });
 
+  describe("deleteRoute", function () {
+    it("Should emit RouteDeleted, clear the route, and allow createRoute again", async function () {
+      const { routes, owner, buildTarget, other } = await loadFixture(deployFixture);
+      await routes.connect(owner).createRoute(XNS_NAME, CHAIN, ROUTE, buildTarget, RT0, true, false);
+
+      await expect(routes.connect(owner).deleteRoute(XNS_NAME, CHAIN, ROUTE))
+        .to.emit(routes, "RouteDeleted")
+        .withArgs(XNS_NAME, CHAIN, ROUTE);
+
+      expect(await routes.routeExists(XNS_NAME, CHAIN, ROUTE)).to.equal(false);
+      await expect(routes.getRoute(XNS_NAME, CHAIN, ROUTE)).to.be.revertedWithCustomError(
+        routes,
+        "RouteNotFound",
+      );
+
+      await expect(
+        routes.connect(owner).createRoute(XNS_NAME, CHAIN, ROUTE, other.address, RT0, false, false),
+      ).to.emit(routes, "RouteSet");
+
+      expect(await routes.getRoute(XNS_NAME, CHAIN, ROUTE)).to.equal(other.address);
+    });
+
+    it("Should revert with CannotDeleteFrozenRoute after freezeRoute", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes.connect(owner).createRoute(XNS_NAME, CHAIN, ROUTE, buildTarget, RT0, true, false);
+      await routes.connect(owner).freezeRoute(XNS_NAME, CHAIN, ROUTE);
+
+      await expect(
+        routes.connect(owner).deleteRoute(XNS_NAME, CHAIN, ROUTE),
+      ).to.be.revertedWithCustomError(routes, "CannotDeleteFrozenRoute");
+    });
+
+    it("Should revert with RouteBookFrozen after freezeRouteBook", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes.connect(owner).createRoute(XNS_NAME, CHAIN, ROUTE, buildTarget, RT0, true, false);
+      await routes.connect(owner).freezeRouteBook(XNS_NAME);
+
+      await expect(
+        routes.connect(owner).deleteRoute(XNS_NAME, CHAIN, ROUTE),
+      ).to.be.revertedWithCustomError(routes, "RouteBookFrozen");
+    });
+
+    it("Should revert with NotXnsNameOwner for wrong caller", async function () {
+      const { routes, owner, other, buildTarget } = await loadFixture(deployFixture);
+      await routes.connect(owner).createRoute(XNS_NAME, CHAIN, ROUTE, buildTarget, RT0, true, false);
+
+      await expect(
+        routes.connect(other).deleteRoute(XNS_NAME, CHAIN, ROUTE),
+      ).to.be.revertedWithCustomError(routes, "NotXnsNameOwner");
+    });
+
+    it("Should revert with RouteNotFound when route missing", async function () {
+      const { routes, owner } = await loadFixture(deployFixture);
+
+      await expect(
+        routes.connect(owner).deleteRoute(XNS_NAME, CHAIN, "missing"),
+      ).to.be.revertedWithCustomError(routes, "RouteNotFound");
+    });
+  });
+
   describe("updateTarget and updateRouteType", function () {
     it("Should update target and emit RouteSet", async function () {
       const { routes, owner, buildTarget, other } = await loadFixture(deployFixture);
@@ -521,7 +581,7 @@ describe("XNSRoutes", function () {
       expect(await routes.routeBookFrozen(xnsNameKey)).to.equal(true);
     });
 
-    it("Should block createRoute and updateRoute but allow deactivateRoute", async function () {
+    it("Should block createRoute, updateRoute, and deleteRoute but allow deactivateRoute", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes.connect(owner).createRoute(XNS_NAME, CHAIN, ROUTE, buildTarget, RT0, true, false);
       await routes.connect(owner).freezeRouteBook(XNS_NAME);
@@ -532,6 +592,10 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(owner).updateRoute(XNS_NAME, CHAIN, ROUTE, buildTarget, RT0, false, false),
+      ).to.be.revertedWithCustomError(routes, "RouteBookFrozen");
+
+      await expect(
+        routes.connect(owner).deleteRoute(XNS_NAME, CHAIN, ROUTE),
       ).to.be.revertedWithCustomError(routes, "RouteBookFrozen");
 
       await expect(routes.connect(owner).deactivateRoute(XNS_NAME, CHAIN, ROUTE)).to.emit(

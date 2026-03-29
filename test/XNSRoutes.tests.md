@@ -89,6 +89,25 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 ---
 
+## `deleteRoute`
+
+#### Functionality
+
+- Name owner can clear a route slot (`routeExists` false); `createRoute` may register the same `(xnsName, chain, route)` again afterward.
+- Reverts with `CannotDeleteFrozenRoute` if the route is per-route frozen.
+- Reverts with `RouteBookFrozen` if the route book for `xnsName` is frozen (same as `updateRoute`).
+- Independent of `isActive`; use `deactivateRoute` for a soft disable without removing the record.
+
+#### Events
+
+- Should emit `RouteDeleted` with `xnsName`, `chain`, `route`.
+
+#### Reverts
+
+- `NotXnsNameOwner`, `RouteNotFound`, `CannotDeleteFrozenRoute`, `RouteBookFrozen` as above.
+
+---
+
 ## `updateTarget` / `updateRouteType`
 
 #### Functionality
@@ -131,7 +150,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 #### Functionality
 
 - Name owner can set `routeBookFrozen[keccak256(bytes(xnsName))]` permanently.
-- After route book freeze, `createRoute`, `updateRoute`, `updateTarget`, and `updateRouteType` must revert for that `xnsName`, while `activateRoute` / `deactivateRoute` may still run.
+- After route book freeze, `createRoute`, `updateRoute`, `deleteRoute`, `updateTarget`, and `updateRouteType` must revert for that `xnsName`, while `activateRoute` / `deactivateRoute` may still run.
 
 #### Events
 
@@ -150,7 +169,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 - `routeExists` returns `false` before a route is created and `true` after.
 - `getRoute` returns the stored `target` when the route exists.
-- `getRouteInfo` returns `(target, isActive, isFrozen, routeType)` consistent with `createRoute` / `updateRoute` / `updateTarget` / `updateRouteType` / `activateRoute` / `deactivateRoute` / `freezeRoute`.
+- `getRouteInfo` returns `(target, isActive, isFrozen, routeType)` consistent with `createRoute` / `updateRoute` / `updateTarget` / `updateRouteType` / `activateRoute` / `deactivateRoute` / `freezeRoute` (until `deleteRoute` clears the slot).
 
 #### Reverts
 

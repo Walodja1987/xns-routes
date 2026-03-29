@@ -70,6 +70,7 @@ npx hardhat run scripts/examples/<script_name>.ts --network <network_name>
 - [updateRoute.ts](../scripts/examples/updateRoute.ts)
 - [activateRoute.ts](../scripts/examples/activateRoute.ts)
 - [deactivateRoute.ts](../scripts/examples/deactivateRoute.ts)
+- [deleteRoute.ts](../scripts/examples/deleteRoute.ts)
 - [updateTarget.ts](../scripts/examples/updateTarget.ts)
 - [updateRouteType.ts](../scripts/examples/updateRouteType.ts)
 - [freezeRoute.ts](../scripts/examples/freezeRoute.ts)
