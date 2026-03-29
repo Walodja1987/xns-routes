@@ -219,11 +219,37 @@ contract XNSRoutes {
         _updateRouteActiveStatus(xnsName, routePrefix, route, false);
     }
 
+    /// @dev Allowed after route or route book freeze. Emits `RouteActiveStatusUpdated` only when `isActive` changes.
+    function _updateRouteActiveStatus(
+        string calldata xnsName,
+        string calldata routePrefix,
+        string calldata route,
+        bool active
+    ) private {
+        // Check if the caller is authorized to update the route active status (must be the owner of the XNS name)
+        _requireXnsNameOwner(xnsName);
+
+        // Derive the route key and check if the route exists
+        bytes32 routeKey = _routeKey(xnsName, routePrefix, route);
+        RouteRecord storage record = _routes[routeKey];
+        if (record.target == address(0)) revert RouteNotFound();
+        
+        // Update the route active status
+        if (record.isActive != active) {
+            record.isActive = active;
+            emit RouteActiveStatusUpdated(xnsName, routePrefix, route, active);
+        }
+    }
+
     /// @notice Remove a route so `createRoute` may register the same key again.
     /// @dev Reverts if the route is frozen (`CannotDeleteFrozenRoute`) or the route book is frozen (`RouteBookFrozen`).
     /// Does not check `isActive`; use `deactivateRoute` for a soft disable without deleting.
     function deleteRoute(string calldata xnsName, string calldata routePrefix, string calldata route) external {
-        (RouteRecord storage record, bytes32 routeKey) = _ownedRouteSlotOpenBook(xnsName, routePrefix, route);
+        _requireXnsNameOwner(xnsName);
+        if (routeBookFrozen[keccak256(bytes(xnsName))]) revert RouteBookFrozen();
+        bytes32 routeKey = _routeKey(xnsName, routePrefix, route);
+        RouteRecord storage record = _routes[routeKey];
+        if (record.target == address(0)) revert RouteNotFound();
         if (record.isFrozen) revert CannotDeleteFrozenRoute();
         delete _routes[routeKey];
         emit RouteDeleted(xnsName, routePrefix, route);
@@ -238,7 +264,11 @@ contract XNSRoutes {
         string calldata route,
         address newTarget
     ) external {
-        RouteRecord storage record = _mutableRouteRecord(xnsName, routePrefix, route);
+        _requireXnsNameOwner(xnsName);
+        if (routeBookFrozen[keccak256(bytes(xnsName))]) revert RouteBookFrozen();
+        RouteRecord storage record = _routes[_routeKey(xnsName, routePrefix, route)];
+        if (record.target == address(0)) revert RouteNotFound();
+        if (record.isFrozen) revert CannotUpdateFrozenRoute();
 
         if (newTarget == address(0)) revert InvalidTarget();
 
@@ -257,7 +287,11 @@ contract XNSRoutes {
         string calldata route,
         uint32 newRouteType
     ) external {
-        RouteRecord storage record = _mutableRouteRecord(xnsName, routePrefix, route);
+        _requireXnsNameOwner(xnsName);
+        if (routeBookFrozen[keccak256(bytes(xnsName))]) revert RouteBookFrozen();
+        RouteRecord storage record = _routes[_routeKey(xnsName, routePrefix, route)];
+        if (record.target == address(0)) revert RouteNotFound();
+        if (record.isFrozen) revert CannotUpdateFrozenRoute();
 
         if (record.routeType != newRouteType) {
             record.routeType = newRouteType;
@@ -333,23 +367,6 @@ contract XNSRoutes {
         if (msg.sender != xnsNameOwner) revert NotXnsNameOwner();
     }
 
-    /// @dev Allowed after route or route book freeze. Emits `RouteActiveStatusUpdated` only when `isActive` changes.
-    function _updateRouteActiveStatus(
-        string calldata xnsName,
-        string calldata routePrefix,
-        string calldata route,
-        bool active
-    ) private {
-        _requireXnsNameOwner(xnsName);
-        bytes32 routeKey = _routeKey(xnsName, routePrefix, route);
-        RouteRecord storage record = _routes[routeKey];
-        if (record.target == address(0)) revert RouteNotFound();
-        if (record.isActive != active) {
-            record.isActive = active;
-            emit RouteActiveStatusUpdated(xnsName, routePrefix, route, active);
-        }
-    }
-
     /// @dev Empty `routePrefix`: packed `xnsName/route` (matches human path without `:`). Non-empty: `xnsName/routePrefix:route`.
     function _routeKey(
         string calldata xnsName,
@@ -368,26 +385,4 @@ contract XNSRoutes {
         return XNS.isValidLabelOrNamespace(s);
     }
 
-    /// @dev Owner, route book not frozen, route exists. Caller enforces per-route frozen rules separately.
-    function _ownedRouteSlotOpenBook(
-        string calldata xnsName,
-        string calldata routePrefix,
-        string calldata route
-    ) private view returns (RouteRecord storage record, bytes32 routeKey) {
-        _requireXnsNameOwner(xnsName);
-        if (routeBookFrozen[keccak256(bytes(xnsName))]) revert RouteBookFrozen();
-        routeKey = _routeKey(xnsName, routePrefix, route);
-        record = _routes[routeKey];
-        if (record.target == address(0)) revert RouteNotFound();
-    }
-
-    /// @dev Owner, route book open, route exists, not per-route frozen.
-    function _mutableRouteRecord(
-        string calldata xnsName,
-        string calldata routePrefix,
-        string calldata route
-    ) private view returns (RouteRecord storage record) {
-        (record, ) = _ownedRouteSlotOpenBook(xnsName, routePrefix, route);
-        if (record.isFrozen) revert CannotUpdateFrozenRoute();
-    }
 }
