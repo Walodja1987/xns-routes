@@ -127,7 +127,7 @@ contract XNSRoutes {
         bool activate,
         bool freeze
     ) external {
-        // Check if the caller is authorized to create a route (must be the owner of the XNS name)
+        // Check if the caller is authorized to create a route (must be the XNS name owner)
         _requireXnsNameOwner(xnsName);
 
         // Validate input parameters
@@ -151,11 +151,12 @@ contract XNSRoutes {
             isFrozen: freeze
         });
 
-        // If the route should be frozen, emit the `RouteFrozen` event
+        // Emit the `RouteFrozen` event, if the route is frozen
         if (freeze) {
             emit RouteFrozen(xnsName, routePrefix, route);
         }
 
+        // Emit the `RouteSet` event
         emit RouteSet(xnsName, routePrefix, route, target, activate, freeze, routeType);
     }
 
@@ -177,7 +178,7 @@ contract XNSRoutes {
         bool activate,
         bool freeze
     ) external {
-        // Check if the caller is authorized to update a route (must be the owner of the XNS name)
+        // Check if the caller is authorized to update a route (must be the XNS name owner)
         _requireXnsNameOwner(xnsName);
 
         // Confirm that the target is not the zero address
@@ -197,7 +198,7 @@ contract XNSRoutes {
         record.routeType = routeType;
         record.isActive = activate;
 
-        // If the route should be frozen, emit the `RouteFrozen` event
+        // Emit the `RouteFrozen` event, if the route is frozen
         if (freeze) {
             record.isFrozen = true;
             emit RouteFrozen(xnsName, routePrefix, route);
@@ -226,7 +227,7 @@ contract XNSRoutes {
         string calldata route,
         bool active
     ) private {
-        // Check if the caller is authorized to update the route active status (must be the owner of the XNS name)
+        // Check if the caller is authorized to update the route active status (must be the XNS name owner)
         _requireXnsNameOwner(xnsName);
 
         // Derive the route key and check if the route exists
