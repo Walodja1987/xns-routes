@@ -1,5 +1,5 @@
 /**
- * Update routeType for an existing route. Emits `RouteUpdated` only if the type changes.
+ * Update routeType for an existing route. Emits `RouteTypeUpdated` only if the type changes.
  * Caller must be the address XNS currently resolves for `xnsName`.
  * Reverts if the route or route book is frozen.
  *

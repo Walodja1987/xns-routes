@@ -112,11 +112,12 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 - Name owner can change `target` or `routeType` on an existing route (not for create).
 - Same freeze rules as `updateRoute` for those fields: reverts with `CannotUpdateFrozenRoute` if the route is frozen, `RouteBookFrozen` if the route book for `xnsName` is frozen.
-- Should emit `RouteUpdated` **only when** the value actually changes (no-op otherwise).
+- Should emit `RouteTargetUpdated` / `RouteTypeUpdated` **only when** the value actually changes (no-op otherwise).
 
 #### Events
 
-- `RouteUpdated` with stored `isActive` / `isFrozen` and updated `target` or `routeType`.
+- `RouteTargetUpdated` with `xnsName`, `routePrefix`, `route`, and `newTarget` (indexed).
+- `RouteTypeUpdated` with `xnsName`, `routePrefix`, `route`, and `newRouteType` (indexed).
 
 #### Reverts
 

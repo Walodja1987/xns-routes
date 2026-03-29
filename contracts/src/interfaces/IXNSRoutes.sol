@@ -43,6 +43,10 @@ interface IXNSRoutes {
         uint32 routeType
     );
 
+    event RouteTargetUpdated(string xnsName, string routePrefix, string route, address indexed newTarget);
+
+    event RouteTypeUpdated(string xnsName, string routePrefix, string route, uint32 indexed newRouteType);
+
     event RouteActiveStatusUpdated(string xnsName, string routePrefix, string route, bool isActive);
 
     event RouteFrozen(string xnsName, string routePrefix, string route);

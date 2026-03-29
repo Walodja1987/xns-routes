@@ -1,12 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-/// @dev Subset of the XNS registry used by `XNSRoutes` (resolution, label rules, and `registerName` at deploy).
-interface IXNS {
-    function getAddress(string calldata fullName) external view returns (address addr);
-    function isValidLabelOrNamespace(string calldata labelOrNamespace) external pure returns (bool isValid);
-    function registerName(string calldata label, string calldata namespace) external payable;
-}
+import "./interfaces/IXNSMinimal.sol";
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+//                                                                                           //
+//   __   __ _   _   _____         ___    _____    ____   _    _  _______  ______   _____    //
+//   \ \ / /| \ | | / ____|       /  /   |  __ \  / __ \ | |  | ||__   __||  ____| / ____|   //
+//    \ V / |  \| || (___        /  /    | |__) || |  | || |  | |   | |   | |__   | (___     //
+//     > <  | . ` | \___ \      /  /     |  _  / | |  | || |  | |   | |   |  __|   \___ \    //
+//    / . \ | |\  | ____) |    /  /      | | \ \ | |__| || |__| |   | |   | |____  ____) |   //
+//   /_/ \_\|_| \_||_____/    /_ /       |_|  \_\ \____/  \____/    |_|   |______||_____/    //
+//                                                                                           //
+///////////////////////////////////////////////////////////////////////////////////////////////
+
 
 /// @title XNSRoutes
 /// @author Wladimir Weinbender (DIVA Technologies AG)
@@ -48,7 +55,7 @@ interface IXNS {
 /// - route book freeze is irreversible
 /// - active/inactive can be toggled even after freeze
 /// - createRoute / updateRoute for full-record writes (+ optional freeze on create/update)
-/// - updateTarget / updateRouteType are narrow updates (same guards as updateRoute for target/type); emit `RouteUpdated` only on change
+/// - updateTarget / updateRouteType are narrow updates (same guards as updateRoute for target/type); emit `RouteTargetUpdated` / `RouteTypeUpdated` only on change
 /// - deleteRoute clears a route when it is not per-route frozen and the route book is not frozen (`createRoute` may reuse the key afterward)
 contract XNSRoutes {
     error ZeroAddress();
@@ -70,7 +77,7 @@ contract XNSRoutes {
         bool isFrozen;
     }
 
-    IXNS public immutable XNS;
+    IXNSMinimal public immutable XNS;
 
     // keccak256(bytes(xnsName)) => entire route book under that name frozen?
     mapping(bytes32 => bool) public routeBookFrozen;
@@ -99,6 +106,12 @@ contract XNSRoutes {
         uint32 routeType
     );
 
+    /// @dev Narrow `updateTarget`; `newTarget` indexed for address filters.
+    event RouteTargetUpdated(string xnsName, string routePrefix, string route, address indexed newTarget);
+
+    /// @dev Narrow `updateRouteType`.
+    event RouteTypeUpdated(string xnsName, string routePrefix, string route, uint32 indexed newRouteType);
+
     event RouteActiveStatusUpdated(string xnsName, string routePrefix, string route, bool isActive);
 
     event RouteFrozen(string xnsName, string routePrefix, string route);
@@ -107,7 +120,7 @@ contract XNSRoutes {
 
     event RouteDeleted(string xnsName, string routePrefix, string route);
 
-    /// @param xns_ XNS registry implementing `IXNS`.
+    /// @param xns_ XNS registry implementing `IXNSMinimal`.
     /// @dev Payable: forwards `msg.value` to `registerName("routes","xns")` so `routes.xns` resolves to `address(this)`.
     /// Requirements on XNS side (payment, exclusivity, name availability, etc.) apply — deployment reverts if registration fails.
     /// @dev Because the owner of `routes.xns` is this contract, `createRoute` / `updateRoute` with `xnsName == "routes.xns"` require
@@ -115,7 +128,7 @@ contract XNSRoutes {
     /// that performs an external `this.createRoute(...)` / `this.updateRoute(...)` (or use another XNS name owned by the operator).
     constructor(address xns_) payable {
         if (xns_ == address(0)) revert ZeroAddress();
-        XNS = IXNS(xns_);
+        XNS = IXNSMinimal(xns_);
         XNS.registerName{value: msg.value}("routes", "xns");
     }
 
@@ -254,42 +267,57 @@ contract XNSRoutes {
     /// @dev Reverts if the route is frozen (`CannotDeleteFrozenRoute`) or the route book is frozen (`RouteBookFrozen`).
     /// Does not check `isActive`; use `deactivateRoute` for a soft disable without deleting.
     function deleteRoute(string calldata xnsName, string calldata routePrefix, string calldata route) external {
+        // Check if the caller is authorized to delete a route (must be the XNS name owner)
         _requireXnsNameOwner(xnsName);
+
+        // Check if the route book is frozen
         if (routeBookFrozen[keccak256(bytes(xnsName))]) revert RouteBookFrozen();
+
+        // Derive the route key and check if the route exists and is not frozen
         bytes32 routeKey = _routeKey(xnsName, routePrefix, route);
         RouteRecord storage record = _routes[routeKey];
         if (record.target == address(0)) revert RouteNotFound();
         if (record.isFrozen) revert CannotDeleteFrozenRoute();
+
+        // Delete the route record
         delete _routes[routeKey];
+
+        // Emit the `RouteDeleted` event
         emit RouteDeleted(xnsName, routePrefix, route);
     }
 
     /// @notice Update the build `target` for an existing route.
     /// @dev Same constraints as `updateRoute` for target changes: not route-frozen, not route-book frozen.
-    /// Emits `RouteUpdated` only when `newTarget` differs from the stored target.
+    /// Emits `RouteTargetUpdated` only when `newTarget` differs from the stored target.
     function updateTarget(
         string calldata xnsName,
         string calldata routePrefix,
         string calldata route,
         address newTarget
     ) external {
+        // Check if the caller is authorized to update the target (must be the XNS name owner)
         _requireXnsNameOwner(xnsName);
+
+        // Check if the route book is frozen
         if (routeBookFrozen[keccak256(bytes(xnsName))]) revert RouteBookFrozen();
+
+        // Derive the route key and check if the route exists and is not frozen
         RouteRecord storage record = _routes[_routeKey(xnsName, routePrefix, route)];
         if (record.target == address(0)) revert RouteNotFound();
         if (record.isFrozen) revert CannotUpdateFrozenRoute();
 
+        // Confirm that the new target is not the zero address
         if (newTarget == address(0)) revert InvalidTarget();
 
         if (record.target != newTarget) {
             record.target = newTarget;
-            emit RouteUpdated(xnsName, routePrefix, route, newTarget, record.isActive, record.isFrozen, record.routeType);
+            emit RouteTargetUpdated(xnsName, routePrefix, route, newTarget);
         }
     }
 
     /// @notice Update `routeType` for an existing route.
     /// @dev Same constraints as `updateRoute` for type changes: not route-frozen, not route-book frozen.
-    /// Emits `RouteUpdated` only when `newRouteType` differs from the stored value.
+    /// Emits `RouteTypeUpdated` only when `newRouteType` differs from the stored value.
     function updateRouteType(
         string calldata xnsName,
         string calldata routePrefix,
@@ -304,7 +332,7 @@ contract XNSRoutes {
 
         if (record.routeType != newRouteType) {
             record.routeType = newRouteType;
-            emit RouteUpdated(xnsName, routePrefix, route, record.target, record.isActive, record.isFrozen, newRouteType);
+            emit RouteTypeUpdated(xnsName, routePrefix, route, newRouteType);
         }
     }
 

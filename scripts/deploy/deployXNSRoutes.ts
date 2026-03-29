@@ -11,7 +11,7 @@
  *
  * XNS registry (constructor arg):
  * - Preferred: `npx hardhat vars set XNS_CONTRACT_ADDRESS` (deployed XNS / resolver contract
- *   implementing IXNS: getAddress, isValidLabelOrNamespace, registerName)
+ *   implementing IXNSMinimal: getAddress, isValidLabelOrNamespace, registerName)
  * - Override for one-off runs: `XNS_CONTRACT_ADDRESS=0x... npx hardhat run ...`
  *
  * After deployment, record the address in constants/addresses.ts (XNS_ROUTES_ADDRESS).
