@@ -17,47 +17,20 @@ import "./interfaces/IXNSMinimal.sol";
 
 /// @title XNSRoutes
 /// @author Wladimir Weinbender (DIVA Technologies AG)
-/// @notice Route registry linked to the XNS contract on Ethereum (0x648E4F05aF2b7eB85109A8dc8AE81D8E006457D8).
+/// @notice Route registry for XNS names.
 ///
-/// Routes are scoped under an XNS name plus optional `routePrefix` and a required `route` label. Human-readable paths look like:
-/// `bob.xns/eth:transfer-usdt/to=0x.../amount=100`
-/// Prefix-agnostic routes: use empty `routePrefix` — path form `bob.xns/my-wallet/...` (no `:` in the action segment).
-/// - xnsName: `bob.xns`
-/// - routePrefix: optional disambiguator before `:` (XNS label rules when non-empty; e.g. `eth`, `1-eth`, `137-poly`), or `""` when omitted
-/// - route: required action label after `:` when `routePrefix` is set, e.g. `transfer-usdt`
-/// With a non-empty `routePrefix`, exactly one `:` appears in the action segment, between `routePrefix` and `route`.
+/// Route format: `[xnsName]/[routePrefix]:[route]` or `[xnsName]/[route]` when no prefix is used.
 ///
-/// Storage key: if `routePrefix` is empty, `keccak256(abi.encodePacked(xnsName, "/", route))`; else `keccak256(abi.encodePacked(xnsName, "/", routePrefix, ":", route))`.
-/// `routePrefix` and `route` follow XNS label charset (`a-z`, `0-9`, `-`); `xnsName` is a registered XNS full name (no `/` or `:`).
-/// Every public function that takes `routePrefix` and `route` validates them the same way before `_routeKey` so encodings like `routePrefix == ""` with `route == "eth:transfer"` cannot alias a canonical `eth` + `transfer` key.
+/// Examples:
+/// - `bob.xns/eth:transfer-usdt/to=0x.../amount=100`
+/// - `alice.og/my-sub-wallet`
+/// - `contracts.aave/v4:pools`
 ///
-/// A route points to a `target` address; `routeType` is an opaque hint (e.g. how parsers interpret
-/// `target` or its calldata output). Meaning of type ids is agreed offchain; the contract stores any `uint32`.
-///
-/// Ownership model:
-/// - only the current address resolved by XNS for `xnsName` may manage routes under that name
-///
-/// Route state model:
-/// - target: address (e.g. builder contract or plain contract depending on `routeType`); must be non-zero.
-///   An empty mapping slot has `target == address(0)`; that is the only "route does not exist" state.
-/// - routeType: parser hint; semantics are offchain (e.g. 0 = EVM address, 1 = tx calldata builder, …)
-/// - isActive: whether wallets/apps should treat the route as usable
-/// - isFrozen: whether `target` and `routeType` can still be changed
-///
-/// Route book freeze model (`_routeBookFrozen` keyed by `keccak256(bytes(xnsName))`):
-/// - no new routes may be added under that `xnsName`
-/// - no existing route targets under that name may be changed anymore
-/// - routes may not be deleted under that name
-/// - route activation can still be toggled even after route book freeze
-///
-/// Semantics:
-/// - while the route is not frozen and the route book for that XNS name is not frozen, owner may update `target` and `routeType`
-/// - route freeze is irreversible
-/// - route book freeze is irreversible
-/// - active/inactive can be toggled even after freeze
-/// - createRoute / updateRoute for full-record writes (+ optional freeze on create/update)
-/// - updateTarget / updateRouteType are narrow updates (same guards as updateRoute for target/type); emit `RouteTargetUpdated` / `RouteTypeUpdated` only on change
-/// - deleteRoute clears a route when it is not per-route frozen and the route book is not frozen (`createRoute` may reuse the key afterward)
+/// Key points:
+/// - Routes are owned and managed by the current XNS name owner.
+/// - A route stores `target`, `routeType`, `isActive`, and `isFrozen`.
+/// - Route freeze and route-book freeze are irreversible.
+/// - Active status can still be toggled after freeze.
 contract XNSRoutes {
     // -------------------------------------------------------------------------
     // Errors
@@ -192,7 +165,10 @@ contract XNSRoutes {
         // Check if the caller is authorized to create a route (must be the XNS name owner)
         _requireXnsNameOwner(xnsName);
 
+        // Validate that the route prefix and route are valid strings
         _validateRoutePrefixAndRoute(routePrefix, route);
+
+        // Validate that the target is not the zero address
         if (target == address(0)) revert InvalidTarget();
 
         // Check if the route book is frozen
@@ -216,6 +192,7 @@ contract XNSRoutes {
             emit RouteFrozen(xnsName, routePrefix, route);
         }
 
+        // Emit the `RouteCreated` event
         emit RouteCreated(xnsName, routePrefix, route, target, activate, freeze, routeType);
     }
 
@@ -253,7 +230,10 @@ contract XNSRoutes {
         // Check if the route book is frozen
         if (_routeBookFrozen[keccak256(bytes(xnsName))]) revert RouteBookFrozen();
 
+        // Validate that the route prefix and route are valid strings
         _validateRoutePrefixAndRoute(routePrefix, route);
+
+        // Derive the route key and check if the route exists and is not frozen
         bytes32 routeKey = _routeKey(xnsName, routePrefix, route);
         RouteRecord storage record = _routes[routeKey];
         if (record.target == address(0)) revert RouteNotFound();
@@ -270,6 +250,7 @@ contract XNSRoutes {
             emit RouteFrozen(xnsName, routePrefix, route);
         }
 
+        // Emit the `RouteUpdated` event
         emit RouteUpdated(xnsName, routePrefix, route, target, record.isActive, record.isFrozen, record.routeType);
     }
 
@@ -327,7 +308,10 @@ contract XNSRoutes {
         // Check if the caller is authorized to update the route active status (must be the XNS name owner)
         _requireXnsNameOwner(xnsName);
 
+        // Validate that the route prefix and route are valid strings
         _validateRoutePrefixAndRoute(routePrefix, route);
+
+        // Derive the route key and check if the route exists
         bytes32 routeKey = _routeKey(xnsName, routePrefix, route);
         RouteRecord storage record = _routes[routeKey];
         if (record.target == address(0)) revert RouteNotFound();
@@ -359,7 +343,10 @@ contract XNSRoutes {
         // Check if the route book is frozen
         if (_routeBookFrozen[keccak256(bytes(xnsName))]) revert RouteBookFrozen();
 
+        // Validate that the route prefix and route are valid strings
         _validateRoutePrefixAndRoute(routePrefix, route);
+
+        // Derive the route key and check if the route exists and is not frozen
         bytes32 routeKey = _routeKey(xnsName, routePrefix, route);
         RouteRecord storage record = _routes[routeKey];
         if (record.target == address(0)) revert RouteNotFound();
@@ -399,7 +386,10 @@ contract XNSRoutes {
         // Check if the route book is frozen
         if (_routeBookFrozen[keccak256(bytes(xnsName))]) revert RouteBookFrozen();
 
+        // Validate that the route prefix and route are valid strings
         _validateRoutePrefixAndRoute(routePrefix, route);
+
+        // Derive the route key and check if the route exists and is not frozen
         RouteRecord storage record = _routes[_routeKey(xnsName, routePrefix, route)];
         if (record.target == address(0)) revert RouteNotFound();
         if (record.isFrozen) revert CannotUpdateFrozenRoute();
@@ -433,13 +423,21 @@ contract XNSRoutes {
         string calldata route,
         uint32 newRouteType
     ) external {
+        // Check if the caller is authorized to update the route type (must be the XNS name owner)
         _requireXnsNameOwner(xnsName);
+
+        // Check if the route book is frozen
         if (_routeBookFrozen[keccak256(bytes(xnsName))]) revert RouteBookFrozen();
+
+        // Validate that the route prefix and route are valid strings
         _validateRoutePrefixAndRoute(routePrefix, route);
+
+        // Derive the route key and check if the route exists and is not frozen
         RouteRecord storage record = _routes[_routeKey(xnsName, routePrefix, route)];
         if (record.target == address(0)) revert RouteNotFound();
         if (record.isFrozen) revert CannotUpdateFrozenRoute();
 
+        // Update the route type and emit the `RouteTypeUpdated` event, if the route type changes
         if (record.routeType != newRouteType) {
             record.routeType = newRouteType;
             emit RouteTypeUpdated(xnsName, routePrefix, route, newRouteType);
@@ -463,13 +461,18 @@ contract XNSRoutes {
         string calldata routePrefix,
         string calldata route
     ) external {
+        // Check if the caller is authorized to freeze the route (must be the XNS name owner)
         _requireXnsNameOwner(xnsName);
 
+        // Validate that the route prefix and route are valid strings
         _validateRoutePrefixAndRoute(routePrefix, route);
+
+        // Derive the route key and check if the route exists
         bytes32 routeKey = _routeKey(xnsName, routePrefix, route);
         RouteRecord storage record = _routes[routeKey];
         if (record.target == address(0)) revert RouteNotFound();
-
+        
+        // Update the route freeze status and emit the `RouteFrozen` event, if the route is not frozen
         if (!record.isFrozen) {
             record.isFrozen = true;
             emit RouteFrozen(xnsName, routePrefix, route);
@@ -489,8 +492,10 @@ contract XNSRoutes {
     ///
     /// @param xnsName Fully-qualified XNS name whose route book to freeze.
     function freezeRouteBook(string calldata xnsName) external {
+        // Check if the caller is authorized to freeze the route book (must be the XNS name owner)
         _requireXnsNameOwner(xnsName);
 
+        // Check if the route book is not already frozen
         bytes32 xnsNameKey = keccak256(bytes(xnsName));
         if (!_routeBookFrozen[xnsNameKey]) {
             _routeBookFrozen[xnsNameKey] = true;
@@ -521,7 +526,10 @@ contract XNSRoutes {
         view
         returns (address target, bool isActive, bool isFrozen, uint32 routeType)
     {
+        // Validate that the route prefix and route are valid strings
         _validateRoutePrefixAndRoute(routePrefix, route);
+
+        // Derive the route key and check if the route exists
         RouteRecord storage record = _routes[_routeKey(xnsName, routePrefix, route)];
         if (record.target == address(0)) revert RouteNotFound();
 

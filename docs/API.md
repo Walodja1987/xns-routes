@@ -5,47 +5,20 @@ This is an automatically generated documentation (using `solidity-docgen` packag
 ## XNSRoutes
 
 
-Route registry linked to the XNS contract on Ethereum (0x648E4F05aF2b7eB85109A8dc8AE81D8E006457D8).
+Route registry for XNS names.
 
-Routes are scoped under an XNS name plus optional `routePrefix` and a required `route` label. Human-readable paths look like:
-`bob.xns/eth:transfer-usdt/to=0x.../amount=100`
-Prefix-agnostic routes: use empty `routePrefix` — path form `bob.xns/my-wallet/...` (no `:` in the action segment).
-- xnsName: `bob.xns`
-- routePrefix: optional disambiguator before `:` (XNS label rules when non-empty; e.g. `eth`, `1-eth`, `137-poly`), or `""` when omitted
-- route: required action label after `:` when `routePrefix` is set, e.g. `transfer-usdt`
-With a non-empty `routePrefix`, exactly one `:` appears in the action segment, between `routePrefix` and `route`.
+Route format: `[xnsName]/[routePrefix]:[route]` or `[xnsName]/[route]` when no prefix is used.
 
-Storage key: if `routePrefix` is empty, `keccak256(abi.encodePacked(xnsName, "/", route))`; else `keccak256(abi.encodePacked(xnsName, "/", routePrefix, ":", route))`.
-`routePrefix` and `route` follow XNS label charset (`a-z`, `0-9`, `-`); `xnsName` is a registered XNS full name (no `/` or `:`).
+Examples:
+- `bob.xns/eth:transfer-usdt/to=0x.../amount=100`
+- `alice.og/my-sub-wallet`
+- `contracts.aave/v4:pools`
 
-A route points to a `target` address; `routeType` is an opaque hint (e.g. how parsers interpret
-`target` or its calldata output). Meaning of type ids is agreed offchain; the contract stores any `uint32`.
-
-Ownership model:
-- only the current address resolved by XNS for `xnsName` may manage routes under that name
-
-Route state model:
-- target: address (e.g. builder contract or plain contract depending on `routeType`); must be non-zero.
-  An empty mapping slot has `target == address(0)`; that is the only "route does not exist" state.
-- routeType: parser hint; semantics are offchain (e.g. 0 = EVM address, 1 = tx calldata builder, …)
-- isActive: whether wallets/apps should treat the route as usable
-- isFrozen: whether `target` and `routeType` can still be changed
-
-Route book freeze model (`_routeBookFrozen` keyed by `keccak256(bytes(xnsName))`):
-- no new routes may be added under that `xnsName`
-- no existing route targets under that name may be changed anymore
-- routes may not be deleted under that name
-- route activation can still be toggled even after route book freeze
-
-Semantics:
-- while the route is not frozen and the route book for that XNS name is not frozen, owner may update `target` and `routeType`
-- route freeze is irreversible
-- route book freeze is irreversible
-- active/inactive can be toggled even after freeze
-- createRoute / updateRoute for full-record writes (+ optional freeze on create/update)
-- updateTarget / updateRouteType are narrow updates (same guards as updateRoute for target/type); emit `RouteTargetUpdated` / `RouteTypeUpdated` only on change
-- deleteRoute clears a route when it is not per-route frozen and the route book is not frozen (`createRoute` may reuse the key afterward)
-- every function that accepts `routePrefix` and `route` validates them against XNS label rules before `_routeKey` (including views), so non-canonical encodings cannot target the same slot as a valid `prefix` + `route` pair
+Key points:
+- Routes are owned and managed by the current XNS name owner.
+- A route stores `target`, `routeType`, `isActive`, and `isFrozen`.
+- Route freeze and route-book freeze are irreversible.
+- Active status can still be toggled after freeze.
 
 
 
@@ -59,11 +32,17 @@ Semantics:
 
 Create a route under `(xnsName, routePrefix, route)`. Reverts if that key already exists.
 
+**Requirements:**
+- `msg.sender` must be the current XNS owner for `xnsName` (`InvalidXnsName`, `NotXnsNameOwner`).
+- Non-empty `routePrefix` and `route` must satisfy XNS label rules (`InvalidRoutePrefix`, `InvalidRoute`).
+- `target` must not be the zero address (`InvalidTarget`).
+- The route book for `xnsName` must not be frozen (`RouteBookFrozen`).
+- The route key must not already exist (`RouteAlreadyExists`).
+
 ```solidity
 function createRoute(string xnsName, string routePrefix, string route, address target, uint32 routeType, bool activate, bool freeze) external
 ```
 
-_Enforces owner, XNS label rules on non-empty `routePrefix` and on `route`, non-zero `target`, and route book not frozen before deriving the key._
 
 #### Parameters
 
@@ -74,8 +53,8 @@ _Enforces owner, XNS label rules on non-empty `routePrefix` and on `route`, non-
 | route | string | Required action label (XNS label rules), e.g. "transfer-usdt" |
 | target | address | Build address for `routeType`; must be non-zero (`address(0)` is reserved for "missing route"). |
 | routeType | uint32 | Opaque hint for parsers (semantics offchain) |
-| activate | bool | Initial value for stored `isActive` |
-| freeze | bool | If true, set stored `isFrozen` in this same tx (irreversible for that route) |
+| activate | bool | Initial value for stored `isActive`. |
+| freeze | bool | If true, set stored `isFrozen` in this same tx (irreversible for that route). |
 
 
 ### updateRoute
@@ -83,11 +62,17 @@ _Enforces owner, XNS label rules on non-empty `routePrefix` and on `route`, non-
 
 Update an existing route (target, routeType, activate, optional freeze in one tx).
 
+**Requirements:**
+- `msg.sender` must be the current XNS owner for `xnsName`.
+- `target` must not be the zero address (`InvalidTarget`).
+- The route book for `xnsName` must not be frozen (`RouteBookFrozen`).
+- Non-empty `routePrefix` and `route` must satisfy XNS label rules.
+- The route must exist (`RouteNotFound`) and must not already be per-route frozen (`CannotUpdateFrozenRoute`).
+
 ```solidity
 function updateRoute(string xnsName, string routePrefix, string route, address target, uint32 routeType, bool activate, bool freeze) external
 ```
 
-_Enforces owner, XNS label rules on `routePrefix`/`route` (same as `createRoute`), non-zero `target`, route book not frozen, then derives the key._
 
 #### Parameters
 
@@ -98,8 +83,8 @@ _Enforces owner, XNS label rules on `routePrefix`/`route` (same as `createRoute`
 | route | string | Same as at create time |
 | target | address | Must be non-zero; use a burn address if an unusable target is required. |
 | routeType | uint32 | Opaque hint for parsers (semantics offchain) |
-| activate | bool | New value for stored `isActive` |
-| freeze | bool | If true, set stored `isFrozen` in this same tx (irreversible for that route) |
+| activate | bool | New value for stored `isActive`. |
+| freeze | bool | If true, set stored `isFrozen` in this same tx (irreversible for that route). |
 
 
 ### activateRoute
@@ -107,12 +92,25 @@ _Enforces owner, XNS label rules on `routePrefix`/`route` (same as `createRoute`
 
 Mark an existing route as active.
 
+**Requirements:**
+- `msg.sender` must be the current XNS owner for `xnsName`.
+- Non-empty `routePrefix` and `route` must satisfy XNS label rules.
+- The route must exist (`RouteNotFound`).
+
+Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after route or route book freeze.
+
 ```solidity
 function activateRoute(string xnsName, string routePrefix, string route) external
 ```
 
-_Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after route or route book freeze._
 
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| xnsName | string | The XNS name that owns the route space. |
+| routePrefix | string | Optional route prefix segment (empty means no prefix). |
+| route | string | Route label segment. |
 
 
 ### deactivateRoute
@@ -120,12 +118,25 @@ _Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after ro
 
 Mark an existing route as inactive.
 
+**Requirements:**
+- `msg.sender` must be the current XNS owner for `xnsName`.
+- Non-empty `routePrefix` and `route` must satisfy XNS label rules.
+- The route must exist (`RouteNotFound`).
+
+Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after route or route book freeze.
+
 ```solidity
 function deactivateRoute(string xnsName, string routePrefix, string route) external
 ```
 
-_Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after route or route book freeze._
 
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| xnsName | string | The XNS name that owns the route space. |
+| routePrefix | string | Optional route prefix segment (empty means no prefix). |
+| route | string | Route label segment. |
 
 
 ### deleteRoute
@@ -133,13 +144,26 @@ _Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after ro
 
 Remove a route so `createRoute` may register the same key again.
 
+**Requirements:**
+- `msg.sender` must be the current XNS owner for `xnsName`.
+- The route book for `xnsName` must not be frozen (`RouteBookFrozen`).
+- Non-empty `routePrefix` and `route` must satisfy XNS label rules.
+- The route must exist (`RouteNotFound`) and must not be per-route frozen (`CannotDeleteFrozenRoute`).
+
+Does not check `isActive`; use `deactivateRoute` for a soft disable without deleting.
+
 ```solidity
 function deleteRoute(string xnsName, string routePrefix, string route) external
 ```
 
-_Reverts if the route is frozen (`CannotDeleteFrozenRoute`) or the route book is frozen (`RouteBookFrozen`).
-Does not check `isActive`; use `deactivateRoute` for a soft disable without deleting._
 
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| xnsName | string | The XNS name that owns the route space. |
+| routePrefix | string | Optional route prefix segment (empty means no prefix). |
+| route | string | Route label segment. |
 
 
 ### updateTarget
@@ -147,13 +171,28 @@ Does not check `isActive`; use `deactivateRoute` for a soft disable without dele
 
 Update the build `target` for an existing route.
 
+**Requirements:**
+- `msg.sender` must be the current XNS owner for `xnsName`.
+- The route book for `xnsName` must not be frozen (`RouteBookFrozen`).
+- Non-empty `routePrefix` and `route` must satisfy XNS label rules.
+- The route must exist (`RouteNotFound`) and must not be per-route frozen (`CannotUpdateFrozenRoute`).
+- `newTarget` must not be the zero address (`InvalidTarget`).
+
+Emits `RouteTargetUpdated` only when `newTarget` differs from the stored target.
+
 ```solidity
 function updateTarget(string xnsName, string routePrefix, string route, address newTarget) external
 ```
 
-_Same constraints as `updateRoute` for target changes (including `routePrefix` / `route` label validation), not route-frozen, not route-book frozen.
-Emits `RouteTargetUpdated` only when `newTarget` differs from the stored target._
 
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| xnsName | string | The XNS name that owns the route space. |
+| routePrefix | string | Optional route prefix segment (empty means no prefix). |
+| route | string | Route label segment. |
+| newTarget | address | New build target; must be non-zero. |
 
 
 ### updateRouteType
@@ -161,13 +200,27 @@ Emits `RouteTargetUpdated` only when `newTarget` differs from the stored target.
 
 Update `routeType` for an existing route.
 
+**Requirements:**
+- `msg.sender` must be the current XNS owner for `xnsName`.
+- The route book for `xnsName` must not be frozen (`RouteBookFrozen`).
+- Non-empty `routePrefix` and `route` must satisfy XNS label rules.
+- The route must exist (`RouteNotFound`) and must not be per-route frozen (`CannotUpdateFrozenRoute`).
+
+Emits `RouteTypeUpdated` only when `newRouteType` differs from the stored value.
+
 ```solidity
 function updateRouteType(string xnsName, string routePrefix, string route, uint32 newRouteType) external
 ```
 
-_Same constraints as `updateRoute` for type changes (including `routePrefix` / `route` label validation), not route-frozen, not route-book frozen.
-Emits `RouteTypeUpdated` only when `newRouteType` differs from the stored value._
 
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| xnsName | string | The XNS name that owns the route space. |
+| routePrefix | string | Optional route prefix segment (empty means no prefix). |
+| route | string | Route label segment. |
+| newRouteType | uint32 | New opaque parser hint. |
 
 
 ### freezeRoute
@@ -175,13 +228,25 @@ Emits `RouteTypeUpdated` only when `newRouteType` differs from the stored value.
 
 Freeze a single route forever.
 
+**Requirements:**
+- `msg.sender` must be the current XNS owner for `xnsName`.
+- Non-empty `routePrefix` and `route` must satisfy XNS label rules.
+- The route must exist (`RouteNotFound`).
+
+After freezing, `target` and `routeType` can never be changed again; active/inactive can still be toggled.
+
 ```solidity
 function freezeRoute(string xnsName, string routePrefix, string route) external
 ```
 
-_After freezing, `target` and `routeType` can never be changed again.
-Active/inactive can still be toggled._
 
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| xnsName | string | The XNS name that owns the route space. |
+| routePrefix | string | Optional route prefix segment (empty means no prefix). |
+| route | string | Route label segment. |
 
 
 ### freezeRouteBook
@@ -189,53 +254,101 @@ Active/inactive can still be toggled._
 
 Freeze the entire route book under an XNS name forever.
 
+**Requirements:**
+- `msg.sender` must be the current XNS owner for `xnsName`.
+
+**Effects (irreversible):**
+- No new routes may be added under `xnsName`.
+- No existing route targets may be changed under `xnsName`.
+- Routes may not be deleted under `xnsName`.
+- Route activation can still be toggled.
+
 ```solidity
 function freezeRouteBook(string xnsName) external
 ```
 
-_After this:
-- no new routes may be added under `xnsName`
-- no existing route targets may be changed under `xnsName`
-- routes may not be deleted under `xnsName`
-- route activation can still be toggled_
 
+#### Parameters
 
-
-### isRouteBookFrozen
-
-Check whether the entire route book under an XNS name is frozen.
-
-```solidity
-function isRouteBookFrozen(string xnsName) external view returns (bool)
-```
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| xnsName | string | Fully-qualified XNS name whose route book to freeze. |
 
 
 ### getRouteInfo
 
 
-Return full route metadata. Reverts if not found.
+Return full route metadata. Applies the same `routePrefix`/`route` validation as mutating functions, then reads storage.
+Reverts with `RouteNotFound` when no route exists for the key.
 
 ```solidity
 function getRouteInfo(string xnsName, string routePrefix, string route) external view returns (address target, bool isActive, bool isFrozen, uint32 routeType)
 ```
 
-_Validates `routePrefix` / `route` with the same XNS label rules as `createRoute` before resolving the key; malformed tuples revert `InvalidRoutePrefix` / `InvalidRoute`._
 
+#### Parameters
 
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| xnsName | string | The XNS name that owns the route space. |
+| routePrefix | string | Optional route prefix segment (empty means no prefix). |
+| route | string | Route label segment. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| target | address | Stored build target address. |
+| isActive | bool | Whether the route is active. |
+| isFrozen | bool | Whether the route is frozen per-route. |
+| routeType | uint32 | Opaque parser hint. |
 
 ### routeExists
 
 
 Returns whether a route exists (`target` was ever set via `createRoute`; zero `target` is never stored).
+Applies the same `routePrefix`/`route` validation as mutating functions before reading storage.
 
 ```solidity
-function routeExists(string xnsName, string routePrefix, string route) external view returns (bool)
+function routeExists(string xnsName, string routePrefix, string route) external view returns (bool exists)
 ```
 
-_Same `routePrefix` / `route` validation as `getRouteInfo`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| xnsName | string | The XNS name that owns the route space. |
+| routePrefix | string | Optional route prefix segment (empty means no prefix). |
+| route | string | Route label segment. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| exists | bool | True if a route record exists for the key. |
+
+### isRouteBookFrozen
 
 
+Returns whether the entire route book under `xnsName` is frozen (reads `_routeBookFrozen[keccak256(bytes(xnsName))]`).
 
+```solidity
+function isRouteBookFrozen(string xnsName) external view returns (bool frozen)
+```
+
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| xnsName | string | Fully-qualified XNS name. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| frozen | bool | True if the route book is frozen. |
 
 
 ## Events
@@ -249,7 +362,7 @@ _Same `routePrefix` / `route` validation as `getRouteInfo`._
 event RouteCreated(string xnsName, string routePrefix, string route, address target, bool isActive, bool isFrozen, uint32 routeType)
 ```
 
-_Strings are non-indexed so logs carry full values (e.g. subgraphs). `target` is indexed for address filters._
+_Emitted in `createRoute`._
 
 
 
@@ -263,6 +376,7 @@ _Strings are non-indexed so logs carry full values (e.g. subgraphs). `target` is
 event RouteUpdated(string xnsName, string routePrefix, string route, address target, bool isActive, bool isFrozen, uint32 routeType)
 ```
 
+_Emitted in `updateRoute`._
 
 
 
@@ -276,7 +390,7 @@ event RouteUpdated(string xnsName, string routePrefix, string route, address tar
 event RouteTargetUpdated(string xnsName, string routePrefix, string route, address newTarget)
 ```
 
-_Narrow `updateTarget`; `newTarget` indexed for address filters._
+_Emitted in `updateTarget` when target changes._
 
 
 
@@ -290,7 +404,7 @@ _Narrow `updateTarget`; `newTarget` indexed for address filters._
 event RouteTypeUpdated(string xnsName, string routePrefix, string route, uint32 newRouteType)
 ```
 
-_Narrow `updateRouteType`._
+_Emitted in `updateRouteType` when route type changes._
 
 
 
@@ -304,6 +418,7 @@ _Narrow `updateRouteType`._
 event RouteActiveStatusUpdated(string xnsName, string routePrefix, string route, bool isActive)
 ```
 
+_Emitted in `activateRoute` and `deactivateRoute` when active status changes._
 
 
 
@@ -317,6 +432,7 @@ event RouteActiveStatusUpdated(string xnsName, string routePrefix, string route,
 event RouteFrozen(string xnsName, string routePrefix, string route)
 ```
 
+_Emitted in `createRoute`, `updateRoute`, and `freezeRoute` when route freeze is applied._
 
 
 
@@ -330,6 +446,7 @@ event RouteFrozen(string xnsName, string routePrefix, string route)
 event RouteBookFrozenForName(string xnsName)
 ```
 
+_Emitted in `freezeRouteBook` when the route book is frozen for an XNS name._
 
 
 
@@ -343,6 +460,7 @@ event RouteBookFrozenForName(string xnsName)
 event RouteDeleted(string xnsName, string routePrefix, string route)
 ```
 
+_Emitted in `deleteRoute`._
 
 
 
@@ -500,23 +618,10 @@ error CannotDeleteFrozenRoute()
 ### XNS
 
 
-
+XNS registry this contract calls for name resolution and label validation.
 
 ```solidity
 contract IXNSMinimal XNS
-```
-
-
-
-
-
-### _routeBookFrozen
-
-
-
-
-```solidity
-mapping(bytes32 => bool) private _routeBookFrozen
 ```
 
 
@@ -539,6 +644,7 @@ struct RouteRecord {
 
 
 
+_Data structure to store route metadata._
 
 
 
