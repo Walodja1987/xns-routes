@@ -26,7 +26,7 @@
   "function freezeRoute(string,string,string)",
   "function freezeRouteBook(string)",
   "function getRouteInfo(string,string,string) view returns (address, bool, bool, uint32)",
-  "function routeBookFrozen(bytes32) view returns (bool)",
+  "function isRouteBookFrozen(string) view returns (bool)",
   "function routeExists(string,string,string) view returns (bool)",
   "function updateRoute(string,string,string,address,uint32,bool,bool)",
   "function updateRouteType(string,string,string,uint32)",

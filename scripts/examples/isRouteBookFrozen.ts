@@ -40,7 +40,7 @@ async function main() {
 
   const routes = await hre.ethers.getContractAt("XNSRoutes", contractAddress);
   const xnsNameKey = keccak256(toUtf8Bytes(xnsName));
-  const frozen = await routes.routeBookFrozen(xnsNameKey);
+  const frozen = await routes.isRouteBookFrozen(xnsName);
 
   console.log(`\nNetwork: ${GREEN}${networkName}${RESET}`);
   console.log(`XNSRoutes: ${GREEN}${contractAddress}${RESET}`);

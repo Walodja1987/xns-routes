@@ -31,7 +31,7 @@ Route state model:
 - isActive: whether wallets/apps should treat the route as usable
 - isFrozen: whether `target` and `routeType` can still be changed
 
-Route book freeze model (`routeBookFrozen` keyed by `keccak256(bytes(xnsName))`):
+Route book freeze model (`_routeBookFrozen` keyed by `keccak256(bytes(xnsName))`):
 - no new routes may be added under that `xnsName`
 - no existing route targets under that name may be changed anymore
 - routes may not be deleted under that name
@@ -199,6 +199,15 @@ _After this:
 - routes may not be deleted under `xnsName`
 - route activation can still be toggled_
 
+
+
+### isRouteBookFrozen
+
+Check whether the entire route book under an XNS name is frozen.
+
+```solidity
+function isRouteBookFrozen(string xnsName) external view returns (bool)
+```
 
 
 ### getRouteInfo
@@ -501,13 +510,13 @@ contract IXNSMinimal XNS
 
 
 
-### routeBookFrozen
+### _routeBookFrozen
 
 
 
 
 ```solidity
-mapping(bytes32 => bool) routeBookFrozen
+mapping(bytes32 => bool) private _routeBookFrozen
 ```
 
 

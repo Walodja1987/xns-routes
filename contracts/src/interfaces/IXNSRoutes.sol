@@ -57,7 +57,7 @@ interface IXNSRoutes {
 
     function XNS() external view returns (address);
 
-    function routeBookFrozen(bytes32 xnsNameKey) external view returns (bool);
+    function isRouteBookFrozen(string calldata xnsName) external view returns (bool);
 
     function createRoute(
         string calldata xnsName,

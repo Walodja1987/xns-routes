@@ -588,7 +588,7 @@ describe("XNSRoutes", function () {
         "RouteBookFrozenForName",
       );
 
-      expect(await routes.routeBookFrozen(xnsNameKey)).to.equal(true);
+      expect(await routes.isRouteBookFrozen(XNS_NAME)).to.equal(true);
     });
 
     it("Should block createRoute, updateRoute, and deleteRoute but allow deactivateRoute", async function () {

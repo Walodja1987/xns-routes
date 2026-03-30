@@ -54,8 +54,7 @@ async function main() {
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
-  const xnsNameKey = keccak256(toUtf8Bytes(xnsName));
-  const frozen = await routes.routeBookFrozen(xnsNameKey);
+  const frozen = await routes.isRouteBookFrozen(xnsName);
   console.log(`${GREEN}✓ Confirmed. routeBookFrozen=${frozen}${RESET}\n`);
 }
 

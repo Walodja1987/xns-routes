@@ -149,7 +149,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 #### Functionality
 
-- Name owner can set `routeBookFrozen[keccak256(bytes(xnsName))]` permanently.
+- Name owner can set `isRouteBookFrozen(xnsName)` permanently.
 - After route book freeze, `createRoute`, `updateRoute`, `deleteRoute`, `updateTarget`, and `updateRouteType` must revert for that `xnsName`, while `activateRoute` / `deactivateRoute` may still run.
 
 #### Events
@@ -178,11 +178,11 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 ---
 
-## `routeBookFrozen`
+## `isRouteBookFrozen`
 
 #### Functionality
 
-- For a given `xnsName`, `routeBookFrozen(keccak256(bytes(xnsName)))` matches whether `freezeRouteBook` was applied.
+- For a given `xnsName`, `isRouteBookFrozen(xnsName)` matches whether `freezeRouteBook` was applied.
 
 ---
 
