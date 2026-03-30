@@ -262,6 +262,16 @@ describe("XNSRoutes", function () {
         routes.connect(owner).updateRoute(XNS_NAME, ROUTE_PREFIX, "missing", buildTarget, RT0, true, false),
       ).to.be.revertedWithCustomError(routes, "RouteNotFound");
     });
+
+    it("Should revert with InvalidRoute when updateRoute uses empty prefix and route contains colon (alias encoding)", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+
+      const aliasRoute = `${ROUTE_PREFIX}:${ROUTE}`;
+      await expect(
+        routes.connect(owner).updateRoute(XNS_NAME, "", aliasRoute, buildTarget, RT0, true, false),
+      ).to.be.revertedWithCustomError(routes, "InvalidRoute");
+    });
   });
 
   describe("activateRoute and deactivateRoute", function () {
@@ -634,6 +644,19 @@ describe("XNSRoutes", function () {
       await expect(routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE)).to.be.revertedWithCustomError(
         routes,
         "RouteNotFound",
+      );
+    });
+
+    it("Should revert getRouteInfo and routeExists with InvalidRoute for colon in route when prefix is empty", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      const aliasRoute = `${ROUTE_PREFIX}:${ROUTE}`;
+      await expect(routes.getRouteInfo(XNS_NAME, "", aliasRoute)).to.be.revertedWithCustomError(
+        routes,
+        "InvalidRoute",
+      );
+      await expect(routes.routeExists(XNS_NAME, "", aliasRoute)).to.be.revertedWithCustomError(
+        routes,
+        "InvalidRoute",
       );
     });
   });

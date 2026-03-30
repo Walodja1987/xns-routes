@@ -29,6 +29,7 @@ import "./interfaces/IXNSMinimal.sol";
 ///
 /// Storage key: if `routePrefix` is empty, `keccak256(abi.encodePacked(xnsName, "/", route))`; else `keccak256(abi.encodePacked(xnsName, "/", routePrefix, ":", route))`.
 /// `routePrefix` and `route` follow XNS label charset (`a-z`, `0-9`, `-`); `xnsName` is a registered XNS full name (no `/` or `:`).
+/// Every public function that takes `routePrefix` and `route` validates them the same way before `_routeKey` so encodings like `routePrefix == ""` with `route == "eth:transfer"` cannot alias a canonical `eth` + `transfer` key.
 ///
 /// A route points to a `target` address; `routeType` is an opaque hint (e.g. how parsers interpret
 /// `target` or its calldata output). Meaning of type ids is agreed offchain; the contract stores any `uint32`.
@@ -133,7 +134,7 @@ contract XNSRoutes {
     }
 
     /// @notice Create a route under `(xnsName, routePrefix, route)`. Reverts if that key already exists.
-    /// @dev Enforces owner, XNS label rules on non-empty `routePrefix` and on `route`, non-zero `target`, and route book not frozen before deriving the key.
+    /// @dev Enforces owner, `_validateRoutePrefixAndRoute`, non-zero `target`, and route book not frozen before deriving the key.
     /// @param xnsName The XNS name that owns the route space, e.g. "xns.action"
     /// @param routePrefix Optional path segment before `:`; non-empty must pass XNS label rules; empty means `xnsName/route/...` only (no `:` in the action segment).
     /// @param route Required action label (XNS label rules), e.g. "transfer-usdt"
@@ -153,9 +154,7 @@ contract XNSRoutes {
         // Check if the caller is authorized to create a route (must be the XNS name owner)
         _requireXnsNameOwner(xnsName);
 
-        // Validate input parameters
-        if (bytes(routePrefix).length != 0 && !_isValidString(routePrefix)) revert InvalidRoutePrefix();
-        if (!_isValidString(route)) revert InvalidRoute();
+        _validateRoutePrefixAndRoute(routePrefix, route);
         if (target == address(0)) revert InvalidTarget();
 
         // Check if the route book is frozen
@@ -183,7 +182,7 @@ contract XNSRoutes {
     }
 
     /// @notice Update an existing route (target, routeType, activate, optional freeze in one tx).
-    /// @dev Enforces owner, non-zero `target`, route book not frozen, then derives the key. Does not re-validate `routePrefix`/`route` against XNS label rules (saves gas); wrong or invalid strings usually revert `RouteNotFound`.
+    /// @dev Enforces owner, `_validateRoutePrefixAndRoute`, non-zero `target`, route book not frozen, then derives the key.
     /// @param xnsName The XNS name that owns the route space, e.g. "xns.action"
     /// @param routePrefix Same as at create time (may be empty).
     /// @param route Same as at create time
@@ -209,7 +208,7 @@ contract XNSRoutes {
         // Check if the route book is frozen
         if (routeBookFrozen[keccak256(bytes(xnsName))]) revert RouteBookFrozen();
 
-        // Derive the route key and check if the route exists and is not frozen
+        _validateRoutePrefixAndRoute(routePrefix, route);
         bytes32 routeKey = _routeKey(xnsName, routePrefix, route);
         RouteRecord storage record = _routes[routeKey];
         if (record.target == address(0)) revert RouteNotFound();
@@ -251,7 +250,7 @@ contract XNSRoutes {
         // Check if the caller is authorized to update the route active status (must be the XNS name owner)
         _requireXnsNameOwner(xnsName);
 
-        // Derive the route key and check if the route exists
+        _validateRoutePrefixAndRoute(routePrefix, route);
         bytes32 routeKey = _routeKey(xnsName, routePrefix, route);
         RouteRecord storage record = _routes[routeKey];
         if (record.target == address(0)) revert RouteNotFound();
@@ -273,7 +272,7 @@ contract XNSRoutes {
         // Check if the route book is frozen
         if (routeBookFrozen[keccak256(bytes(xnsName))]) revert RouteBookFrozen();
 
-        // Derive the route key and check if the route exists and is not frozen
+        _validateRoutePrefixAndRoute(routePrefix, route);
         bytes32 routeKey = _routeKey(xnsName, routePrefix, route);
         RouteRecord storage record = _routes[routeKey];
         if (record.target == address(0)) revert RouteNotFound();
@@ -287,7 +286,7 @@ contract XNSRoutes {
     }
 
     /// @notice Update the build `target` for an existing route.
-    /// @dev Same constraints as `updateRoute` for target changes: not route-frozen, not route-book frozen.
+    /// @dev Same constraints as `updateRoute` for target changes: `_validateRoutePrefixAndRoute`, not route-frozen, not route-book frozen.
     /// Emits `RouteTargetUpdated` only when `newTarget` differs from the stored target.
     function updateTarget(
         string calldata xnsName,
@@ -301,7 +300,7 @@ contract XNSRoutes {
         // Check if the route book is frozen
         if (routeBookFrozen[keccak256(bytes(xnsName))]) revert RouteBookFrozen();
 
-        // Derive the route key and check if the route exists and is not frozen
+        _validateRoutePrefixAndRoute(routePrefix, route);
         RouteRecord storage record = _routes[_routeKey(xnsName, routePrefix, route)];
         if (record.target == address(0)) revert RouteNotFound();
         if (record.isFrozen) revert CannotUpdateFrozenRoute();
@@ -316,7 +315,7 @@ contract XNSRoutes {
     }
 
     /// @notice Update `routeType` for an existing route.
-    /// @dev Same constraints as `updateRoute` for type changes: not route-frozen, not route-book frozen.
+    /// @dev Same constraints as `updateRoute` for type changes: `_validateRoutePrefixAndRoute`, not route-frozen, not route-book frozen.
     /// Emits `RouteTypeUpdated` only when `newRouteType` differs from the stored value.
     function updateRouteType(
         string calldata xnsName,
@@ -326,6 +325,7 @@ contract XNSRoutes {
     ) external {
         _requireXnsNameOwner(xnsName);
         if (routeBookFrozen[keccak256(bytes(xnsName))]) revert RouteBookFrozen();
+        _validateRoutePrefixAndRoute(routePrefix, route);
         RouteRecord storage record = _routes[_routeKey(xnsName, routePrefix, route)];
         if (record.target == address(0)) revert RouteNotFound();
         if (record.isFrozen) revert CannotUpdateFrozenRoute();
@@ -346,6 +346,7 @@ contract XNSRoutes {
     ) external {
         _requireXnsNameOwner(xnsName);
 
+        _validateRoutePrefixAndRoute(routePrefix, route);
         bytes32 routeKey = _routeKey(xnsName, routePrefix, route);
         RouteRecord storage record = _routes[routeKey];
         if (record.target == address(0)) revert RouteNotFound();
@@ -382,6 +383,7 @@ contract XNSRoutes {
         view
         returns (address target, bool isActive, bool isFrozen, uint32 routeType)
     {
+        _validateRoutePrefixAndRoute(routePrefix, route);
         RouteRecord storage record = _routes[_routeKey(xnsName, routePrefix, route)];
         if (record.target == address(0)) revert RouteNotFound();
 
@@ -394,6 +396,7 @@ contract XNSRoutes {
         string calldata routePrefix,
         string calldata route
     ) external view returns (bool) {
+        _validateRoutePrefixAndRoute(routePrefix, route);
         return _routes[_routeKey(xnsName, routePrefix, route)].target != address(0);
     }
 
@@ -416,8 +419,13 @@ contract XNSRoutes {
         return keccak256(abi.encodePacked(xnsName, "/", routePrefix, ":", route));
     }
 
+    /// @dev Non-empty `routePrefix` and `route` must satisfy XNS label rules so malformed tuples cannot alias canonical keys.
+    function _validateRoutePrefixAndRoute(string calldata routePrefix, string calldata route) private view {
+        if (bytes(routePrefix).length != 0 && !_isValidString(routePrefix)) revert InvalidRoutePrefix();
+        if (!_isValidString(route)) revert InvalidRoute();
+    }
+
     /// @dev Whether `s` satisfies XNS label/namespace rules (length, charset, hyphen rules).
-    /// Used only for `createRoute`.
     function _isValidString(string calldata s) private view returns (bool) {
         return XNS.isValidLabelOrNamespace(s);
     }

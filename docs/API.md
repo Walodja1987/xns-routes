@@ -45,6 +45,7 @@ Semantics:
 - createRoute / updateRoute for full-record writes (+ optional freeze on create/update)
 - updateTarget / updateRouteType are narrow updates (same guards as updateRoute for target/type); emit `RouteTargetUpdated` / `RouteTypeUpdated` only on change
 - deleteRoute clears a route when it is not per-route frozen and the route book is not frozen (`createRoute` may reuse the key afterward)
+- every function that accepts `routePrefix` and `route` validates them against XNS label rules before `_routeKey` (including views), so non-canonical encodings cannot target the same slot as a valid `prefix` + `route` pair
 
 
 
@@ -86,7 +87,7 @@ Update an existing route (target, routeType, activate, optional freeze in one tx
 function updateRoute(string xnsName, string routePrefix, string route, address target, uint32 routeType, bool activate, bool freeze) external
 ```
 
-_Enforces owner, non-zero `target`, route book not frozen, then derives the key. Does not re-validate `routePrefix`/`route` against XNS label rules (saves gas); wrong or invalid strings usually revert `RouteNotFound`._
+_Enforces owner, XNS label rules on `routePrefix`/`route` (same as `createRoute`), non-zero `target`, route book not frozen, then derives the key._
 
 #### Parameters
 
@@ -150,7 +151,7 @@ Update the build `target` for an existing route.
 function updateTarget(string xnsName, string routePrefix, string route, address newTarget) external
 ```
 
-_Same constraints as `updateRoute` for target changes: not route-frozen, not route-book frozen.
+_Same constraints as `updateRoute` for target changes (including `routePrefix` / `route` label validation), not route-frozen, not route-book frozen.
 Emits `RouteTargetUpdated` only when `newTarget` differs from the stored target._
 
 
@@ -164,7 +165,7 @@ Update `routeType` for an existing route.
 function updateRouteType(string xnsName, string routePrefix, string route, uint32 newRouteType) external
 ```
 
-_Same constraints as `updateRoute` for type changes: not route-frozen, not route-book frozen.
+_Same constraints as `updateRoute` for type changes (including `routePrefix` / `route` label validation), not route-frozen, not route-book frozen.
 Emits `RouteTypeUpdated` only when `newRouteType` differs from the stored value._
 
 
@@ -209,6 +210,7 @@ Return full route metadata. Reverts if not found.
 function getRouteInfo(string xnsName, string routePrefix, string route) external view returns (address target, bool isActive, bool isFrozen, uint32 routeType)
 ```
 
+_Validates `routePrefix` / `route` with the same XNS label rules as `createRoute` before resolving the key; malformed tuples revert `InvalidRoutePrefix` / `InvalidRoute`._
 
 
 
@@ -220,6 +222,8 @@ Returns whether a route exists (`target` was ever set via `createRoute`; zero `t
 ```solidity
 function routeExists(string xnsName, string routePrefix, string route) external view returns (bool)
 ```
+
+_Same `routePrefix` / `route` validation as `getRouteInfo`._
 
 
 

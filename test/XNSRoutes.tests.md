@@ -4,7 +4,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 ## Test setup
 
-- **Unit tests** use [`MockXNS`](../contracts/src/mocks/MockXNS.sol): set `xnsName → owner` via `setResolution`, and optionally mark labels invalid via `setLabelInvalid` for `InvalidRoutePrefix` / `InvalidRoute` cases.
+- **Unit tests** use [`MockXNS`](../contracts/src/mocks/MockXNS.sol): set `xnsName → owner` via `setResolution`, and optionally mark labels invalid via `setLabelInvalid` for `InvalidRoutePrefix` / `InvalidRoute` cases. `isValidLabelOrNamespace` applies the same charset / length / hyphen rules as on-chain XNS, then `setLabelInvalid` overrides.
 - **Canonical on-chain XNS** addresses for deploy/scripts/fork work live in [`constants/addresses.ts`](../constants/addresses.ts) as `XNS_ADDRESS` (they are not used by the default local test suite).
 
 ---
@@ -60,7 +60,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 - Should revert with `NotXnsNameOwner` when `msg.sender` is not `XNS.getAddress(xnsName)`.
 - Should revert with `InvalidXnsName` when `XNS.getAddress(xnsName)` is zero (empty `xnsName` is included: XNS returns zero for `len == 0`).
-- Does **not** revert with `InvalidRoutePrefix` / `InvalidRoute` for bad `routePrefix`/`route` (no XNS label check on this path for gas); mismatched keys typically yield `RouteNotFound`.
+- Should revert with `InvalidRoutePrefix` / `InvalidRoute` when `routePrefix` or `route` fails XNS label rules (same as `createRoute`), including empty `routePrefix` with a `route` containing `:` (prevents aliasing the canonical `prefix:route` key).
 - Should revert with `InvalidTarget` when `target` is zero.
 - Should revert with `RouteBookFrozen` when `freezeRouteBook` has already been called for that `xnsName`.
 - Should revert with `CannotUpdateFrozenRoute` when updating a route that is already frozen (including changing only `routeType` or only `target`).
@@ -122,6 +122,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 #### Reverts
 
 - `NotXnsNameOwner`, `RouteNotFound`, `CannotUpdateFrozenRoute`, `RouteBookFrozen` as above.
+- `InvalidRoutePrefix` / `InvalidRoute` when `routePrefix` / `route` fail label rules (same as `createRoute`).
 - `updateTarget`: `InvalidTarget` when `newTarget` is zero.
 
 ---
@@ -168,10 +169,12 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 - `routeExists` returns `false` before a route is created and `true` after.
 - `getRouteInfo` returns `(target, isActive, isFrozen, routeType)` consistent with `createRoute` / `updateRoute` / `updateTarget` / `updateRouteType` / `activateRoute` / `deactivateRoute` / `freezeRoute` (until `deleteRoute` clears the slot).
+- Both apply the same `routePrefix` / `route` label validation as mutating functions before deriving the key.
 
 #### Reverts
 
 - `getRouteInfo` should revert with `RouteNotFound` when the route does not exist.
+- Should revert with `InvalidRoutePrefix` / `InvalidRoute` for malformed `routePrefix` / `route` (e.g. `:` in `route` when `routePrefix` is empty).
 
 ---
 
