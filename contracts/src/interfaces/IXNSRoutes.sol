@@ -30,7 +30,7 @@ interface IXNSRoutes {
         address indexed target,
         bool isActive,
         bool isFrozen,
-        uint32 routeType
+        uint32 indexed routeType
     );
 
     event RouteUpdated(
@@ -40,7 +40,7 @@ interface IXNSRoutes {
         address indexed target,
         bool isActive,
         bool isFrozen,
-        uint32 routeType
+        uint32 indexed routeType
     );
 
     event RouteTargetUpdated(string xnsName, string routePrefix, string route, address indexed newTarget);

@@ -34,7 +34,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 #### Events
 
-- Should emit `RouteCreated` with `xnsName`, `routePrefix`, `route`, `target`, `isActive`, `isFrozen`, and `routeType`. String parameters are non-indexed (full values in log data); `target` is indexed.
+- Should emit `RouteCreated` with `xnsName`, `routePrefix`, `route`, `target`, `isActive`, `isFrozen`, and `routeType`. String parameters are non-indexed (full values in log data); `target` and `routeType` are indexed.
 - Should emit `RouteFrozen` with `xnsName`, `routePrefix`, `route` when `freeze` is true on create.
 
 #### Reverts
@@ -53,7 +53,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 #### Events
 
-- Should emit `RouteUpdated` with final `record.isActive` / `record.isFrozen` / `record.routeType` after the write.
+- Should emit `RouteUpdated` with final `record.isActive` / `record.isFrozen` / `record.routeType` after the write; `target` and `routeType` are indexed.
 - Should emit `RouteFrozen` when `freeze` is true on update.
 
 #### Reverts

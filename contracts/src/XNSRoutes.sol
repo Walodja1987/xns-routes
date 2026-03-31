@@ -82,7 +82,7 @@ contract XNSRoutes {
         address indexed target,
         bool isActive,
         bool isFrozen,
-        uint32 routeType
+        uint32 indexed routeType
     );
 
     /// @dev Emitted in `updateRoute`.
@@ -93,7 +93,7 @@ contract XNSRoutes {
         address indexed target,
         bool isActive,
         bool isFrozen,
-        uint32 routeType
+        uint32 indexed routeType
     );
 
     /// @dev Emitted in `updateTarget` when target changes.
@@ -163,7 +163,7 @@ contract XNSRoutes {
         bool freeze
     ) external {
         // Check if the caller is authorized to create a route (must be the XNS name owner)
-        _requireXnsNameOwner(xnsName);
+        _requireXNSNameOwner(xnsName);
 
         // Validate that the route prefix and route are valid strings
         _validateRoutePrefixAndRoute(routePrefix, route);
@@ -222,7 +222,7 @@ contract XNSRoutes {
         bool freeze
     ) external {
         // Check if the caller is authorized to update a route (must be the XNS name owner)
-        _requireXnsNameOwner(xnsName);
+        _requireXNSNameOwner(xnsName);
 
         // Confirm that the target is not the zero address
         if (target == address(0)) revert InvalidTarget();
@@ -306,7 +306,7 @@ contract XNSRoutes {
         bool active
     ) private {
         // Check if the caller is authorized to update the route active status (must be the XNS name owner)
-        _requireXnsNameOwner(xnsName);
+        _requireXNSNameOwner(xnsName);
 
         // Validate that the route prefix and route are valid strings
         _validateRoutePrefixAndRoute(routePrefix, route);
@@ -338,7 +338,7 @@ contract XNSRoutes {
     /// @param route Route label segment.
     function deleteRoute(string calldata xnsName, string calldata routePrefix, string calldata route) external {
         // Check if the caller is authorized to delete a route (must be the XNS name owner)
-        _requireXnsNameOwner(xnsName);
+        _requireXNSNameOwner(xnsName);
 
         // Check if the route book is frozen
         if (_routeBookFrozen[keccak256(bytes(xnsName))]) revert RouteBookFrozen();
@@ -381,7 +381,7 @@ contract XNSRoutes {
         address newTarget
     ) external {
         // Check if the caller is authorized to update the target (must be the XNS name owner)
-        _requireXnsNameOwner(xnsName);
+        _requireXNSNameOwner(xnsName);
 
         // Check if the route book is frozen
         if (_routeBookFrozen[keccak256(bytes(xnsName))]) revert RouteBookFrozen();
@@ -424,7 +424,7 @@ contract XNSRoutes {
         uint32 newRouteType
     ) external {
         // Check if the caller is authorized to update the route type (must be the XNS name owner)
-        _requireXnsNameOwner(xnsName);
+        _requireXNSNameOwner(xnsName);
 
         // Check if the route book is frozen
         if (_routeBookFrozen[keccak256(bytes(xnsName))]) revert RouteBookFrozen();
@@ -462,7 +462,7 @@ contract XNSRoutes {
         string calldata route
     ) external {
         // Check if the caller is authorized to freeze the route (must be the XNS name owner)
-        _requireXnsNameOwner(xnsName);
+        _requireXNSNameOwner(xnsName);
 
         // Validate that the route prefix and route are valid strings
         _validateRoutePrefixAndRoute(routePrefix, route);
@@ -493,7 +493,7 @@ contract XNSRoutes {
     /// @param xnsName Fully-qualified XNS name whose route book to freeze.
     function freezeRouteBook(string calldata xnsName) external {
         // Check if the caller is authorized to freeze the route book (must be the XNS name owner)
-        _requireXnsNameOwner(xnsName);
+        _requireXNSNameOwner(xnsName);
 
         // Check if the route book is not already frozen
         bytes32 xnsNameKey = keccak256(bytes(xnsName));
@@ -565,7 +565,7 @@ contract XNSRoutes {
     // -------------------------------------------------------------------------
     /// @dev XNS `getAddress` returns zero for empty `fullName` and for unregistered names.
     /// @param xnsName Fully-qualified XNS name to authorize against.
-    function _requireXnsNameOwner(string calldata xnsName) private view {
+    function _requireXNSNameOwner(string calldata xnsName) private view {
         address xnsNameOwner = XNS.getAddress(xnsName);
         if (xnsNameOwner == address(0)) revert InvalidXnsName();
         if (msg.sender != xnsNameOwner) revert NotXnsNameOwner();

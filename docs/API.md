@@ -359,7 +359,7 @@ function isRouteBookFrozen(string xnsName) external view returns (bool frozen)
 
 
 ```solidity
-event RouteCreated(string xnsName, string routePrefix, string route, address target, bool isActive, bool isFrozen, uint32 routeType)
+event RouteCreated(string xnsName, string routePrefix, string route, address indexed target, bool isActive, bool isFrozen, uint32 indexed routeType)
 ```
 
 _Emitted in `createRoute`._
@@ -373,7 +373,7 @@ _Emitted in `createRoute`._
 
 
 ```solidity
-event RouteUpdated(string xnsName, string routePrefix, string route, address target, bool isActive, bool isFrozen, uint32 routeType)
+event RouteUpdated(string xnsName, string routePrefix, string route, address indexed target, bool isActive, bool isFrozen, uint32 indexed routeType)
 ```
 
 _Emitted in `updateRoute`._
