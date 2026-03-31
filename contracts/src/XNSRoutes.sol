@@ -120,17 +120,17 @@ contract XNSRoutes {
     /// @notice Constructs the registry and registers `routes.xns` to this contract via XNS.
     ///
     /// **Requirements:**
-    /// - `xns_` must not be the zero address (`ZeroAddress`).
+    /// - `_xns` must not be the zero address (`ZeroAddress`).
     /// - `msg.value` is forwarded to `registerName("routes","xns")` so `routes.xns` resolves to `address(this)`; XNS-side rules
     ///   (payment, exclusivity, name availability, etc.) apply and deployment reverts if registration fails.
     ///
     /// Because the owner of `routes.xns` is this contract, `createRoute` / `updateRoute` with `xnsName == "routes.xns"` require
     /// `msg.sender == address(this)`; use an authorized entrypoint with `this.createRoute` / `this.updateRoute` (or another XNS name owned by the operator).
     ///
-    /// @param xns_ XNS registry implementing `IXNSMinimal`.
-    constructor(address xns_) payable {
-        if (xns_ == address(0)) revert ZeroAddress();
-        XNS = IXNSMinimal(xns_);
+    /// @param _xns XNS registry implementing `IXNSMinimal`.
+    constructor(address _xns) payable {
+        if (_xns == address(0)) revert ZeroAddress();
+        XNS = IXNSMinimal(_xns);
         XNS.registerName{value: msg.value}("routes", "xns");
     }
 
