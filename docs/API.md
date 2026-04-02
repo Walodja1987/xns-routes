@@ -303,6 +303,22 @@ function getRouteInfo(string xnsName, string routePrefix, string route) external
 | isFrozen | bool | Whether the route is frozen per-route. |
 | routeType | uint32 | Opaque parser hint. |
 
+### getRouteInfoFromPath
+
+
+Same as `getRouteInfo` with `fullRoutePath` as in `createRouteFromPath`.
+
+**Requirements:**
+- `fullRoutePath` must contain at least one `/` (`InvalidRoutePath` if not).
+- Further requirements match `getRouteInfo` for the parsed components.
+
+```solidity
+function getRouteInfoFromPath(string fullRoutePath) external view returns (address target, bool isActive, bool isFrozen, uint32 routeType)
+```
+
+
+
+
 ### routeExists
 
 
@@ -328,6 +344,22 @@ function routeExists(string xnsName, string routePrefix, string route) external 
 | ---- | ---- | ----------- |
 | exists | bool | True if a route record exists for the key. |
 
+### routeExistsFromPath
+
+
+Same as `routeExists` with `fullRoutePath` as in `createRouteFromPath`.
+
+**Requirements:**
+- `fullRoutePath` must contain at least one `/` (`InvalidRoutePath` if not).
+- Further requirements match `routeExists` for the parsed components.
+
+```solidity
+function routeExistsFromPath(string fullRoutePath) external view returns (bool exists)
+```
+
+
+
+
 ### isRouteBookFrozen
 
 
@@ -349,6 +381,35 @@ function isRouteBookFrozen(string xnsName) external view returns (bool frozen)
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | frozen | bool | True if the route book is frozen. |
+
+### splitFullPath
+
+
+Parse `fullRoutePath` into `(xnsName, routePrefix, route)` (first `/`, then first `:` in the action segment).
+
+**Requirements:**
+- `fullRoutePath` must contain at least one `/` (`InvalidRoutePath` if not).
+
+Does not apply XNS label validation; pass the returned tuple into tuple-based functions, which validate `routePrefix` and `route`.
+
+```solidity
+function splitFullPath(string fullRoutePath) external pure returns (string xnsName, string routePrefix, string route)
+```
+
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| fullRoutePath | string | Full path, e.g. `bob.xns/eth:transfer-usdt` or `bob.xns/my-wallet`. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| xnsName | string | Segment before the first `/`. |
+| routePrefix | string | Segment before the first `:` in the action part, or empty if there is no `:`. |
+| route | string | Remainder of the action part after `routePrefix` and `:`, or the whole action part if there is no `:`. |
 
 
 ## Events
@@ -606,6 +667,19 @@ error RouteAlreadyExists()
 
 ```solidity
 error CannotDeleteFrozenRoute()
+```
+
+
+
+
+
+### InvalidRoutePath
+
+
+
+
+```solidity
+error InvalidRoutePath()
 ```
 
 
