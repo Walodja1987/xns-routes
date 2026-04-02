@@ -398,6 +398,7 @@ contract XNSRoutes {
         // Confirm that the new target is not the zero address
         if (newTarget == address(0)) revert InvalidTarget();
 
+        // Update the target and emit the `RouteTargetUpdated` event, if the target changes
         if (record.target != newTarget) {
             record.target = newTarget;
             emit RouteTargetUpdated(xnsName, routePrefix, route, newTarget);
@@ -623,6 +624,14 @@ contract XNSRoutes {
 
     /// @dev Splits `fullRoutePath` at the first `/` into `xnsName` and `action`. Within `action`, splits at the first `:` if any.
     /// Reverts `InvalidRoutePath` only when no `/` is found. Does not validate XNS labels or reject extra `/` in `action`.
+    ///
+    /// **Requirements:**
+    /// - `fullRoutePath` must contain at least one `/` (`InvalidRoutePath` if not).
+    ///
+    /// @param fullRoutePath The full route path to split.
+    /// @return xnsName The XNS name.
+    /// @return routePrefix The route prefix.
+    /// @return route The route.
     function _splitFullPath(string calldata fullRoutePath)
         private
         pure
@@ -673,6 +682,14 @@ contract XNSRoutes {
     }
 
     /// @dev Copies `data[start:end]` (end exclusive) into a UTF-8 string in memory.
+    ///
+    /// **Requirements:**
+    /// - `end` must be greater than or equal to `start` (`InvalidRoutePath` if not).
+    ///
+    /// @param data The bytes to copy.
+    /// @param start The start index (inclusive).
+    /// @param end The end index (exclusive).
+    /// @return out The resulting string.
     function _calldataSubstringToString(bytes calldata data, uint256 start, uint256 end)
         private
         pure
