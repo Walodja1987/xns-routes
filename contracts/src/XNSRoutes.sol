@@ -46,6 +46,7 @@ contract XNSRoutes {
     error RouteBookFrozen();
     error RouteAlreadyExists();
     error CannotDeleteFrozenRoute();
+    error InvalidRoutePath();
 
     // -------------------------------------------------------------------------
     // Types
@@ -315,7 +316,7 @@ contract XNSRoutes {
         bytes32 routeKey = _routeKey(xnsName, routePrefix, route);
         RouteRecord storage record = _routes[routeKey];
         if (record.target == address(0)) revert RouteNotFound();
-        
+
         // Update the route active status and emit the `RouteActiveStatusUpdated` event, if the active status changes
         if (record.isActive != active) {
             record.isActive = active;
@@ -471,7 +472,7 @@ contract XNSRoutes {
         bytes32 routeKey = _routeKey(xnsName, routePrefix, route);
         RouteRecord storage record = _routes[routeKey];
         if (record.target == address(0)) revert RouteNotFound();
-        
+
         // Update the route freeze status and emit the `RouteFrozen` event, if the route is not frozen
         if (!record.isFrozen) {
             record.isFrozen = true;
@@ -526,6 +527,28 @@ contract XNSRoutes {
         view
         returns (address target, bool isActive, bool isFrozen, uint32 routeType)
     {
+        return _getRouteInfo(xnsName, routePrefix, route);
+    }
+
+    /// @notice Same as `getRouteInfo` with `fullRoutePath` as in `createRouteFromPath`.
+    ///
+    /// **Requirements:**
+    /// - `fullRoutePath` must contain at least one `/` (`InvalidRoutePath` if not).
+    /// - Further requirements match `getRouteInfo` for the parsed components.
+    function getRouteInfoFromPath(string calldata fullRoutePath)
+        external
+        view
+        returns (address target, bool isActive, bool isFrozen, uint32 routeType)
+    {
+        (string memory xnsName, string memory routePrefix, string memory route) = _splitFullPath(fullRoutePath);
+        return _getRouteInfo(xnsName, routePrefix, route);
+    }
+
+    function _getRouteInfo(
+        string memory xnsName,
+        string memory routePrefix,
+        string memory route
+    ) private view returns (address target, bool isActive, bool isFrozen, uint32 routeType) {
         // Validate that the route prefix and route are valid strings
         _validateRoutePrefixAndRoute(routePrefix, route);
 
@@ -548,6 +571,25 @@ contract XNSRoutes {
         string calldata routePrefix,
         string calldata route
     ) external view returns (bool exists) {
+        return _routeExists(xnsName, routePrefix, route);
+    }
+
+    /// @notice Same as `routeExists` with `fullRoutePath` as in `createRouteFromPath`.
+    ///
+    /// **Requirements:**
+    /// - `fullRoutePath` must contain at least one `/` (`InvalidRoutePath` if not).
+    /// - Further requirements match `routeExists` for the parsed components.
+    function routeExistsFromPath(string calldata fullRoutePath) external view returns (bool exists) {
+        (string memory xnsName, string memory routePrefix, string memory route) = _splitFullPath(fullRoutePath);
+        return _routeExists(xnsName, routePrefix, route);
+    }
+
+    function _routeExists(
+        string memory xnsName,
+        string memory routePrefix,
+        string memory route
+    ) private view returns (bool exists) {
+        // Validate that the route prefix and route are valid strings
         _validateRoutePrefixAndRoute(routePrefix, route);
         return _routes[_routeKey(xnsName, routePrefix, route)].target != address(0);
     }
@@ -560,9 +602,91 @@ contract XNSRoutes {
         return _routeBookFrozen[keccak256(bytes(xnsName))];
     }
 
-    // -------------------------------------------------------------------------
-    // Internal helpers
-    // -------------------------------------------------------------------------
+    /// @notice Parse `fullRoutePath` into `(xnsName, routePrefix, route)` (first `/`, then first `:` in the action segment).
+    ///
+    /// **Requirements:**
+    /// - `fullRoutePath` must contain at least one `/` (`InvalidRoutePath` if not).
+    ///
+    /// Does not apply XNS label validation; pass the returned tuple into tuple-based functions, which validate `routePrefix` and `route`.
+    ///
+    /// @param fullRoutePath Full path, e.g. `bob.xns/eth:transfer-usdt` or `bob.xns/my-wallet`.
+    /// @return xnsName Segment before the first `/`.
+    /// @return routePrefix Segment before the first `:` in the action part, or empty if there is no `:`.
+    /// @return route Remainder of the action part after `routePrefix` and `:`, or the whole action part if there is no `:`.
+    function splitFullPath(string calldata fullRoutePath)
+        external
+        pure
+        returns (string memory xnsName, string memory routePrefix, string memory route)
+    {
+        return _splitFullPath(fullRoutePath);
+    }
+
+    /// @dev Splits `fullRoutePath` at the first `/` into `xnsName` and `action`. Within `action`, splits at the first `:` if any.
+    /// Reverts `InvalidRoutePath` only when no `/` is found. Does not validate XNS labels or reject extra `/` in `action`.
+    function _splitFullPath(string calldata fullRoutePath)
+        private
+        pure
+        returns (string memory xnsName, string memory routePrefix, string memory route)
+    {
+        bytes calldata b = bytes(fullRoutePath);
+        uint256 n = b.length;
+        uint256 slash;
+        bool foundSlash;
+        for (uint256 i = 0; i < n; ++i) {
+            if (b[i] == 0x2f) {
+                slash = i;
+                foundSlash = true;
+                break;
+            }
+        }
+        if (!foundSlash) revert InvalidRoutePath();
+
+        xnsName = _calldataSubstringToString(b, 0, slash);
+
+        uint256 actionStart = slash + 1;
+        if (actionStart >= n) {
+            return (xnsName, "", "");
+        }
+
+        bytes calldata action = b[actionStart:n];
+
+        uint256 colon;
+        bool foundColon;
+        for (uint256 j = 0; j < action.length; ++j) {
+            if (action[j] == 0x3a) {
+                colon = j;
+                foundColon = true;
+                break;
+            }
+        }
+        if (!foundColon) {
+            return (xnsName, "", _calldataSubstringToString(action, 0, action.length));
+        }
+
+        routePrefix = _calldataSubstringToString(action, 0, colon);
+        uint256 routeStart = colon + 1;
+        if (routeStart >= action.length) {
+            route = "";
+        } else {
+            route = _calldataSubstringToString(action, routeStart, action.length);
+        }
+    }
+
+    /// @dev Copies `data[start:end]` (end exclusive) into a UTF-8 string in memory.
+    function _calldataSubstringToString(bytes calldata data, uint256 start, uint256 end)
+        private
+        pure
+        returns (string memory out)
+    {
+        if (end < start) revert InvalidRoutePath();
+        uint256 len = end - start;
+        bytes memory buf = new bytes(len);
+        for (uint256 i = 0; i < len; ++i) {
+            buf[i] = data[start + i];
+        }
+        out = string(buf);
+    }
+
     /// @dev XNS `getAddress` returns zero for empty `fullName` and for unregistered names.
     /// @param xnsName Fully-qualified XNS name to authorize against.
     function _requireXNSNameOwner(string calldata xnsName) private view {
@@ -577,9 +701,9 @@ contract XNSRoutes {
     /// @param route Route label segment.
     /// @return key Keccak-256 route storage key for `(xnsName, routePrefix, route)`.
     function _routeKey(
-        string calldata xnsName,
-        string calldata routePrefix,
-        string calldata route
+        string memory xnsName,
+        string memory routePrefix,
+        string memory route
     ) private pure returns (bytes32 key) {
         if (bytes(routePrefix).length == 0) {
             return keccak256(abi.encodePacked(xnsName, "/", route));
@@ -590,7 +714,7 @@ contract XNSRoutes {
     /// @dev Non-empty `routePrefix` and `route` must satisfy XNS label rules so malformed tuples cannot alias canonical keys.
     /// @param routePrefix Optional route prefix segment to validate when non-empty.
     /// @param route Route label segment to validate.
-    function _validateRoutePrefixAndRoute(string calldata routePrefix, string calldata route) private view {
+    function _validateRoutePrefixAndRoute(string memory routePrefix, string memory route) private view {
         if (bytes(routePrefix).length != 0 && !_isValidString(routePrefix)) revert InvalidRoutePrefix();
         if (!_isValidString(route)) revert InvalidRoute();
     }
@@ -598,7 +722,7 @@ contract XNSRoutes {
     /// @dev Whether `s` satisfies XNS label/namespace rules (length, charset, hyphen rules).
     /// @param s Candidate label or namespace string.
     /// @return isValid True when `s` passes XNS validation.
-    function _isValidString(string calldata s) private view returns (bool isValid) {
+    function _isValidString(string memory s) private view returns (bool isValid) {
         return XNS.isValidLabelOrNamespace(s);
     }
 

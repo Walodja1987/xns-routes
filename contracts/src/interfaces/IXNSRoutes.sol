@@ -8,6 +8,7 @@ interface IXNSRoutes {
     error InvalidXnsName();
     error InvalidRoutePrefix();
     error InvalidRoute();
+    error InvalidRoutePath();
     error InvalidTarget();
     error NotXnsNameOwner();
     error RouteNotFound();
@@ -112,4 +113,16 @@ interface IXNSRoutes {
         external
         view
         returns (bool);
+
+    function getRouteInfoFromPath(string calldata fullRoutePath)
+        external
+        view
+        returns (address target, bool isActive, bool isFrozen, uint32 routeType);
+
+    function routeExistsFromPath(string calldata fullRoutePath) external view returns (bool exists);
+
+    function splitFullPath(string calldata fullRoutePath)
+        external
+        pure
+        returns (string memory xnsName, string memory routePrefix, string memory route);
 }

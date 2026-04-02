@@ -659,5 +659,35 @@ describe("XNSRoutes", function () {
         "InvalidRoute",
       );
     });
+
+    it("Should return getRouteInfoFromPath for an existing route", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+
+      const fullPath = `${XNS_NAME}/${ROUTE_PREFIX}:${ROUTE}`;
+      const [target, isActive, isFrozen, routeType] = await routes.getRouteInfoFromPath(fullPath);
+
+      expect(target).to.equal(buildTarget);
+      expect(isActive).to.equal(true);
+      expect(isFrozen).to.equal(false);
+      expect(routeType).to.equal(RT0);
+    });
+
+    it("Should revert routeExistsFromPath with InvalidRoutePath when no slash is present", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      await expect(routes.routeExistsFromPath(`${ROUTE_PREFIX}:${ROUTE}`)).to.be.revertedWithCustomError(
+        routes,
+        "InvalidRoutePath",
+      );
+    });
+
+    it("Should revert getRouteInfoFromPath with RouteNotFound when missing", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      const fullPath = `${XNS_NAME}/${ROUTE_PREFIX}:${ROUTE}`;
+      await expect(routes.getRouteInfoFromPath(fullPath)).to.be.revertedWithCustomError(
+        routes,
+        "RouteNotFound",
+      );
+    });
   });
 });
