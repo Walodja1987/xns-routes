@@ -531,7 +531,7 @@ contract XNSRoutes {
         return _getRouteInfo(xnsName, routePrefix, route);
     }
 
-    /// @notice Same as `getRouteInfo` with `fullRoutePath` as in `createRouteFromPath`.
+    /// @notice Same as `getRouteInfo` with `fullRoutePath` parsed by `splitFullPath`.
     ///
     /// **Requirements:**
     /// - `fullRoutePath` must contain at least one `/` (`InvalidRoutePath` if not).
@@ -575,7 +575,7 @@ contract XNSRoutes {
         return _routeExists(xnsName, routePrefix, route);
     }
 
-    /// @notice Same as `routeExists` with `fullRoutePath` as in `createRouteFromPath`.
+    /// @notice Same as `routeExists` with `fullRoutePath` parsed by `splitFullPath`.
     ///
     /// **Requirements:**
     /// - `fullRoutePath` must contain at least one `/` (`InvalidRoutePath` if not).
