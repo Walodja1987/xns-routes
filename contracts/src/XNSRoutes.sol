@@ -614,12 +614,18 @@ contract XNSRoutes {
 
     /// @notice Number of entries in the append-only route-key log for `xnsName` (not the count of live routes; 
     /// deletes do not shrink this).
+    /// @param xnsName The XNS name to get the route key count for.
+    /// @return count The number of route keys.
     function getRouteKeyCount(string calldata xnsName) external view returns (uint256 count) {
         return _routeKeysByName[keccak256(bytes(xnsName))].length;
     }
 
     /// @notice Returns `keys[start:end]` from the append-only log for `xnsName` (`end` is exclusive). 
     /// Reverts `InvalidRouteKeySlice` if `start > end` or `end` exceeds length.
+    /// @param xnsName The XNS name to get the route keys for.
+    /// @param start The start index (inclusive).
+    /// @param end The end index (exclusive).
+    /// @return keys The route keys.
     function getRouteKeys(string calldata xnsName, uint256 start, uint256 end)
         external
         view
@@ -635,18 +641,23 @@ contract XNSRoutes {
         }
     }
 
-    /// @notice Read stored metadata by canonical route storage key. Does not validate strings; 
-    /// `target == address(0)` means no record (never created or deleted).
-    function getRouteRecordByRouteKey(bytes32 routeKey)
-        external
-        view
-        returns (address target, uint32 routeType, bool isActive, bool isFrozen)
-    {
-        RouteRecord storage record = _routes[routeKey];
-        return (record.target, record.routeType, record.isActive, record.isFrozen);
+    /// @notice Read stored metadata by canonical route storage key. Does not validate strings;
+    /// `record.target == address(0)` means no record (never created or deleted).
+    /// @param routeKey The route key to read.
+    /// @return record The route record (same shape as each element of the batch overload).
+    function getRouteRecordByRouteKey(bytes32 routeKey) external view returns (RouteRecord memory record) {
+        RouteRecord storage s = _routes[routeKey];
+        record = RouteRecord({
+            target: s.target,
+            routeType: s.routeType,
+            isActive: s.isActive,
+            isFrozen: s.isFrozen
+        });
     }
 
     /// @notice Batch read of `RouteRecord` for each `routeKey`. Same semantics as `getRouteRecordByRouteKey(bytes32)` per element.
+    /// @param routeKeys The route keys to read.
+    /// @return records The route records.
     function getRouteRecordByRouteKey(bytes32[] calldata routeKeys)
         external
         view

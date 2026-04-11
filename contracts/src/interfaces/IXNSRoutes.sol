@@ -134,10 +134,7 @@ interface IXNSRoutes {
         view
         returns (bytes32[] memory keys);
 
-    function getRouteRecordByRouteKey(bytes32 routeKey)
-        external
-        view
-        returns (address target, uint32 routeType, bool isActive, bool isFrozen);
+    function getRouteRecordByRouteKey(bytes32 routeKey) external view returns (RouteRecord memory record);
 
     function getRouteRecordByRouteKey(bytes32[] calldata routeKeys)
         external

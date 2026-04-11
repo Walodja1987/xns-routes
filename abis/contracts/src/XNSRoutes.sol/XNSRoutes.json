@@ -32,7 +32,7 @@
   "function getRouteInfoFromPath(string) view returns (address, bool, bool, uint32)",
   "function getRouteKeyCount(string) view returns (uint256)",
   "function getRouteKeys(string,uint256,uint256) view returns (bytes32[])",
-  "function getRouteRecordByRouteKey(bytes32) view returns (address, uint32, bool, bool)",
+  "function getRouteRecordByRouteKey(bytes32) view returns (tuple(address,uint32,bool,bool))",
   "function getRouteRecordByRouteKey(bytes32[]) view returns (tuple(address,uint32,bool,bool)[])",
   "function isRouteBookFrozen(string) view returns (bool)",
   "function routeExists(string,string,string) view returns (bool)",

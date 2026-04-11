@@ -253,7 +253,7 @@ The registry keeps an **append-only log** of **route storage keys** (`bytes32`) 
 
 * `getRouteKeyCount(xnsName)` — length of the log for that name
 * `getRouteKeys(xnsName, start, end)` — page through keys (`end` is **exclusive**)
-* `getRouteRecordByRouteKey(bytes32)` — read `target`, `routeType`, `isActive`, `isFrozen` for one key (no string tuple needed)
+* `getRouteRecordByRouteKey(bytes32)` — read one `RouteRecord` by key (no string tuple needed)
 * `getRouteRecordByRouteKey(bytes32[])` — same, batch; returns `RouteRecord[]` (ABI overload—some clients must pick the function by full signature, e.g. ethers: `getFunction("getRouteRecordByRouteKey(bytes32[])")`)
 
 **Important semantics (don’t skip this)**
