@@ -26,6 +26,15 @@ describe("XNSRoutes", function () {
     );
   }
 
+  /** Disambiguate `getRouteRecordByRouteKey` overload for ethers v6. */
+  function getRouteRecordByRouteKeySingle(routes: XNSRoutes, routeKey: string) {
+    return routes.getFunction("getRouteRecordByRouteKey(bytes32)")(routeKey);
+  }
+
+  function getRouteRecordByRouteKeyBatch(routes: XNSRoutes, routeKeys: string[]) {
+    return routes.getFunction("getRouteRecordByRouteKey(bytes32[])")(routeKeys);
+  }
+
   interface Fixture {
     routes: XNSRoutes;
     mockXns: MockXNS;
@@ -721,7 +730,7 @@ describe("XNSRoutes", function () {
       expect(keys.length).to.equal(1);
       expect(keys[0]).to.equal(rk);
 
-      const [target, routeType, isActive, isFrozen] = await routes.getRouteRecordByRouteKey(rk);
+      const [target, routeType, isActive, isFrozen] = await getRouteRecordByRouteKeySingle(routes, rk);
       expect(target).to.equal(buildTarget);
       expect(routeType).to.equal(RT0);
       expect(isActive).to.equal(true);
@@ -747,7 +756,7 @@ describe("XNSRoutes", function () {
       await routes.connect(owner).deleteRoute(XNS_NAME, ROUTE_PREFIX, ROUTE);
 
       expect(await routes.getRouteKeyCount(XNS_NAME)).to.equal(1n);
-      const [target, , ,] = await routes.getRouteRecordByRouteKey(rk);
+      const [target, , ,] = await getRouteRecordByRouteKeySingle(routes, rk);
       expect(target).to.equal(ethers.ZeroAddress);
     });
 
@@ -764,7 +773,7 @@ describe("XNSRoutes", function () {
       expect(keys[0]).to.equal(rk);
       expect(keys[1]).to.equal(rk);
 
-      const [target] = await routes.getRouteRecordByRouteKey(rk);
+      const [target] = await getRouteRecordByRouteKeySingle(routes, rk);
       expect(target).to.equal(buildTarget);
     });
 
@@ -783,6 +792,30 @@ describe("XNSRoutes", function () {
       const all = await routes.getRouteKeys(XNS_NAME, 0, 2);
       expect(all[0]).to.equal(k0);
       expect(all[1]).to.equal(k1);
+    });
+
+    it("Should batch getRouteRecordByRouteKey(bytes32[]) returning RouteRecord[]", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+      await routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, "other-route", buildTarget, RT0, false, true);
+
+      const k0 = routeStorageKey(XNS_NAME, ROUTE_PREFIX, ROUTE);
+      const k1 = routeStorageKey(XNS_NAME, ROUTE_PREFIX, "other-route");
+      const kAbsent = ethers.keccak256(ethers.toUtf8Bytes("no-such-route-key"));
+
+      const records = await getRouteRecordByRouteKeyBatch(routes, [k0, k1, kAbsent]);
+      expect(records.length).to.equal(3);
+      expect(records[0].target).to.equal(buildTarget);
+      expect(records[0].routeType).to.equal(RT0);
+      expect(records[0].isActive).to.equal(true);
+      expect(records[0].isFrozen).to.equal(false);
+      expect(records[1].target).to.equal(buildTarget);
+      expect(records[1].isActive).to.equal(false);
+      expect(records[1].isFrozen).to.equal(true);
+      expect(records[2].target).to.equal(ethers.ZeroAddress);
+
+      const empty = await getRouteRecordByRouteKeyBatch(routes, []);
+      expect(empty.length).to.equal(0);
     });
 
     it("Should revert getRouteKeys with InvalidRouteKeySlice on bad bounds", async function () {

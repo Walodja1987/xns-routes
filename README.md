@@ -237,11 +237,32 @@ They enable:
 
 ## 📦 Repo Contents
 
-* `XNSRoutes.sol` — route registry contract
+* `XNSRoutes.sol` — route registry contract (includes on-chain enumeration helpers; see below)
 * example build contracts:
 
   * `XNSRegisterNameBuilder`
   * `USDTTransferEthBuilder`
+
+---
+
+## 📇 On-chain route discovery (no indexer)
+
+The registry keeps an **append-only log** of **route storage keys** (`bytes32`) per XNS name so integrators can discover “what was ever created here” using only `eth_call`s—**no subgraph or indexer required** for that workflow.
+
+**Views (see NatSpec / [docs/API.md](docs/API.md))**
+
+* `getRouteKeyCount(xnsName)` — length of the log for that name
+* `getRouteKeys(xnsName, start, end)` — page through keys (`end` is **exclusive**)
+* `getRouteRecordByRouteKey(bytes32)` — read `target`, `routeType`, `isActive`, `isFrozen` for one key (no string tuple needed)
+* `getRouteRecordByRouteKey(bytes32[])` — same, batch; returns `RouteRecord[]` (ABI overload—some clients must pick the function by full signature, e.g. ethers: `getFunction("getRouteRecordByRouteKey(bytes32[])")`)
+
+**Important semantics (don’t skip this)**
+
+1. **Log length ≠ number of live routes**  
+   `getRouteKeyCount` counts **append-only log entries**, not routes that still exist. After `deleteRoute`, the key **stays in the log**; storage for that key is cleared, so `getRouteRecordByRouteKey` returns **`target == address(0)`** for that slot. Treat **zero `target` as deleted / empty** and filter those out off-chain (or in your UI) when you only want **live** routes.
+
+2. **Duplicate keys in the log**  
+   If a route is **deleted and later recreated** with the same `(xnsName, routePrefix, route)`, **`createRoute` appends the same `bytes32` again**. That is **intentional**: duplicates hint at **churn** (tear-down and re-registration). If you only care about unique keys, **dedupe by hash** off-chain.
 
 ---
 
