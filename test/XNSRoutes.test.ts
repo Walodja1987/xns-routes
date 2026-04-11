@@ -15,6 +15,17 @@ describe("XNSRoutes", function () {
   /** Default `routeType` in tests; semantics are offchain */
   const RT0 = 0;
 
+  /** Matches `XNSRoutes._routeKey` `abi.encodePacked` layout. */
+  function routeStorageKey(xnsName: string, routePrefix: string, route: string): string {
+    if (routePrefix === "") {
+      return ethers.solidityPackedKeccak256(["string", "string", "string"], [xnsName, "/", route]);
+    }
+    return ethers.solidityPackedKeccak256(
+      ["string", "string", "string", "string", "string"],
+      [xnsName, "/", routePrefix, ":", route],
+    );
+  }
+
   interface Fixture {
     routes: XNSRoutes;
     mockXns: MockXNS;
@@ -688,6 +699,98 @@ describe("XNSRoutes", function () {
         routes,
         "RouteNotFound",
       );
+    });
+  });
+
+  describe("route key log (append-only)", function () {
+    it("Should start with zero keys for a name", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      expect(await routes.getRouteKeyCount(XNS_NAME)).to.equal(0n);
+      const keys = await routes.getRouteKeys(XNS_NAME, 0, 0);
+      expect(keys.length).to.equal(0);
+    });
+
+    it("Should append one key on createRoute and expose it via slice and getRouteRecordByRouteKey", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      const rk = routeStorageKey(XNS_NAME, ROUTE_PREFIX, ROUTE);
+
+      await routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+
+      expect(await routes.getRouteKeyCount(XNS_NAME)).to.equal(1n);
+      const keys = await routes.getRouteKeys(XNS_NAME, 0, 1);
+      expect(keys.length).to.equal(1);
+      expect(keys[0]).to.equal(rk);
+
+      const [target, routeType, isActive, isFrozen] = await routes.getRouteRecordByRouteKey(rk);
+      expect(target).to.equal(buildTarget);
+      expect(routeType).to.equal(RT0);
+      expect(isActive).to.equal(true);
+      expect(isFrozen).to.equal(false);
+    });
+
+    it("Should not append when createRoute reverts with RouteAlreadyExists", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+
+      await expect(
+        routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false),
+      ).to.be.revertedWithCustomError(routes, "RouteAlreadyExists");
+
+      expect(await routes.getRouteKeyCount(XNS_NAME)).to.equal(1n);
+    });
+
+    it("Should not shrink log on deleteRoute; getRouteRecordByRouteKey returns zero target", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      const rk = routeStorageKey(XNS_NAME, ROUTE_PREFIX, ROUTE);
+
+      await routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+      await routes.connect(owner).deleteRoute(XNS_NAME, ROUTE_PREFIX, ROUTE);
+
+      expect(await routes.getRouteKeyCount(XNS_NAME)).to.equal(1n);
+      const [target, , ,] = await routes.getRouteRecordByRouteKey(rk);
+      expect(target).to.equal(ethers.ZeroAddress);
+    });
+
+    it("Should append again on recreate after delete (duplicate key in log)", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      const rk = routeStorageKey(XNS_NAME, ROUTE_PREFIX, ROUTE);
+
+      await routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+      await routes.connect(owner).deleteRoute(XNS_NAME, ROUTE_PREFIX, ROUTE);
+      await routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, false, false);
+
+      expect(await routes.getRouteKeyCount(XNS_NAME)).to.equal(2n);
+      const keys = await routes.getRouteKeys(XNS_NAME, 0, 2);
+      expect(keys[0]).to.equal(rk);
+      expect(keys[1]).to.equal(rk);
+
+      const [target] = await routes.getRouteRecordByRouteKey(rk);
+      expect(target).to.equal(buildTarget);
+    });
+
+    it("Should return partial slices of getRouteKeys", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+      await routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, "other-route", buildTarget, RT0, true, false);
+
+      const k0 = routeStorageKey(XNS_NAME, ROUTE_PREFIX, ROUTE);
+      const k1 = routeStorageKey(XNS_NAME, ROUTE_PREFIX, "other-route");
+
+      const mid = await routes.getRouteKeys(XNS_NAME, 1, 2);
+      expect(mid.length).to.equal(1);
+      expect(mid[0]).to.equal(k1);
+
+      const all = await routes.getRouteKeys(XNS_NAME, 0, 2);
+      expect(all[0]).to.equal(k0);
+      expect(all[1]).to.equal(k1);
+    });
+
+    it("Should revert getRouteKeys with InvalidRouteKeySlice on bad bounds", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+
+      await expect(routes.getRouteKeys(XNS_NAME, 1, 0)).to.be.revertedWithCustomError(routes, "InvalidRouteKeySlice");
+      await expect(routes.getRouteKeys(XNS_NAME, 0, 2)).to.be.revertedWithCustomError(routes, "InvalidRouteKeySlice");
     });
   });
 });

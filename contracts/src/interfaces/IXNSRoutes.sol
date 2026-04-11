@@ -16,6 +16,7 @@ interface IXNSRoutes {
     error RouteBookFrozen();
     error RouteAlreadyExists();
     error CannotDeleteFrozenRoute();
+    error InvalidRouteKeySlice();
 
     struct RouteRecord {
         address target;
@@ -125,4 +126,16 @@ interface IXNSRoutes {
         external
         pure
         returns (string memory xnsName, string memory routePrefix, string memory route);
+
+    function getRouteKeyCount(string calldata xnsName) external view returns (uint256 count);
+
+    function getRouteKeys(string calldata xnsName, uint256 start, uint256 end)
+        external
+        view
+        returns (bytes32[] memory keys);
+
+    function getRouteRecordByRouteKey(bytes32 routeKey)
+        external
+        view
+        returns (address target, uint32 routeType, bool isActive, bool isFrozen);
 }

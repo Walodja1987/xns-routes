@@ -31,6 +31,7 @@ import "./interfaces/IXNSMinimal.sol";
 /// - A route stores `target`, `routeType`, `isActive`, and `isFrozen`.
 /// - Route freeze and route-book freeze are irreversible.
 /// - Active status can still be toggled after freeze.
+/// - An append-only log of route storage keys per `xnsName` supports enumeration without an indexer (`getRouteKeyCount`, `getRouteKeys`, `getRouteRecordByRouteKey`).
 contract XNSRoutes {
     // -------------------------------------------------------------------------
     // Errors
@@ -47,6 +48,7 @@ contract XNSRoutes {
     error RouteAlreadyExists();
     error CannotDeleteFrozenRoute();
     error InvalidRoutePath();
+    error InvalidRouteKeySlice();
 
     // -------------------------------------------------------------------------
     // Types
@@ -71,6 +73,9 @@ contract XNSRoutes {
 
     // _routeKey(xnsName, routePrefix, route) => route record
     mapping(bytes32 => RouteRecord) private _routes;
+
+    // keccak256(bytes(xnsName)) => append-only log of route keys ever created under that name (not shortened on delete)
+    mapping(bytes32 => bytes32[]) private _routeKeysByName;
 
     // -------------------------------------------------------------------------
     // Events
@@ -147,6 +152,8 @@ contract XNSRoutes {
     /// - The route book for `xnsName` must not be frozen (`RouteBookFrozen`).
     /// - The route key must not already exist (`RouteAlreadyExists`).
     ///
+    /// On success, appends the route storage key to the per-name append-only log (`getRouteKeyCount` / `getRouteKeys`).
+    ///
     /// @param xnsName The XNS name that owns the route space, e.g. "xns.action"
     /// @param routePrefix Optional path segment before `:`; non-empty must pass XNS label rules; empty means `xnsName/route/...` only (no `:` in the action segment).
     /// @param route Required action label (XNS label rules), e.g. "transfer-usdt"
@@ -187,6 +194,8 @@ contract XNSRoutes {
             isActive: activate,
             isFrozen: freeze
         });
+
+        _routeKeysByName[keccak256(bytes(xnsName))].push(routeKey);
 
         // Emit the `RouteFrozen` event, if the route is frozen
         if (freeze) {
@@ -601,6 +610,37 @@ contract XNSRoutes {
     /// @return frozen True if the route book is frozen.
     function isRouteBookFrozen(string calldata xnsName) external view returns (bool frozen) {
         return _routeBookFrozen[keccak256(bytes(xnsName))];
+    }
+
+    /// @notice Number of entries in the append-only route-key log for `xnsName` (not the count of live routes; deletes do not shrink this).
+    function getRouteKeyCount(string calldata xnsName) external view returns (uint256 count) {
+        return _routeKeysByName[keccak256(bytes(xnsName))].length;
+    }
+
+    /// @notice Returns `keys[start:end]` from the append-only log for `xnsName` (`end` is exclusive). Reverts `InvalidRouteKeySlice` if `start > end` or `end` exceeds length.
+    function getRouteKeys(string calldata xnsName, uint256 start, uint256 end)
+        external
+        view
+        returns (bytes32[] memory keys)
+    {
+        bytes32[] storage arr = _routeKeysByName[keccak256(bytes(xnsName))];
+        uint256 len = arr.length;
+        if (start > end || end > len) revert InvalidRouteKeySlice();
+        uint256 n = end - start;
+        keys = new bytes32[](n);
+        for (uint256 i = 0; i < n; ++i) {
+            keys[i] = arr[start + i];
+        }
+    }
+
+    /// @notice Read stored metadata by canonical route storage key. Does not validate strings; `target == address(0)` means no record (never created or deleted).
+    function getRouteRecordByRouteKey(bytes32 routeKey)
+        external
+        view
+        returns (address target, uint32 routeType, bool isActive, bool isFrozen)
+    {
+        RouteRecord storage record = _routes[routeKey];
+        return (record.target, record.routeType, record.isActive, record.isFrozen);
     }
 
     /// @notice Parse `fullRoutePath` into `(xnsName, routePrefix, route)` (first `/`, then first `:` in the action segment).
