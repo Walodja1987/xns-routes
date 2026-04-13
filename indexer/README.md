@@ -9,6 +9,11 @@ Compact SQLite-based indexer for `XNSRoutes` events. No TheGraph, no extra servi
 - Stores state + checkpoint in a local SQLite file
 - Lets you list or export routes
 
+On-chain events index `nameHash` and `routeKey` (see `XNSRoutes.sol`) so external indexers or
+custom `eth_getLogs` queries can filter by XNS name hash and/or canonical route key; this tool
+decodes full event payloads from the ABI and does not rely on topic layout beyond what `web3.py`
+provides.
+
 ## Requirements
 
 - Python 3.10+

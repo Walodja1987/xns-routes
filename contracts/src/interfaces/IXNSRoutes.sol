@@ -12,36 +12,73 @@ interface IXNSRoutes {
     }
 
     event RouteCreated(
+        bytes32 indexed nameHash,
+        bytes32 indexed routeKey,
         string xnsName,
         string routePrefix,
         string route,
-        address indexed target,
+        address target,
         bool isActive,
         bool isFrozen,
-        uint32 indexed routeType
+        uint32 routeType
     );
 
     event RouteUpdated(
+        bytes32 indexed nameHash,
+        bytes32 indexed routeKey,
         string xnsName,
         string routePrefix,
         string route,
-        address indexed target,
+        address target,
         bool isActive,
         bool isFrozen,
-        uint32 indexed routeType
+        uint32 routeType
     );
 
-    event RouteTargetUpdated(string xnsName, string routePrefix, string route, address indexed newTarget);
+    event RouteTargetUpdated(
+        bytes32 indexed nameHash,
+        bytes32 indexed routeKey,
+        string xnsName,
+        string routePrefix,
+        string route,
+        address newTarget
+    );
 
-    event RouteTypeUpdated(string xnsName, string routePrefix, string route, uint32 indexed newRouteType);
+    event RouteTypeUpdated(
+        bytes32 indexed nameHash,
+        bytes32 indexed routeKey,
+        string xnsName,
+        string routePrefix,
+        string route,
+        uint32 newRouteType
+    );
 
-    event RouteActiveStatusUpdated(string xnsName, string routePrefix, string route, bool isActive);
+    event RouteActiveStatusUpdated(
+        bytes32 indexed nameHash,
+        bytes32 indexed routeKey,
+        string xnsName,
+        string routePrefix,
+        string route,
+        bool isActive
+    );
 
-    event RouteFrozen(string xnsName, string routePrefix, string route);
+    event RouteFrozen(
+        bytes32 indexed nameHash,
+        bytes32 indexed routeKey,
+        string xnsName,
+        string routePrefix,
+        string route
+    );
 
-    event RouteBookFrozenForName(string xnsName);
+    event RouteBookFrozenForName(bytes32 indexed nameHash, string xnsName);
 
-    event RouteDeleted(string xnsName, string routePrefix, string route);
+    event RouteDeleted(
+        bytes32 indexed nameHash,
+        bytes32 indexed routeKey,
+        string xnsName,
+        string routePrefix,
+        string route
+    );
 
     function XNS() external view returns (address);
 

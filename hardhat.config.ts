@@ -98,6 +98,7 @@ const config: HardhatUserConfig = {
         enabled: true,
         runs: 999_999,
       },
+      viaIR: true,
       evmVersion: "cancun", // Prevent using the `PUSH0` and `cancun` opcodes
     },
   },

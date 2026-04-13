@@ -32,6 +32,11 @@ describe("XNSRoutes", function () {
     invalidRouteKeySlice: "XNSRoutes: invalid route key slice",
   } as const;
 
+  /** Matches `XNSRoutes._xnsNameKey` / `keccak256(bytes(xnsName))`. */
+  function xnsNameKey(xnsName: string): string {
+    return ethers.keccak256(ethers.toUtf8Bytes(xnsName));
+  }
+
   /** Matches `XNSRoutes._routeKey` `abi.encodePacked` layout. */
   function routeStorageKey(xnsName: string, routePrefix: string, route: string): string {
     if (routePrefix === "") {
@@ -312,7 +317,14 @@ describe("XNSRoutes", function () {
 
       await expect(routes.connect(owner).deactivateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE))
         .to.emit(routes, "RouteActiveStatusUpdated")
-        .withArgs(XNS_NAME, ROUTE_PREFIX, ROUTE, false);
+        .withArgs(
+          xnsNameKey(XNS_NAME),
+          routeStorageKey(XNS_NAME, ROUTE_PREFIX, ROUTE),
+          XNS_NAME,
+          ROUTE_PREFIX,
+          ROUTE,
+          false,
+        );
 
       expect((await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE))[1]).to.equal(false);
     });
@@ -324,7 +336,14 @@ describe("XNSRoutes", function () {
 
       await expect(routes.connect(owner).activateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE))
         .to.emit(routes, "RouteActiveStatusUpdated")
-        .withArgs(XNS_NAME, ROUTE_PREFIX, ROUTE, true);
+        .withArgs(
+          xnsNameKey(XNS_NAME),
+          routeStorageKey(XNS_NAME, ROUTE_PREFIX, ROUTE),
+          XNS_NAME,
+          ROUTE_PREFIX,
+          ROUTE,
+          true,
+        );
 
       expect((await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE))[1]).to.equal(true);
     });
@@ -399,7 +418,13 @@ describe("XNSRoutes", function () {
 
       await expect(routes.connect(owner).deleteRoute(XNS_NAME, ROUTE_PREFIX, ROUTE))
         .to.emit(routes, "RouteDeleted")
-        .withArgs(XNS_NAME, ROUTE_PREFIX, ROUTE);
+        .withArgs(
+          xnsNameKey(XNS_NAME),
+          routeStorageKey(XNS_NAME, ROUTE_PREFIX, ROUTE),
+          XNS_NAME,
+          ROUTE_PREFIX,
+          ROUTE,
+        );
 
       expect(await routes.routeExists(XNS_NAME, ROUTE_PREFIX, ROUTE)).to.equal(false);
       await expect(routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE)).to.be.revertedWith(XR.routeNotFound);
@@ -456,7 +481,14 @@ describe("XNSRoutes", function () {
 
       await expect(routes.connect(owner).updateTarget(XNS_NAME, ROUTE_PREFIX, ROUTE, other.address))
         .to.emit(routes, "RouteTargetUpdated")
-        .withArgs(XNS_NAME, ROUTE_PREFIX, ROUTE, other.address);
+        .withArgs(
+          xnsNameKey(XNS_NAME),
+          routeStorageKey(XNS_NAME, ROUTE_PREFIX, ROUTE),
+          XNS_NAME,
+          ROUTE_PREFIX,
+          ROUTE,
+          other.address,
+        );
 
       expect((await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE))[0]).to.equal(other.address);
     });
@@ -487,7 +519,14 @@ describe("XNSRoutes", function () {
 
       await expect(routes.connect(owner).updateRouteType(XNS_NAME, ROUTE_PREFIX, ROUTE, 7))
         .to.emit(routes, "RouteTypeUpdated")
-        .withArgs(XNS_NAME, ROUTE_PREFIX, ROUTE, 7);
+        .withArgs(
+          xnsNameKey(XNS_NAME),
+          routeStorageKey(XNS_NAME, ROUTE_PREFIX, ROUTE),
+          XNS_NAME,
+          ROUTE_PREFIX,
+          ROUTE,
+          7,
+        );
 
       expect((await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE))[3]).to.equal(7);
     });
