@@ -4,20 +4,6 @@ pragma solidity 0.8.28;
 /// @title IXNSRoutes
 /// @notice Interface for the `XNSRoutes` route registry.
 interface IXNSRoutes {
-    error ZeroAddress();
-    error InvalidXnsName();
-    error InvalidRoutePrefix();
-    error InvalidRoute();
-    error InvalidRoutePath();
-    error InvalidTarget();
-    error NotXnsNameOwner();
-    error RouteNotFound();
-    error CannotUpdateFrozenRoute();
-    error RouteBookFrozen();
-    error RouteAlreadyExists();
-    error CannotDeleteFrozenRoute();
-    error InvalidRouteKeySlice();
-
     struct RouteRecord {
         address target;
         uint32 routeType;

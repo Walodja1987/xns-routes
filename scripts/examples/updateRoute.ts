@@ -1,6 +1,6 @@
 /**
  * Update an existing route (target, routeType, activate, optional freeze in one tx).
- * Reverts with `RouteNotFound` if the route does not exist, or if frozen / route book frozen when applicable.
+ * Reverts with `"XNSRoutes: route not found"` (or other `XNSRoutes: ...` require messages) if the route does not exist, or if frozen / route book frozen when applicable.
  * Caller must be the address XNS currently resolves for `xnsName`.
  *
  * USAGE:

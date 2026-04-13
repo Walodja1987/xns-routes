@@ -19,6 +19,8 @@ Key points:
 - A route stores `target`, `routeType`, `isActive`, and `isFrozen`.
 - Route freeze and route-book freeze are irreversible.
 - Active status can still be toggled after freeze.
+- An append-only log of route storage keys per `xnsName` supports enumeration without an
+  indexer (`getRouteKeyCount`, `getRouteKeys`, `getRouteRecordByRouteKey` / overload for batches).
 
 
 
@@ -33,11 +35,13 @@ Key points:
 Create a route under `(xnsName, routePrefix, route)`. Reverts if that key already exists.
 
 **Requirements:**
-- `msg.sender` must be the current XNS owner for `xnsName` (`InvalidXnsName`, `NotXnsNameOwner`).
-- Non-empty `routePrefix` and `route` must satisfy XNS label rules (`InvalidRoutePrefix`, `InvalidRoute`).
-- `target` must not be the zero address (`InvalidTarget`).
-- The route book for `xnsName` must not be frozen (`RouteBookFrozen`).
-- The route key must not already exist (`RouteAlreadyExists`).
+- `msg.sender` must be the current XNS owner for `xnsName` (`"XNSRoutes: invalid XNS name"`, `"XNSRoutes: not XNS name owner"`).
+- Non-empty `routePrefix` and `route` must satisfy XNS label rules (`"XNSRoutes: invalid route prefix"`, `"XNSRoutes: invalid route"`).
+- `target` must not be the zero address (`"XNSRoutes: invalid target"`).
+- The route book for `xnsName` must not be frozen (`"XNSRoutes: route book frozen"`).
+- The route key must not already exist (`"XNSRoutes: route already exists"`).
+
+On success, appends the route storage key to the per-name append-only log (`getRouteKeyCount` / `getRouteKeys`).
 
 ```solidity
 function createRoute(string xnsName, string routePrefix, string route, address target, uint32 routeType, bool activate, bool freeze) external
@@ -64,10 +68,10 @@ Update an existing route (target, routeType, activate, optional freeze in one tx
 
 **Requirements:**
 - `msg.sender` must be the current XNS owner for `xnsName`.
-- `target` must not be the zero address (`InvalidTarget`).
-- The route book for `xnsName` must not be frozen (`RouteBookFrozen`).
+- `target` must not be the zero address (`"XNSRoutes: invalid target"`).
+- The route book for `xnsName` must not be frozen (`"XNSRoutes: route book frozen"`).
 - Non-empty `routePrefix` and `route` must satisfy XNS label rules.
-- The route must exist (`RouteNotFound`) and must not already be per-route frozen (`CannotUpdateFrozenRoute`).
+- The route must exist (`"XNSRoutes: route not found"`) and must not already be per-route frozen (`"XNSRoutes: cannot update frozen route"`).
 
 ```solidity
 function updateRoute(string xnsName, string routePrefix, string route, address target, uint32 routeType, bool activate, bool freeze) external
@@ -95,7 +99,7 @@ Mark an existing route as active.
 **Requirements:**
 - `msg.sender` must be the current XNS owner for `xnsName`.
 - Non-empty `routePrefix` and `route` must satisfy XNS label rules.
-- The route must exist (`RouteNotFound`).
+- The route must exist (`"XNSRoutes: route not found"`).
 
 Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after route or route book freeze.
 
@@ -121,7 +125,7 @@ Mark an existing route as inactive.
 **Requirements:**
 - `msg.sender` must be the current XNS owner for `xnsName`.
 - Non-empty `routePrefix` and `route` must satisfy XNS label rules.
-- The route must exist (`RouteNotFound`).
+- The route must exist (`"XNSRoutes: route not found"`).
 
 Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after route or route book freeze.
 
@@ -146,9 +150,9 @@ Remove a route so `createRoute` may register the same key again.
 
 **Requirements:**
 - `msg.sender` must be the current XNS owner for `xnsName`.
-- The route book for `xnsName` must not be frozen (`RouteBookFrozen`).
+- The route book for `xnsName` must not be frozen (`"XNSRoutes: route book frozen"`).
 - Non-empty `routePrefix` and `route` must satisfy XNS label rules.
-- The route must exist (`RouteNotFound`) and must not be per-route frozen (`CannotDeleteFrozenRoute`).
+- The route must exist (`"XNSRoutes: route not found"`) and must not be per-route frozen (`"XNSRoutes: cannot delete frozen route"`).
 
 Does not check `isActive`; use `deactivateRoute` for a soft disable without deleting.
 
@@ -173,10 +177,10 @@ Update the build `target` for an existing route.
 
 **Requirements:**
 - `msg.sender` must be the current XNS owner for `xnsName`.
-- The route book for `xnsName` must not be frozen (`RouteBookFrozen`).
+- The route book for `xnsName` must not be frozen (`"XNSRoutes: route book frozen"`).
 - Non-empty `routePrefix` and `route` must satisfy XNS label rules.
-- The route must exist (`RouteNotFound`) and must not be per-route frozen (`CannotUpdateFrozenRoute`).
-- `newTarget` must not be the zero address (`InvalidTarget`).
+- The route must exist (`"XNSRoutes: route not found"`) and must not be per-route frozen (`"XNSRoutes: cannot update frozen route"`).
+- `newTarget` must not be the zero address (`"XNSRoutes: invalid target"`).
 
 Emits `RouteTargetUpdated` only when `newTarget` differs from the stored target.
 
@@ -202,9 +206,9 @@ Update `routeType` for an existing route.
 
 **Requirements:**
 - `msg.sender` must be the current XNS owner for `xnsName`.
-- The route book for `xnsName` must not be frozen (`RouteBookFrozen`).
+- The route book for `xnsName` must not be frozen (`"XNSRoutes: route book frozen"`).
 - Non-empty `routePrefix` and `route` must satisfy XNS label rules.
-- The route must exist (`RouteNotFound`) and must not be per-route frozen (`CannotUpdateFrozenRoute`).
+- The route must exist (`"XNSRoutes: route not found"`) and must not be per-route frozen (`"XNSRoutes: cannot update frozen route"`).
 
 Emits `RouteTypeUpdated` only when `newRouteType` differs from the stored value.
 
@@ -231,7 +235,7 @@ Freeze a single route forever.
 **Requirements:**
 - `msg.sender` must be the current XNS owner for `xnsName`.
 - Non-empty `routePrefix` and `route` must satisfy XNS label rules.
-- The route must exist (`RouteNotFound`).
+- The route must exist (`"XNSRoutes: route not found"`).
 
 After freezing, `target` and `routeType` can never be changed again; active/inactive can still be toggled.
 
@@ -279,7 +283,7 @@ function freezeRouteBook(string xnsName) external
 
 
 Return full route metadata. Applies the same `routePrefix`/`route` validation as mutating functions, then reads storage.
-Reverts with `RouteNotFound` when no route exists for the key.
+Reverts with `"XNSRoutes: route not found"` when no route exists for the key.
 
 ```solidity
 function getRouteInfo(string xnsName, string routePrefix, string route) external view returns (address target, bool isActive, bool isFrozen, uint32 routeType)
@@ -306,10 +310,10 @@ function getRouteInfo(string xnsName, string routePrefix, string route) external
 ### getRouteInfoFromPath
 
 
-Same as `getRouteInfo` with `fullRoutePath` as in `createRouteFromPath`.
+Same as `getRouteInfo` with `fullRoutePath` parsed by `splitFullPath`.
 
 **Requirements:**
-- `fullRoutePath` must contain at least one `/` (`InvalidRoutePath` if not).
+- `fullRoutePath` must contain at least one `/` (`"XNSRoutes: invalid route path"` if not).
 - Further requirements match `getRouteInfo` for the parsed components.
 
 ```solidity
@@ -347,10 +351,10 @@ function routeExists(string xnsName, string routePrefix, string route) external 
 ### routeExistsFromPath
 
 
-Same as `routeExists` with `fullRoutePath` as in `createRouteFromPath`.
+Same as `routeExists` with `fullRoutePath` parsed by `splitFullPath`.
 
 **Requirements:**
-- `fullRoutePath` must contain at least one `/` (`InvalidRoutePath` if not).
+- `fullRoutePath` must contain at least one `/` (`"XNSRoutes: invalid route path"` if not).
 - Further requirements match `routeExists` for the parsed components.
 
 ```solidity
@@ -382,13 +386,106 @@ function isRouteBookFrozen(string xnsName) external view returns (bool frozen)
 | ---- | ---- | ----------- |
 | frozen | bool | True if the route book is frozen. |
 
+### getRouteKeyCount
+
+
+Number of entries in the append-only route-key log for `xnsName` (not the count of live routes; 
+deletes do not shrink this).
+
+```solidity
+function getRouteKeyCount(string xnsName) external view returns (uint256 count)
+```
+
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| xnsName | string | The XNS name to get the route key count for. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| count | uint256 | The number of route keys. |
+
+### getRouteKeys
+
+
+Returns `keys[start:end]` from the append-only log for `xnsName` (`end` is exclusive). 
+Reverts with `"XNSRoutes: invalid route key slice"` if `start > end` or `end` exceeds length.
+
+```solidity
+function getRouteKeys(string xnsName, uint256 start, uint256 end) external view returns (bytes32[] keys)
+```
+
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| xnsName | string | The XNS name to get the route keys for. |
+| start | uint256 | The start index (inclusive). |
+| end | uint256 | The end index (exclusive). |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| keys | bytes32[] | The route keys. |
+
+### getRouteRecordByRouteKey
+
+
+Read stored metadata by canonical route storage key. Does not validate strings;
+`record.target == address(0)` means no record (never created or deleted).
+
+```solidity
+function getRouteRecordByRouteKey(bytes32 routeKey) external view returns (struct XNSRoutes.RouteRecord record)
+```
+
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| routeKey | bytes32 | The route key to read. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| record | struct XNSRoutes.RouteRecord | The route record (same shape as each element of the batch overload). |
+
+### getRouteRecordByRouteKey
+
+
+Batch read of `RouteRecord` for each `routeKey`. Same semantics as `getRouteRecordByRouteKey(bytes32)` per element.
+
+```solidity
+function getRouteRecordByRouteKey(bytes32[] routeKeys) external view returns (struct XNSRoutes.RouteRecord[] records)
+```
+
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| routeKeys | bytes32[] | The route keys to read. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| records | struct XNSRoutes.RouteRecord[] | The route records. |
+
 ### splitFullPath
 
 
 Parse `fullRoutePath` into `(xnsName, routePrefix, route)` (first `/`, then first `:` in the action segment).
 
 **Requirements:**
-- `fullRoutePath` must contain at least one `/` (`InvalidRoutePath` if not).
+- `fullRoutePath` must contain at least one `/` (`"XNSRoutes: invalid route path"` if not).
 
 Does not apply XNS label validation; pass the returned tuple into tuple-based functions, which validate `routePrefix` and `route`.
 
@@ -523,164 +620,6 @@ event RouteDeleted(string xnsName, string routePrefix, string route)
 
 _Emitted in `deleteRoute`._
 
-
-
-
-
-
-## Errors
-
-### ZeroAddress
-
-
-
-
-```solidity
-error ZeroAddress()
-```
-
-
-
-
-
-### InvalidXnsName
-
-
-
-
-```solidity
-error InvalidXnsName()
-```
-
-
-
-
-
-### InvalidRoutePrefix
-
-
-
-
-```solidity
-error InvalidRoutePrefix()
-```
-
-
-
-
-
-### InvalidRoute
-
-
-
-
-```solidity
-error InvalidRoute()
-```
-
-
-
-
-
-### InvalidTarget
-
-
-
-
-```solidity
-error InvalidTarget()
-```
-
-
-
-
-
-### NotXnsNameOwner
-
-
-
-
-```solidity
-error NotXnsNameOwner()
-```
-
-
-
-
-
-### RouteNotFound
-
-
-
-
-```solidity
-error RouteNotFound()
-```
-
-
-
-
-
-### CannotUpdateFrozenRoute
-
-
-
-
-```solidity
-error CannotUpdateFrozenRoute()
-```
-
-
-
-
-
-### RouteBookFrozen
-
-
-
-
-```solidity
-error RouteBookFrozen()
-```
-
-
-
-
-
-### RouteAlreadyExists
-
-
-
-
-```solidity
-error RouteAlreadyExists()
-```
-
-
-
-
-
-### CannotDeleteFrozenRoute
-
-
-
-
-```solidity
-error CannotDeleteFrozenRoute()
-```
-
-
-
-
-
-### InvalidRoutePath
-
-
-
-
-```solidity
-error InvalidRoutePath()
-```
 
 
 

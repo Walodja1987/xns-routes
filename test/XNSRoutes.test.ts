@@ -15,6 +15,23 @@ describe("XNSRoutes", function () {
   /** Default `routeType` in tests; semantics are offchain */
   const RT0 = 0;
 
+  /** Matches `require(..., "XNSRoutes: ...")` in `XNSRoutes.sol`. */
+  const XR = {
+    zeroXnsAddress: "XNSRoutes: 0x XNS address",
+    invalidXnsName: "XNSRoutes: invalid XNS name",
+    invalidRoutePrefix: "XNSRoutes: invalid route prefix",
+    invalidRoute: "XNSRoutes: invalid route",
+    invalidTarget: "XNSRoutes: invalid target",
+    notXnsNameOwner: "XNSRoutes: not XNS name owner",
+    routeNotFound: "XNSRoutes: route not found",
+    cannotUpdateFrozenRoute: "XNSRoutes: cannot update frozen route",
+    routeBookFrozen: "XNSRoutes: route book frozen",
+    routeAlreadyExists: "XNSRoutes: route already exists",
+    cannotDeleteFrozenRoute: "XNSRoutes: cannot delete frozen route",
+    invalidRoutePath: "XNSRoutes: invalid route path",
+    invalidRouteKeySlice: "XNSRoutes: invalid route key slice",
+  } as const;
+
   /** Matches `XNSRoutes._routeKey` `abi.encodePacked` layout. */
   function routeStorageKey(xnsName: string, routePrefix: string, route: string): string {
     if (routePrefix === "") {
@@ -71,12 +88,9 @@ describe("XNSRoutes", function () {
       expect(await routes.XNS()).to.equal(String(mockXns.target));
     });
 
-    it("Should revert with ZeroAddress when xns_ is zero address", async function () {
+    it("Should revert with zero XNS address when xns_ is zero address", async function () {
       const XNSRoutes = await ethers.getContractFactory("XNSRoutes");
-      await expect(XNSRoutes.deploy(ethers.ZeroAddress, { value: 0n })).to.be.revertedWithCustomError(
-        XNSRoutes,
-        "ZeroAddress",
-      );
+      await expect(XNSRoutes.deploy(ethers.ZeroAddress, { value: 0n })).to.be.revertedWith(XR.zeroXnsAddress);
     });
 
     it("Should register routes.xns to the deployed registry via constructor", async function () {
@@ -161,7 +175,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(other).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false),
-      ).to.be.revertedWithCustomError(routes, "NotXnsNameOwner");
+      ).to.be.revertedWith(XR.notXnsNameOwner);
     });
 
     it("Should revert with InvalidXnsName when xnsName is empty", async function () {
@@ -169,7 +183,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(owner).createRoute("", ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false),
-      ).to.be.revertedWithCustomError(routes, "InvalidXnsName");
+      ).to.be.revertedWith(XR.invalidXnsName);
     });
 
     it("Should revert with InvalidXnsName when XNS resolves owner to zero", async function () {
@@ -178,7 +192,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(owner).createRoute(orphan, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false),
-      ).to.be.revertedWithCustomError(routes, "InvalidXnsName");
+      ).to.be.revertedWith(XR.invalidXnsName);
     });
 
     it("Should revert with InvalidRoutePrefix when XNS marks routePrefix label invalid", async function () {
@@ -188,7 +202,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(owner).createRoute(XNS_NAME, badRoutePrefix, ROUTE, buildTarget, RT0, true, false),
-      ).to.be.revertedWithCustomError(routes, "InvalidRoutePrefix");
+      ).to.be.revertedWith(XR.invalidRoutePrefix);
     });
 
     it("Should allow empty routePrefix without InvalidRoutePrefix (single-segment route)", async function () {
@@ -202,10 +216,7 @@ describe("XNSRoutes", function () {
       expect(await routes.routeExists(XNS_NAME, "", globalRoute)).to.equal(true);
       expect((await routes.getRouteInfo(XNS_NAME, "", globalRoute))[0]).to.equal(buildTarget);
       expect(await routes.routeExists(XNS_NAME, ROUTE_PREFIX, globalRoute)).to.equal(false);
-      await expect(routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, globalRoute)).to.be.revertedWithCustomError(
-        routes,
-        "RouteNotFound",
-      );
+      await expect(routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, globalRoute)).to.be.revertedWith(XR.routeNotFound);
 
       await routes
         .connect(owner)
@@ -221,7 +232,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, badRoute, buildTarget, RT0, true, false),
-      ).to.be.revertedWithCustomError(routes, "InvalidRoute");
+      ).to.be.revertedWith(XR.invalidRoute);
     });
 
     it("Should revert with InvalidTarget when target is zero", async function () {
@@ -229,7 +240,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, ethers.ZeroAddress, RT0, true, false),
-      ).to.be.revertedWithCustomError(routes, "InvalidTarget");
+      ).to.be.revertedWith(XR.invalidTarget);
     });
 
     it("Should revert with RouteBookFrozen after freezeRouteBook", async function () {
@@ -238,7 +249,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false),
-      ).to.be.revertedWithCustomError(routes, "RouteBookFrozen");
+      ).to.be.revertedWith(XR.routeBookFrozen);
     });
 
     it("Should revert with CannotUpdateFrozenRoute when route is frozen", async function () {
@@ -247,7 +258,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(owner).updateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, other.address, RT0, true, false),
-      ).to.be.revertedWithCustomError(routes, "CannotUpdateFrozenRoute");
+      ).to.be.revertedWith(XR.cannotUpdateFrozenRoute);
     });
 
     it("Should keep routes independent per xnsName, routePrefix, and route", async function () {
@@ -272,7 +283,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false),
-      ).to.be.revertedWithCustomError(routes, "RouteAlreadyExists");
+      ).to.be.revertedWith(XR.routeAlreadyExists);
     });
 
     it("Should revert with RouteNotFound when updateRoute is called for a missing route", async function () {
@@ -280,7 +291,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(owner).updateRoute(XNS_NAME, ROUTE_PREFIX, "missing", buildTarget, RT0, true, false),
-      ).to.be.revertedWithCustomError(routes, "RouteNotFound");
+      ).to.be.revertedWith(XR.routeNotFound);
     });
 
     it("Should revert with InvalidRoute when updateRoute uses empty prefix and route contains colon (alias encoding)", async function () {
@@ -290,7 +301,7 @@ describe("XNSRoutes", function () {
       const aliasRoute = `${ROUTE_PREFIX}:${ROUTE}`;
       await expect(
         routes.connect(owner).updateRoute(XNS_NAME, "", aliasRoute, buildTarget, RT0, true, false),
-      ).to.be.revertedWithCustomError(routes, "InvalidRoute");
+      ).to.be.revertedWith(XR.invalidRoute);
     });
   });
 
@@ -369,7 +380,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(other).deactivateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE),
-      ).to.be.revertedWithCustomError(routes, "NotXnsNameOwner");
+      ).to.be.revertedWith(XR.notXnsNameOwner);
     });
 
     it("Should revert with RouteNotFound when route missing", async function () {
@@ -377,7 +388,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(owner).deactivateRoute(XNS_NAME, ROUTE_PREFIX, "missing"),
-      ).to.be.revertedWithCustomError(routes, "RouteNotFound");
+      ).to.be.revertedWith(XR.routeNotFound);
     });
   });
 
@@ -391,10 +402,7 @@ describe("XNSRoutes", function () {
         .withArgs(XNS_NAME, ROUTE_PREFIX, ROUTE);
 
       expect(await routes.routeExists(XNS_NAME, ROUTE_PREFIX, ROUTE)).to.equal(false);
-      await expect(routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE)).to.be.revertedWithCustomError(
-        routes,
-        "RouteNotFound",
-      );
+      await expect(routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE)).to.be.revertedWith(XR.routeNotFound);
 
       await expect(
         routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, other.address, RT0, false, false),
@@ -410,7 +418,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(owner).deleteRoute(XNS_NAME, ROUTE_PREFIX, ROUTE),
-      ).to.be.revertedWithCustomError(routes, "CannotDeleteFrozenRoute");
+      ).to.be.revertedWith(XR.cannotDeleteFrozenRoute);
     });
 
     it("Should revert with RouteBookFrozen after freezeRouteBook", async function () {
@@ -420,7 +428,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(owner).deleteRoute(XNS_NAME, ROUTE_PREFIX, ROUTE),
-      ).to.be.revertedWithCustomError(routes, "RouteBookFrozen");
+      ).to.be.revertedWith(XR.routeBookFrozen);
     });
 
     it("Should revert with NotXnsNameOwner for wrong caller", async function () {
@@ -429,7 +437,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(other).deleteRoute(XNS_NAME, ROUTE_PREFIX, ROUTE),
-      ).to.be.revertedWithCustomError(routes, "NotXnsNameOwner");
+      ).to.be.revertedWith(XR.notXnsNameOwner);
     });
 
     it("Should revert with RouteNotFound when route missing", async function () {
@@ -437,7 +445,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(owner).deleteRoute(XNS_NAME, ROUTE_PREFIX, "missing"),
-      ).to.be.revertedWithCustomError(routes, "RouteNotFound");
+      ).to.be.revertedWith(XR.routeNotFound);
     });
   });
 
@@ -470,7 +478,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(owner).updateTarget(XNS_NAME, ROUTE_PREFIX, ROUTE, ethers.ZeroAddress),
-      ).to.be.revertedWithCustomError(routes, "InvalidTarget");
+      ).to.be.revertedWith(XR.invalidTarget);
     });
 
     it("Should update routeType and emit RouteTypeUpdated", async function () {
@@ -501,7 +509,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(other).updateTarget(XNS_NAME, ROUTE_PREFIX, ROUTE, other.address),
-      ).to.be.revertedWithCustomError(routes, "NotXnsNameOwner");
+      ).to.be.revertedWith(XR.notXnsNameOwner);
     });
 
     it("Should revert with RouteNotFound for updateTarget when route missing", async function () {
@@ -509,7 +517,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(owner).updateTarget(XNS_NAME, ROUTE_PREFIX, "missing", buildTarget),
-      ).to.be.revertedWithCustomError(routes, "RouteNotFound");
+      ).to.be.revertedWith(XR.routeNotFound);
     });
 
     it("Should revert with CannotUpdateFrozenRoute for updateTarget after freezeRoute", async function () {
@@ -519,7 +527,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(owner).updateTarget(XNS_NAME, ROUTE_PREFIX, ROUTE, other.address),
-      ).to.be.revertedWithCustomError(routes, "CannotUpdateFrozenRoute");
+      ).to.be.revertedWith(XR.cannotUpdateFrozenRoute);
     });
 
     it("Should revert with RouteBookFrozen for updateTarget after freezeRouteBook", async function () {
@@ -529,7 +537,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(owner).updateTarget(XNS_NAME, ROUTE_PREFIX, ROUTE, other.address),
-      ).to.be.revertedWithCustomError(routes, "RouteBookFrozen");
+      ).to.be.revertedWith(XR.routeBookFrozen);
     });
 
     it("Should revert with RouteBookFrozen for updateRouteType after freezeRouteBook", async function () {
@@ -539,7 +547,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(owner).updateRouteType(XNS_NAME, ROUTE_PREFIX, ROUTE, 1),
-      ).to.be.revertedWithCustomError(routes, "RouteBookFrozen");
+      ).to.be.revertedWith(XR.routeBookFrozen);
     });
 
     it("Should revert with CannotUpdateFrozenRoute for updateRouteType after freezeRoute", async function () {
@@ -549,7 +557,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(owner).updateRouteType(XNS_NAME, ROUTE_PREFIX, ROUTE, 1),
-      ).to.be.revertedWithCustomError(routes, "CannotUpdateFrozenRoute");
+      ).to.be.revertedWith(XR.cannotUpdateFrozenRoute);
     });
   });
 
@@ -582,18 +590,16 @@ describe("XNSRoutes", function () {
       const { routes, owner, other, buildTarget } = await loadFixture(deployFixture);
       await routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
 
-      await expect(routes.connect(other).freezeRoute(XNS_NAME, ROUTE_PREFIX, ROUTE)).to.be.revertedWithCustomError(
-        routes,
-        "NotXnsNameOwner",
+      await expect(routes.connect(other).freezeRoute(XNS_NAME, ROUTE_PREFIX, ROUTE)).to.be.revertedWith(
+        XR.notXnsNameOwner,
       );
     });
 
     it("Should revert with RouteNotFound when route missing", async function () {
       const { routes, owner } = await loadFixture(deployFixture);
 
-      await expect(routes.connect(owner).freezeRoute(XNS_NAME, ROUTE_PREFIX, "nope")).to.be.revertedWithCustomError(
-        routes,
-        "RouteNotFound",
+      await expect(routes.connect(owner).freezeRoute(XNS_NAME, ROUTE_PREFIX, "nope")).to.be.revertedWith(
+        XR.routeNotFound,
       );
     });
   });
@@ -618,15 +624,15 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, "new-one", buildTarget, RT0, true, false),
-      ).to.be.revertedWithCustomError(routes, "RouteBookFrozen");
+      ).to.be.revertedWith(XR.routeBookFrozen);
 
       await expect(
         routes.connect(owner).updateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, false, false),
-      ).to.be.revertedWithCustomError(routes, "RouteBookFrozen");
+      ).to.be.revertedWith(XR.routeBookFrozen);
 
       await expect(
         routes.connect(owner).deleteRoute(XNS_NAME, ROUTE_PREFIX, ROUTE),
-      ).to.be.revertedWithCustomError(routes, "RouteBookFrozen");
+      ).to.be.revertedWith(XR.routeBookFrozen);
 
       await expect(routes.connect(owner).deactivateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE)).to.emit(
         routes,
@@ -648,10 +654,7 @@ describe("XNSRoutes", function () {
     it("Should revert with NotXnsNameOwner", async function () {
       const { routes, other } = await loadFixture(deployFixture);
 
-      await expect(routes.connect(other).freezeRouteBook(XNS_NAME)).to.be.revertedWithCustomError(
-        routes,
-        "NotXnsNameOwner",
-      );
+      await expect(routes.connect(other).freezeRouteBook(XNS_NAME)).to.be.revertedWith(XR.notXnsNameOwner);
     });
   });
 
@@ -661,23 +664,14 @@ describe("XNSRoutes", function () {
 
       expect(await routes.routeExists(XNS_NAME, ROUTE_PREFIX, ROUTE)).to.equal(false);
 
-      await expect(routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE)).to.be.revertedWithCustomError(
-        routes,
-        "RouteNotFound",
-      );
+      await expect(routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE)).to.be.revertedWith(XR.routeNotFound);
     });
 
     it("Should revert getRouteInfo and routeExists with InvalidRoute for colon in route when prefix is empty", async function () {
       const { routes } = await loadFixture(deployFixture);
       const aliasRoute = `${ROUTE_PREFIX}:${ROUTE}`;
-      await expect(routes.getRouteInfo(XNS_NAME, "", aliasRoute)).to.be.revertedWithCustomError(
-        routes,
-        "InvalidRoute",
-      );
-      await expect(routes.routeExists(XNS_NAME, "", aliasRoute)).to.be.revertedWithCustomError(
-        routes,
-        "InvalidRoute",
-      );
+      await expect(routes.getRouteInfo(XNS_NAME, "", aliasRoute)).to.be.revertedWith(XR.invalidRoute);
+      await expect(routes.routeExists(XNS_NAME, "", aliasRoute)).to.be.revertedWith(XR.invalidRoute);
     });
 
     it("Should return getRouteInfoFromPath for an existing route", async function () {
@@ -695,19 +689,13 @@ describe("XNSRoutes", function () {
 
     it("Should revert routeExistsFromPath with InvalidRoutePath when no slash is present", async function () {
       const { routes } = await loadFixture(deployFixture);
-      await expect(routes.routeExistsFromPath(`${ROUTE_PREFIX}:${ROUTE}`)).to.be.revertedWithCustomError(
-        routes,
-        "InvalidRoutePath",
-      );
+      await expect(routes.routeExistsFromPath(`${ROUTE_PREFIX}:${ROUTE}`)).to.be.revertedWith(XR.invalidRoutePath);
     });
 
     it("Should revert getRouteInfoFromPath with RouteNotFound when missing", async function () {
       const { routes } = await loadFixture(deployFixture);
       const fullPath = `${XNS_NAME}/${ROUTE_PREFIX}:${ROUTE}`;
-      await expect(routes.getRouteInfoFromPath(fullPath)).to.be.revertedWithCustomError(
-        routes,
-        "RouteNotFound",
-      );
+      await expect(routes.getRouteInfoFromPath(fullPath)).to.be.revertedWith(XR.routeNotFound);
     });
   });
 
@@ -743,7 +731,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false),
-      ).to.be.revertedWithCustomError(routes, "RouteAlreadyExists");
+      ).to.be.revertedWith(XR.routeAlreadyExists);
 
       expect(await routes.getRouteKeyCount(XNS_NAME)).to.equal(1n);
     });
@@ -789,6 +777,9 @@ describe("XNSRoutes", function () {
       expect(mid.length).to.equal(1);
       expect(mid[0]).to.equal(k1);
 
+      const emptyWhenStartEqualsEnd = await routes.getRouteKeys(XNS_NAME, 1, 1);
+      expect(emptyWhenStartEqualsEnd.length).to.equal(0);
+
       const all = await routes.getRouteKeys(XNS_NAME, 0, 2);
       expect(all[0]).to.equal(k0);
       expect(all[1]).to.equal(k1);
@@ -822,8 +813,8 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
 
-      await expect(routes.getRouteKeys(XNS_NAME, 1, 0)).to.be.revertedWithCustomError(routes, "InvalidRouteKeySlice");
-      await expect(routes.getRouteKeys(XNS_NAME, 0, 2)).to.be.revertedWithCustomError(routes, "InvalidRouteKeySlice");
+      await expect(routes.getRouteKeys(XNS_NAME, 1, 0)).to.be.revertedWith(XR.invalidRouteKeySlice);
+      await expect(routes.getRouteKeys(XNS_NAME, 0, 2)).to.be.revertedWith(XR.invalidRouteKeySlice);
     });
   });
 });

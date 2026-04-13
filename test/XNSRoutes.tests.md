@@ -2,9 +2,11 @@
 
 This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../contracts/src/XNSRoutes.sol) in [`XNSRoutes.test.ts`](./XNSRoutes.test.ts).
 
+Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same style as `XNS: ...` in the XNS registry).
+
 ## Test setup
 
-- **Unit tests** use [`MockXNS`](../contracts/src/mocks/MockXNS.sol): set `xnsName → owner` via `setResolution`, and optionally mark labels invalid via `setLabelInvalid` for `InvalidRoutePrefix` / `InvalidRoute` cases. `isValidLabelOrNamespace` applies the same charset / length / hyphen rules as on-chain XNS, then `setLabelInvalid` overrides.
+- **Unit tests** use [`MockXNS`](../contracts/src/mocks/MockXNS.sol): set `xnsName → owner` via `setResolution`, and optionally mark labels invalid via `setLabelInvalid` for `"XNSRoutes: invalid route prefix"` / `"XNSRoutes: invalid route"` cases. `isValidLabelOrNamespace` applies the same charset / length / hyphen rules as on-chain XNS, then `setLabelInvalid` overrides.
 - **Canonical on-chain XNS** addresses for deploy/scripts/fork work live in [`constants/addresses.ts`](../constants/addresses.ts) as `XNS_ADDRESS` (they are not used by the default local test suite).
 
 ---
@@ -19,7 +21,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 #### Reverts
 
-- Should revert with `ZeroAddress` when `xns_` is `address(0)`.
+- Should revert with `"XNSRoutes: 0x XNS address"` when `_xns` is `address(0)`.
 - Reverts if XNS rejects registration (e.g. insufficient `msg.value`, name taken, exclusivity rules on the real contract).
 
 ---
@@ -29,7 +31,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 #### Functionality
 
 - Name owner can **create** a route for `(xnsName, routePrefix, route)` with the given `target`, `routeType`, stored `isActive` from `activate`, and stored `isFrozen` from `freeze`.
-- Second `createRoute` for the same key should revert with `RouteAlreadyExists`.
+- Second `createRoute` for the same key should revert with `"XNSRoutes: route already exists"`.
 - With `freeze == true`, should set `isFrozen` and emit `RouteFrozen` (in addition to `RouteCreated`).
 
 #### Events
@@ -39,7 +41,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 #### Reverts
 
-- Owner, XNS label rules on non-empty `routePrefix` and on `route`, non-zero `target`, and `RouteBookFrozen`, plus `RouteAlreadyExists` if the route key already exists.
+- Owner, XNS label rules on non-empty `routePrefix` and on `route`, non-zero `target`, `"XNSRoutes: route book frozen"`, plus `"XNSRoutes: route already exists"` if the route key already exists.
 
 ---
 
@@ -48,7 +50,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 #### Functionality
 
 - Name owner can **update** `target`, `routeType`, and `isActive` (via `activate`) on an **existing** route while the entry is not frozen and the route book for that XNS name is not frozen.
-- Should revert with `RouteNotFound` if no route exists for the key.
+- Should revert with `"XNSRoutes: route not found"` if no route exists for the key.
 - With `freeze == true`, should set `isFrozen` and emit `RouteFrozen` (in addition to `RouteUpdated`).
 
 #### Events
@@ -58,13 +60,13 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 #### Reverts
 
-- Should revert with `NotXnsNameOwner` when `msg.sender` is not `XNS.getAddress(xnsName)`.
-- Should revert with `InvalidXnsName` when `XNS.getAddress(xnsName)` is zero (empty `xnsName` is included: XNS returns zero for `len == 0`).
-- Should revert with `InvalidRoutePrefix` / `InvalidRoute` when `routePrefix` or `route` fails XNS label rules (same as `createRoute`), including empty `routePrefix` with a `route` containing `:` (prevents aliasing the canonical `prefix:route` key).
-- Should revert with `InvalidTarget` when `target` is zero.
-- Should revert with `RouteBookFrozen` when `freezeRouteBook` has already been called for that `xnsName`.
-- Should revert with `CannotUpdateFrozenRoute` when updating a route that is already frozen (including changing only `routeType` or only `target`).
-- Should revert with `RouteNotFound` when the route does not exist.
+- Should revert with `"XNSRoutes: not XNS name owner"` when `msg.sender` is not `XNS.getAddress(xnsName)`.
+- Should revert with `"XNSRoutes: invalid XNS name"` when `XNS.getAddress(xnsName)` is zero (empty `xnsName` is included: XNS returns zero for `len == 0`).
+- Should revert with `"XNSRoutes: invalid route prefix"` / `"XNSRoutes: invalid route"` when `routePrefix` or `route` fails XNS label rules (same as `createRoute`), including empty `routePrefix` with a `route` containing `:` (prevents aliasing the canonical `prefix:route` key).
+- Should revert with `"XNSRoutes: invalid target"` when `target` is zero.
+- Should revert with `"XNSRoutes: route book frozen"` when `freezeRouteBook` has already been called for that `xnsName`.
+- Should revert with `"XNSRoutes: cannot update frozen route"` when updating a route that is already frozen (including changing only `routeType` or only `target`).
+- Should revert with `"XNSRoutes: route not found"` when the route does not exist.
 
 ---
 
@@ -82,8 +84,8 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 #### Reverts
 
-- Should revert with `NotXnsNameOwner` when the caller is not the resolved owner.
-- Should revert with `RouteNotFound` when no route exists for `(xnsName, routePrefix, route)`.
+- Should revert with `"XNSRoutes: not XNS name owner"` when the caller is not the resolved owner.
+- Should revert with `"XNSRoutes: route not found"` when no route exists for `(xnsName, routePrefix, route)`.
 
 ---
 
@@ -92,8 +94,8 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 #### Functionality
 
 - Name owner can clear a route slot (`routeExists` false); `createRoute` may register the same `(xnsName, routePrefix, route)` again afterward.
-- Reverts with `CannotDeleteFrozenRoute` if the route is per-route frozen.
-- Reverts with `RouteBookFrozen` if the route book for `xnsName` is frozen (same as `updateRoute`).
+- Reverts with `"XNSRoutes: cannot delete frozen route"` if the route is per-route frozen.
+- Reverts with `"XNSRoutes: route book frozen"` if the route book for `xnsName` is frozen (same as `updateRoute`).
 - Independent of `isActive`; use `deactivateRoute` for a soft disable without removing the record.
 
 #### Events
@@ -102,7 +104,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 #### Reverts
 
-- `NotXnsNameOwner`, `RouteNotFound`, `CannotDeleteFrozenRoute`, `RouteBookFrozen` as above.
+- `"XNSRoutes: not XNS name owner"`, `"XNSRoutes: route not found"`, `"XNSRoutes: cannot delete frozen route"`, `"XNSRoutes: route book frozen"` as above.
 
 ---
 
@@ -111,7 +113,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 #### Functionality
 
 - Name owner can change `target` or `routeType` on an existing route (not for create).
-- Same freeze rules as `updateRoute` for those fields: reverts with `CannotUpdateFrozenRoute` if the route is frozen, `RouteBookFrozen` if the route book for `xnsName` is frozen.
+- Same freeze rules as `updateRoute` for those fields: reverts with `"XNSRoutes: cannot update frozen route"` if the route is frozen, `"XNSRoutes: route book frozen"` if the route book for `xnsName` is frozen.
 - Should emit `RouteTargetUpdated` / `RouteTypeUpdated` **only when** the value actually changes (no-op otherwise).
 
 #### Events
@@ -121,9 +123,9 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 #### Reverts
 
-- `NotXnsNameOwner`, `RouteNotFound`, `CannotUpdateFrozenRoute`, `RouteBookFrozen` as above.
-- `InvalidRoutePrefix` / `InvalidRoute` when `routePrefix` / `route` fail label rules (same as `createRoute`).
-- `updateTarget`: `InvalidTarget` when `newTarget` is zero.
+- `"XNSRoutes: not XNS name owner"`, `"XNSRoutes: route not found"`, `"XNSRoutes: cannot update frozen route"`, `"XNSRoutes: route book frozen"` as above.
+- `"XNSRoutes: invalid route prefix"` / `"XNSRoutes: invalid route"` when `routePrefix` / `route` fail label rules (same as `createRoute`).
+- `updateTarget`: `"XNSRoutes: invalid target"` when `newTarget` is zero.
 
 ---
 
@@ -140,8 +142,8 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 #### Reverts
 
-- Should revert with `NotXnsNameOwner` when the caller is not the resolved owner.
-- Should revert with `RouteNotFound` when the route does not exist.
+- Should revert with `"XNSRoutes: not XNS name owner"` when the caller is not the resolved owner.
+- Should revert with `"XNSRoutes: route not found"` when the route does not exist.
 
 ---
 
@@ -159,7 +161,7 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 #### Reverts
 
-- Should revert with `NotXnsNameOwner` when the caller is not the resolved owner.
+- Should revert with `"XNSRoutes: not XNS name owner"` when the caller is not the resolved owner.
 
 ---
 
@@ -173,8 +175,8 @@ This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../cont
 
 #### Reverts
 
-- `getRouteInfo` should revert with `RouteNotFound` when the route does not exist.
-- Should revert with `InvalidRoutePrefix` / `InvalidRoute` for malformed `routePrefix` / `route` (e.g. `:` in `route` when `routePrefix` is empty).
+- `getRouteInfo` should revert with `"XNSRoutes: route not found"` when the route does not exist.
+- Should revert with `"XNSRoutes: invalid route prefix"` / `"XNSRoutes: invalid route"` for malformed `routePrefix` / `route` (e.g. `:` in `route` when `routePrefix` is empty).
 
 ---
 
