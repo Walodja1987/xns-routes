@@ -14,6 +14,7 @@ import "./interfaces/IXNSMinimal.sol";
 //                                                                                           //
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
+// TODO: shall we allow longer routePrefixes and routes? Why limit to 20 characters?
 
 /// @title XNSRoutes
 /// @author Wladimir Weinbender (DIVA Technologies AG)
@@ -22,15 +23,25 @@ import "./interfaces/IXNSMinimal.sol";
 /// Route format: `[xnsName]/[routePrefix]:[route]` or `[xnsName]/[route]` when no prefix is used.
 ///
 /// Examples:
-/// - `bob.xns/eth:transfer-usdt/to=0x.../amount=100`
 /// - `alice.og/my-sub-wallet`
-/// - `contracts.aave/v4:pools`
+/// - `contracts.aave/eth:v3-pool-contract`
+/// - `bob.xns/eth:approve-usdt`
+///
+/// Each route's `target` is a non-zero Ethereum address. It may
+/// resolve to an EOA, a view contract that returns data (e.g. a Bitcoin
+/// or Solana address), a contract that builds calldata for transactions, or other patterns.
+/// The registry does not prescribe a taxonomy; wallets and route parsers decide how to use it.
 ///
 /// Key points:
-/// - Routes are owned and managed by the current XNS name owner.
+/// - Routes are owned and managed by the XNS name owner.
 /// - A route stores `target`, `routeType`, `isActive`, and `isFrozen`.
 /// - Route freeze and route-book freeze are irreversible.
 /// - Active status can still be toggled after freeze.
+/// - `routeType` is a `uint32` tag whose meaning and interpretation are defined off-chain by route parsers.
+/// - Forward resolution is direct (`xnsName`, `routePrefix`, `route` → `target`). There is no global
+///   on-chain mapping from `target` to `xnsName` or path; that needs event logs or an indexer. For a
+///   **known** `xnsName`, use `getRouteKeyCount` and `getRouteKeys` with `getRouteRecordByRouteKey` (or the
+///   batch overload) to find which route keys use a given `target`.
 /// - An append-only log of route storage keys per `xnsName` supports enumeration without an
 ///   indexer (`getRouteKeyCount`, `getRouteKeys`, `getRouteRecordByRouteKey` / overload for batches).
 contract XNSRoutes {
