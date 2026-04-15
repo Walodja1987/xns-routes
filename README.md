@@ -8,7 +8,7 @@ Instead of sharing raw calldata or relying on a single frontend, protocols and u
 
 ## ✨ What are Routes?
 
-An XNS route is a **named action** under an XNS name, with optional **route prefix** and required **route** label. Paths look like `xnsName/routePrefix:route/params…` when a prefix is set (one `:` in the action segment). For routes **without** a prefix (e.g. same EOA everywhere), use an empty `routePrefix` in the registry and a path like `xnsName/route/params…` (no `:` in that segment).
+An XNS route is a **named action** under an XNS name, with optional **route prefix** and required **route** label. Paths look like `xnsName/routePrefix:route/params…` when a prefix is set (one `:` in the routePath). For routes **without** a prefix (e.g. same EOA everywhere), use an empty `routePrefix` in the registry and a path like `xnsName/route/params…` (no `:` in the routePath).
 
 ```
 xns.action/eth:register-name/label=bro/namespace=og
@@ -17,28 +17,28 @@ usdt.action/eth:transfer-usdt/to=0x.../amount=100
 
 Each route:
 
-* belongs to an XNS name (e.g. `xns.action`)
-* has an optional **route prefix** (e.g. `eth`, `137-poly`) or **empty** for single-segment routes, plus a **route** label (e.g. `transfer-usdt`)
-* points to a **build contract**
-* produces transaction calldata
+- belongs to an XNS name (e.g. `xns.action`)
+- has an optional **route prefix** (e.g. `eth`, `137-poly`) or **empty** for single-segment routes, plus a **route** label (e.g. `transfer-usdt`)
+- points to a **build contract**
+- produces transaction calldata
 
 Validation rules for route segments:
 
-* `routePrefix` may be empty, or `1-20` chars if provided
-* `route` must be `1-48` chars
-* charset for both: lowercase `a-z`, digits `0-9`, and `-`
-* no leading/trailing `-`, and no consecutive `--`
+- `routePrefix` may be empty, or `1-20` chars if provided
+- `route` must be `1-48` chars
+- charset for both: lowercase `a-z`, digits `0-9`, and `-`
+- no leading/trailing `-`, and no consecutive `--`
 
 ---
 
 ## 🧠 Mental Model
 
-| Component      | Meaning                                      |
-| -------------- | -------------------------------------------- |
-| XNS name       | Identity / publisher                         |
+| Component      | Meaning                                                                                    |
+| -------------- | ------------------------------------------------------------------------------------------ |
+| XNS name       | Identity / publisher                                                                       |
 | Route prefix   | Optional disambiguator before `:` (e.g. `eth`); often network/context; empty or 1-20 chars |
-| Route          | Action / intent label (e.g. `transfer-usdt`); 1-48 chars |
-| Build contract | How the transaction is built                 |
+| Route          | Action / intent label (e.g. `transfer-usdt`); 1-48 chars                                   |
+| Build contract | How the transaction is built                                                               |
 
 > **XNS names resolve identities. Routes resolve actions.**
 
@@ -48,19 +48,19 @@ Validation rules for route segments:
 
 ### For Users
 
-* ✅ Human-readable transaction actions
-* ✅ No need to understand calldata or ABI
-* ✅ Safer transaction signing (wallet can verify)
-* ✅ Reusable commands (links, QR codes, etc.)
+- ✅ Human-readable transaction actions
+- ✅ No need to understand calldata or ABI
+- ✅ Safer transaction signing (wallet can verify)
+- ✅ Reusable commands (links, QR codes, etc.)
 
 ---
 
 ### For Developers / Protocols
 
-* ✅ Publish canonical actions (e.g. `borrow`, `swap`, `transfer`)
-* ✅ Reduce wallet integration complexity
-* ✅ Make actions portable across apps
-* ✅ Enable verifiable transaction generation
+- ✅ Publish canonical actions (e.g. `borrow`, `swap`, `transfer`)
+- ✅ Reduce wallet integration complexity
+- ✅ Make actions portable across apps
+- ✅ Enable verifiable transaction generation
 
 ---
 
@@ -117,11 +117,11 @@ A wallet:
 3. Looks up `(xnsName, routePrefix, route)` on the registry (`routePrefix` may be empty)
 4. Calls `build(...)`
 5. Gets:
+   - target chain
+   - contract address
+   - value
+   - calldata
 
-   * target chain
-   * contract address
-   * value
-   * calldata
 6. Verifies and executes the transaction
 
 ---
@@ -130,9 +130,9 @@ A wallet:
 
 Each route has:
 
-* `target` → build contract
-* `isActive` → usable or disabled
-* `isFrozen` → immutable or editable
+- `target` → build contract
+- `isActive` → usable or disabled
+- `isFrozen` → immutable or editable
 
 ### States
 
@@ -155,8 +155,8 @@ Locks a route forever:
 freezeRoute("xns.action", "eth", "register-name");
 ```
 
-* Target can never change again and the route cannot be deleted
-* Active flag can still be toggled (`activateRoute` / `deactivateRoute`)
+- Target can never change again and the route cannot be deleted
+- Active flag can still be toggled (`activateRoute` / `deactivateRoute`)
 
 ---
 
@@ -168,10 +168,10 @@ Locks the entire route book under a name:
 freezeRouteBook("xns.action");
 ```
 
-* No new routes can be added
-* No route targets can be changed
-* Routes cannot be deleted (`deleteRoute` reverts)
-* Activation still allowed (`activateRoute` / `deactivateRoute`)
+- No new routes can be added
+- No route targets can be changed
+- Routes cannot be deleted (`deleteRoute` reverts)
+- Activation still allowed (`activateRoute` / `deactivateRoute`)
 
 > This is useful for publishers who want to finalize their entire action set.
 
@@ -181,9 +181,9 @@ freezeRouteBook("xns.action");
 
 Build contracts:
 
-* define how parameters map to calldata
-* return a transaction template
-* are reusable across routes
+- define how parameters map to calldata
+- return a transaction template
+- are reusable across routes
 
 ### Example: XNS Name Registration
 
@@ -211,20 +211,20 @@ function suggestedRouteName() external pure returns (string memory);
 
 ### UX Flow
 
-* User picks builder from library
-* App reads suggested **route** label and sets **route prefix** (e.g. from `TARGET_CHAIN_ID` or user choice)
-* Prefills `routePrefix:route` in the path
-* User accepts or edits
+- User picks builder from library
+- App reads suggested **route** label and sets **route prefix** (e.g. from `TARGET_CHAIN_ID` or user choice)
+- Prefills `routePrefix:route` in the path
+- User accepts or edits
 
 ---
 
 ## 🌍 Design Principles
 
-* **Name-owned** → routes belong to XNS names
-* **Composable** → builders are reusable
-* **Verifiable** → wallets can independently rebuild tx
-* **Human-readable** → no opaque calldata
-* **Immutable when needed** → freeze for trust
+- **Name-owned** → routes belong to XNS names
+- **Composable** → builders are reusable
+- **Verifiable** → wallets can independently rebuild tx
+- **Human-readable** → no opaque calldata
+- **Immutable when needed** → freeze for trust
 
 ---
 
@@ -236,19 +236,18 @@ Routes extend XNS from:
 
 They enable:
 
-* protocol-native action APIs
-* wallet-native transaction building
-* shareable onchain commands
+- protocol-native action APIs
+- wallet-native transaction building
+- shareable onchain commands
 
 ---
 
 ## 📦 Repo Contents
 
-* `XNSRoutes.sol` — route registry contract (includes on-chain enumeration helpers; see below)
-* example build contracts:
-
-  * `XNSRegisterNameBuilder`
-  * `USDTTransferEthBuilder`
+- `XNSRoutes.sol` — route registry contract (includes on-chain enumeration helpers; see below)
+- example build contracts:
+  - `XNSRegisterNameBuilder`
+  - `USDTTransferEthBuilder`
 
 ---
 
@@ -258,10 +257,10 @@ The registry keeps an **append-only log** of **route storage keys** (`bytes32`) 
 
 **Views (see NatSpec / [docs/API.md](docs/API.md))**
 
-* `getRouteKeyCount(xnsName)` — length of the log for that name
-* `getRouteKeys(xnsName, start, end)` — page through keys (`end` is **exclusive**)
-* `getRouteRecordByRouteKey(bytes32)` — read one `RouteRecord` by key (no string tuple needed)
-* `getRouteRecordByRouteKey(bytes32[])` — same, batch; returns `RouteRecord[]` (ABI overload—some clients must pick the function by full signature, e.g. ethers: `getFunction("getRouteRecordByRouteKey(bytes32[])")`)
+- `getRouteKeyCount(xnsName)` — length of the log for that name
+- `getRouteKeys(xnsName, start, end)` — page through keys (`end` is **exclusive**)
+- `getRouteRecordByRouteKey(bytes32)` — read one `RouteRecord` by key (no string tuple needed)
+- `getRouteRecordByRouteKey(bytes32[])` — same, batch; returns `RouteRecord[]` (ABI overload—some clients must pick the function by full signature, e.g. ethers: `getFunction("getRouteRecordByRouteKey(bytes32[])")`)
 
 **Important semantics (don’t skip this)**
 
@@ -287,8 +286,8 @@ On-chain XNS registry and deployed `XNSRoutes` slots live in [constants/addresse
 
 ## 🚢 Deploy
 
-* Script: [scripts/deploy/deployXNSRoutes.ts](scripts/deploy/deployXNSRoutes.ts)
-* Shortcuts: `yarn deploy:xns-routes:hh`, `yarn deploy:xns-routes:sepolia`, `yarn deploy:xns-routes:ethMain`
+- Script: [scripts/deploy/deployXNSRoutes.ts](scripts/deploy/deployXNSRoutes.ts)
+- Shortcuts: `yarn deploy:xns-routes:hh`, `yarn deploy:xns-routes:sepolia`, `yarn deploy:xns-routes:ethMain`
 
 Set `XNS_CONTRACT_ADDRESS` (Hardhat vars or environment) to your XNS registry before deploying. See [docs/DEV_NOTES.md](docs/DEV_NOTES.md).
 
@@ -304,21 +303,21 @@ npx hardhat run scripts/examples/<script_name>.ts --network <network_name>
 
 **Read-only**
 
-* [scripts/examples/routeExists.ts](scripts/examples/routeExists.ts) — check if a route is registered
-* [scripts/examples/getRouteInfo.ts](scripts/examples/getRouteInfo.ts) — read target, `isActive`, `isFrozen`, `routeType`
-* [scripts/examples/isRouteBookFrozen.ts](scripts/examples/isRouteBookFrozen.ts) — route book freeze flag for a name
+- [scripts/examples/routeExists.ts](scripts/examples/routeExists.ts) — check if a route is registered
+- [scripts/examples/getRouteInfo.ts](scripts/examples/getRouteInfo.ts) — read target, `isActive`, `isFrozen`, `routeType`
+- [scripts/examples/isRouteBookFrozen.ts](scripts/examples/isRouteBookFrozen.ts) — route book freeze flag for a name
 
 **Write** (signer must be the address XNS currently resolves for the script’s `xnsName`)
 
-* [scripts/examples/createRoute.ts](scripts/examples/createRoute.ts) — register a new route key
-* [scripts/examples/updateRoute.ts](scripts/examples/updateRoute.ts) — full update of an existing route
-* [scripts/examples/activateRoute.ts](scripts/examples/activateRoute.ts) — set `isActive` true (emit only on change)
-* [scripts/examples/deactivateRoute.ts](scripts/examples/deactivateRoute.ts) — set `isActive` false (emit only on change)
-* [scripts/examples/deleteRoute.ts](scripts/examples/deleteRoute.ts) — remove route if not frozen / route book open
-* [scripts/examples/updateTarget.ts](scripts/examples/updateTarget.ts) — change build `target` (emit only on change)
-* [scripts/examples/updateRouteType.ts](scripts/examples/updateRouteType.ts) — change `routeType` (emit only on change)
-* [scripts/examples/freezeRoute.ts](scripts/examples/freezeRoute.ts) — freeze one route forever
-* [scripts/examples/freezeRouteBook.ts](scripts/examples/freezeRouteBook.ts) — route book freeze for a name
+- [scripts/examples/createRoute.ts](scripts/examples/createRoute.ts) — register a new route key
+- [scripts/examples/updateRoute.ts](scripts/examples/updateRoute.ts) — full update of an existing route
+- [scripts/examples/activateRoute.ts](scripts/examples/activateRoute.ts) — set `isActive` true (emit only on change)
+- [scripts/examples/deactivateRoute.ts](scripts/examples/deactivateRoute.ts) — set `isActive` false (emit only on change)
+- [scripts/examples/deleteRoute.ts](scripts/examples/deleteRoute.ts) — remove route if not frozen / route book open
+- [scripts/examples/updateTarget.ts](scripts/examples/updateTarget.ts) — change build `target` (emit only on change)
+- [scripts/examples/updateRouteType.ts](scripts/examples/updateRouteType.ts) — change `routeType` (emit only on change)
+- [scripts/examples/freezeRoute.ts](scripts/examples/freezeRoute.ts) — freeze one route forever
+- [scripts/examples/freezeRouteBook.ts](scripts/examples/freezeRouteBook.ts) — route book freeze for a name
 
 Each script has a `USER INPUTS` section at the top. Fill in [constants/addresses.ts](constants/addresses.ts) for `XNS_ROUTES_ADDRESS` on your network before running.
 
@@ -326,14 +325,13 @@ Each script has a `USER INPUTS` section at the top. Fill in [constants/addresses
 
 ## ⚠️ Notes
 
-* Build contracts must be audited if widely used
-* Always verify route + builder before execution
-* Wallets should clearly display:
-
-  * route
-  * route prefix (if any)
-  * target contract
-  * calldata summary
+- Build contracts must be audited if widely used
+- Always verify route + builder before execution
+- Wallets should clearly display:
+  - route
+  - route prefix (if any)
+  - target contract
+  - calldata summary
 
 ---
 

@@ -11,7 +11,7 @@
  *
  * XNS registry (constructor arg):
  * - Preferred: `npx hardhat vars set XNS_CONTRACT_ADDRESS` (deployed XNS / resolver contract
- *   implementing IXNSMinimal: getAddress, isValidLabelOrNamespace, registerName)
+ *   implementing IXNSMinimal: getAddress, registerName)
  * - Override for one-off runs: `XNS_CONTRACT_ADDRESS=0x... npx hardhat run ...`
  *
  * After deployment, record the address in constants/addresses.ts (XNS_ROUTES_ADDRESS).
@@ -71,18 +71,20 @@ async function main() {
   try {
     registrationValue = await xnsForPrice.getNamespacePrice("xns");
     console.log(
-      "XNS getNamespacePrice(\"xns\"):",
+      'XNS getNamespacePrice("xns"):',
       hre.ethers.formatEther(registrationValue),
       "ETH (sent with deployment for registerName)\n",
     );
   } catch {
     throw new Error(
-      "Could not read getNamespacePrice(\"xns\") on the XNS contract. Check XNS_CONTRACT_ADDRESS and network.",
+      'Could not read getNamespacePrice("xns") on the XNS contract. Check XNS_CONTRACT_ADDRESS and network.',
     );
   }
 
   const XNSRoutes = await hre.ethers.getContractFactory("XNSRoutes");
-  const xnsRoutes = await XNSRoutes.deploy(xnsAddress, { value: registrationValue });
+  const xnsRoutes = await XNSRoutes.deploy(xnsAddress, {
+    value: registrationValue,
+  });
   await xnsRoutes.waitForDeployment();
 
   const contractAddress = await xnsRoutes.getAddress();
@@ -96,9 +98,7 @@ async function main() {
     return;
   }
 
-  console.log(
-    "Waiting 30 seconds before verification so the explorer can index the contract...\n",
-  );
+  console.log("Waiting 30 seconds before verification so the explorer can index the contract...\n");
   await delay(30_000);
 
   try {

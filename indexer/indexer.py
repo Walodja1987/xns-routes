@@ -2,9 +2,10 @@
 """Simple SQLite indexer for XNSRoutes events.
 
 Route-scoped events (`RouteCreated`, `RouteUpdated`, etc.) include indexed `nameHash`
-(`keccak256(bytes(xnsName))`) and `routeKey` (same as on-chain `_routeKey`) as log topics,
-plus full strings and values in data. Use those topics for narrow `eth_getLogs` filters;
-decoded `args` expose the same fields by name.
+(`keccak256(bytes(xnsName))`) and `routeKey` (same as on-chain `_routeKey`) as log topics.
+`RouteCreated` / `RouteUpdated` also index `target`; `RouteTargetUpdated` indexes `newTarget`.
+Remaining fields are non-indexed (strings, flags, types) in log data. Use topics for narrow
+`eth_getLogs` filters; decoded `args` expose the same fields by name.
 
 Usage examples:
   python indexer/indexer.py sync --rpc-url https://... --contract 0x... --from-block 12345678

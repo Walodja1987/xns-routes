@@ -3,7 +3,9 @@ pragma solidity 0.8.28;
 
 interface IXNSForBuilderNaming {
     function registerName(string calldata label, string calldata namespace) external payable;
-    function isValidLabelOrNamespace(string calldata labelOrNamespace) external pure returns (bool isValid);
+    function isValidLabelOrNamespace(
+        string calldata labelOrNamespace
+    ) external pure returns (bool isValid);
 }
 
 /// @title USDTTransferEthBuilder
@@ -32,8 +34,7 @@ contract USDTTransferEthBuilder {
     uint256 public constant TARGET_CHAIN_ID = 1;
 
     /// @notice ERC20 transfer selector
-    bytes4 public constant TRANSFER_SELECTOR =
-        bytes4(keccak256("transfer(address,uint256)"));
+    bytes4 public constant TRANSFER_SELECTOR = bytes4(keccak256("transfer(address,uint256)"));
 
     /// @notice XNS contract used only for optional self-naming in constructor
     address public immutable XNS;
@@ -93,12 +94,7 @@ contract USDTTransferEthBuilder {
     )
         external
         view
-        returns (
-            uint256 targetChainId,
-            address target,
-            uint256 value,
-            bytes memory data
-        )
+        returns (uint256 targetChainId, address target, uint256 value, bytes memory data)
     {
         if (to == address(0)) revert ZeroRecipient();
         if (amountWhole == 0) revert InvalidAmount();

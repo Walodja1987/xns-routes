@@ -36,7 +36,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Events
 
-- Should emit `RouteCreated` with indexed `nameHash` (`keccak256(bytes(xnsName))`) and `routeKey` (same as `_routeKey`), then `xnsName`, `routePrefix`, `route`, `target`, `isActive`, `isFrozen`, and `routeType` (the latter fields are non-indexed, full values in log data).
+- Should emit `RouteCreated` with indexed `nameHash` (`keccak256(bytes(xnsName))`), `routeKey` (same as `_routeKey`), and `target`, then `xnsName`, `routePrefix`, `route`, `isActive`, `isFrozen`, and `routeType` (non-indexed, full values in log data).
 - Should emit `RouteFrozen` with indexed `nameHash` / `routeKey` and full `xnsName`, `routePrefix`, `route` when `freeze` is true on create.
 
 #### Reverts
@@ -55,7 +55,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Events
 
-- Should emit `RouteUpdated` with the same indexed `nameHash` / `routeKey` layout as `RouteCreated`, plus full strings and `target` / `routeType` in data.
+- Should emit `RouteUpdated` with the same indexed `nameHash` / `routeKey` / `target` layout as `RouteCreated`, plus full strings and `isActive` / `isFrozen` / `routeType` in data.
 - Should emit `RouteFrozen` (indexed `nameHash` / `routeKey` + strings) when `freeze` is true on update.
 
 #### Reverts
@@ -118,7 +118,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Events
 
-- `RouteTargetUpdated` with indexed `nameHash` / `routeKey`, then `xnsName`, `routePrefix`, `route`, and `newTarget` (non-indexed).
+- `RouteTargetUpdated` with indexed `nameHash` / `routeKey` / `newTarget`, then `xnsName`, `routePrefix`, and `route`.
 - `RouteTypeUpdated` with indexed `nameHash` / `routeKey`, then strings and non-indexed `newRouteType`.
 
 #### Reverts
@@ -143,6 +143,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 #### Reverts
 
 - Should revert with `"XNSRoutes: not XNS name owner"` when the caller is not the resolved owner.
+- Should revert with `"XNSRoutes: route book frozen"` when `freezeRouteBook` has already been called for that `xnsName`.
 - Should revert with `"XNSRoutes: route not found"` when the route does not exist.
 
 ---
@@ -152,7 +153,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 #### Functionality
 
 - Name owner can set `isRouteBookFrozen(xnsName)` permanently.
-- After route book freeze, `createRoute`, `updateRoute`, `deleteRoute`, `updateTarget`, and `updateRouteType` must revert for that `xnsName`, while `activateRoute` / `deactivateRoute` may still run.
+- After route book freeze, `createRoute`, `updateRoute`, `deleteRoute`, `updateTarget`, `updateRouteType`, and `freezeRoute` must revert for that `xnsName`, while `activateRoute` / `deactivateRoute` may still run.
 
 #### Events
 

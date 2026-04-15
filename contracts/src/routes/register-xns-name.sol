@@ -4,7 +4,9 @@ pragma solidity 0.8.28;
 interface IXNSForRegisterNameBuilder {
     function registerName(string calldata label, string calldata namespace) external payable;
     function getNamespacePrice(string calldata namespace) external view returns (uint256);
-    function isValidLabelOrNamespace(string calldata labelOrNamespace) external pure returns (bool isValid);
+    function isValidLabelOrNamespace(
+        string calldata labelOrNamespace
+    ) external pure returns (bool isValid);
 }
 
 /// @title XNSRegisterNameBuilder
@@ -36,11 +38,7 @@ contract XNSRegisterNameBuilder {
     bytes4 public constant REGISTER_NAME_SELECTOR =
         bytes4(keccak256("registerName(string,string)"));
 
-    constructor(
-        address xns_,
-        string memory routeLabel,
-        string memory routeNamespace
-    ) payable {
+    constructor(address xns_, string memory routeLabel, string memory routeNamespace) payable {
         if (xns_ == address(0)) revert ZeroXNS();
         XNS = xns_;
 
@@ -54,7 +52,10 @@ contract XNSRegisterNameBuilder {
                 revert InvalidRouteNamespace();
             }
 
-            IXNSForRegisterNameBuilder(xns_).registerName{value: msg.value}(routeLabel, routeNamespace);
+            IXNSForRegisterNameBuilder(xns_).registerName{value: msg.value}(
+                routeLabel,
+                routeNamespace
+            );
         }
     }
 
@@ -81,12 +82,7 @@ contract XNSRegisterNameBuilder {
     )
         external
         view
-        returns (
-            uint256 targetChainId,
-            address target,
-            uint256 value,
-            bytes memory data
-        )
+        returns (uint256 targetChainId, address target, uint256 value, bytes memory data)
     {
         if (!IXNSForRegisterNameBuilder(XNS).isValidLabelOrNamespace(label)) {
             revert InvalidLabel();

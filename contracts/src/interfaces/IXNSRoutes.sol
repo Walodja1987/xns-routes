@@ -17,7 +17,7 @@ interface IXNSRoutes {
         string xnsName,
         string routePrefix,
         string route,
-        address target,
+        address indexed target,
         bool isActive,
         bool isFrozen,
         uint32 routeType
@@ -29,7 +29,7 @@ interface IXNSRoutes {
         string xnsName,
         string routePrefix,
         string route,
-        address target,
+        address indexed target,
         bool isActive,
         bool isFrozen,
         uint32 routeType
@@ -41,7 +41,7 @@ interface IXNSRoutes {
         string xnsName,
         string routePrefix,
         string route,
-        address newTarget
+        address indexed newTarget
     );
 
     event RouteTypeUpdated(
@@ -104,11 +104,23 @@ interface IXNSRoutes {
         bool freeze
     ) external;
 
-    function activateRoute(string calldata xnsName, string calldata routePrefix, string calldata route) external;
+    function activateRoute(
+        string calldata xnsName,
+        string calldata routePrefix,
+        string calldata route
+    ) external;
 
-    function deactivateRoute(string calldata xnsName, string calldata routePrefix, string calldata route) external;
+    function deactivateRoute(
+        string calldata xnsName,
+        string calldata routePrefix,
+        string calldata route
+    ) external;
 
-    function deleteRoute(string calldata xnsName, string calldata routePrefix, string calldata route) external;
+    function deleteRoute(
+        string calldata xnsName,
+        string calldata routePrefix,
+        string calldata route
+    ) external;
 
     function updateTarget(
         string calldata xnsName,
@@ -124,43 +136,49 @@ interface IXNSRoutes {
         uint32 newRouteType
     ) external;
 
-    function freezeRoute(string calldata xnsName, string calldata routePrefix, string calldata route) external;
+    function freezeRoute(
+        string calldata xnsName,
+        string calldata routePrefix,
+        string calldata route
+    ) external;
 
     function freezeRouteBook(string calldata xnsName) external;
 
-    function getRouteInfo(string calldata xnsName, string calldata routePrefix, string calldata route)
-        external
-        view
-        returns (address target, bool isActive, bool isFrozen, uint32 routeType);
+    function getRouteInfo(
+        string calldata xnsName,
+        string calldata routePrefix,
+        string calldata route
+    ) external view returns (address target, bool isActive, bool isFrozen, uint32 routeType);
 
-    function routeExists(string calldata xnsName, string calldata routePrefix, string calldata route)
-        external
-        view
-        returns (bool);
+    function routeExists(
+        string calldata xnsName,
+        string calldata routePrefix,
+        string calldata route
+    ) external view returns (bool);
 
-    function getRouteInfoFromPath(string calldata fullRoutePath)
-        external
-        view
-        returns (address target, bool isActive, bool isFrozen, uint32 routeType);
+    function getRouteInfoFromPath(
+        string calldata fullRoutePath
+    ) external view returns (address target, bool isActive, bool isFrozen, uint32 routeType);
 
     function routeExistsFromPath(string calldata fullRoutePath) external view returns (bool exists);
 
-    function splitFullPath(string calldata fullRoutePath)
-        external
-        pure
-        returns (string memory xnsName, string memory routePrefix, string memory route);
+    function splitFullPath(
+        string calldata fullRoutePath
+    ) external pure returns (string memory xnsName, string memory routePrefix, string memory route);
 
     function getRouteKeyCount(string calldata xnsName) external view returns (uint256 count);
 
-    function getRouteKeys(string calldata xnsName, uint256 start, uint256 end)
-        external
-        view
-        returns (bytes32[] memory keys);
+    function getRouteKeys(
+        string calldata xnsName,
+        uint256 start,
+        uint256 end
+    ) external view returns (bytes32[] memory keys);
 
-    function getRouteRecordByRouteKey(bytes32 routeKey) external view returns (RouteRecord memory record);
+    function getRouteRecordByRouteKey(
+        bytes32 routeKey
+    ) external view returns (RouteRecord memory record);
 
-    function getRouteRecordByRouteKey(bytes32[] calldata routeKeys)
-        external
-        view
-        returns (RouteRecord[] memory records);
+    function getRouteRecordByRouteKey(
+        bytes32[] calldata routeKeys
+    ) external view returns (RouteRecord[] memory records);
 }

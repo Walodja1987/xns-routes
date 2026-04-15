@@ -28,10 +28,7 @@ contract ExampleTupleBuilder is IXNSRouteBuilderV1 {
 
     function getParamSpecs() external pure returns (ParamSpec[] memory specs) {
         specs = new ParamSpec[](1);
-        specs[0] = ParamSpec({
-            name: "payment",
-            paramType: "(address,uint256)"
-        });
+        specs[0] = ParamSpec({name: "payment", paramType: "(address,uint256)"});
     }
 
     function build(
@@ -39,12 +36,7 @@ contract ExampleTupleBuilder is IXNSRouteBuilderV1 {
     )
         external
         pure
-        returns (
-            uint256 targetChainId,
-            address target,
-            uint256 value,
-            bytes memory data
-        )
+        returns (uint256 targetChainId, address target, uint256 value, bytes memory data)
     {
         targetChainId = 1;
         target = payment.to;

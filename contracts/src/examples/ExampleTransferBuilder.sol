@@ -33,12 +33,7 @@ contract ExampleTransferBuilder is IXNSRouteBuilderV1 {
     )
         external
         pure
-        returns (
-            uint256 targetChainId,
-            address target,
-            uint256 value,
-            bytes memory data
-        )
+        returns (uint256 targetChainId, address target, uint256 value, bytes memory data)
     {
         targetChainId = 1;
         target = to;

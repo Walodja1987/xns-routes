@@ -19,13 +19,17 @@ contract MockXNS {
     }
 
     /// @dev Mirrors XNS `isValidLabelOrNamespace` charset rules, then applies `setLabelInvalid` overrides for tests.
-    function isValidLabelOrNamespace(string calldata labelOrNamespace) external view returns (bool isValid) {
+    function isValidLabelOrNamespace(
+        string calldata labelOrNamespace
+    ) external view returns (bool isValid) {
         if (!_isValidLabelOrNamespaceLikeXns(labelOrNamespace)) return false;
         return !_labelInvalid[keccak256(bytes(labelOrNamespace))];
     }
 
     /// @dev Same rules as XNS `_isValidLabelOrNamespace` (length, `a-z` / `0-9` / `-`, hyphen placement).
-    function _isValidLabelOrNamespaceLikeXns(string calldata labelOrNamespace) private pure returns (bool) {
+    function _isValidLabelOrNamespaceLikeXns(
+        string calldata labelOrNamespace
+    ) private pure returns (bool) {
         bytes memory b = bytes(labelOrNamespace);
         uint256 len = b.length;
         if (len == 0 || len > 20) return false;

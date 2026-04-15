@@ -53,11 +53,11 @@ interface IXNSRouteBuilderV1 {
     /// - target: the target contract / address
     /// - value: native token amount to send
     /// - data: calldata
-    function build(/* typed inputs, route-specific */)
+    function build()
         external
         view
         returns (
-            uint256 targetChainId,
+            /* typed inputs, route-specific */ uint256 targetChainId,
             address target,
             uint256 value,
             bytes memory data

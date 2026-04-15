@@ -5,32 +5,41 @@ This is an automatically generated documentation (using `solidity-docgen` packag
 ## XNSRoutes
 
 
-Route registry for XNS names.
+Route registry for XNS names which enables XNS name owners to map URL-style
+identifiers to any Ethereum address. Mappings are free and may point to EOAs and smart
+contracts including helper/view contracts returning arbitrary data, such as Bitcoin or Solana
+addresses, calldata, or other information.
 
-Route format: `[xnsName]/[routePrefix]:[route]` or `[xnsName]/[route]` when no prefix is used.
+Route format: `[xnsName]/[routePrefix:][route]` with `routePrefix` being optional.
 
 Examples:
 - `alice.og/my-sub-wallet`
 - `contracts.aave/eth:v3-pool-contract`
 - `bob.xns/eth:approve-usdt`
 
-Each route's `target` is a non-zero Ethereum address. It may
-resolve to an EOA, a view contract that returns data (e.g. a Bitcoin
-or Solana address), a contract that builds calldata for transactions, or other patterns.
-The registry does not prescribe a taxonomy; wallets and route parsers decide how to use it.
+`routePrefix` and `route` must follow the same character and hyphenation rules as `xnsName`:
+- Must consist only of [a-z0-9-] (lowercase letters, digits, and hyphens)
+- Cannot start or end with '-'
+- Cannot contain consecutive hyphens ('--')
+
+`routePrefix` is optional; if provided, it must be 1-20 characters long.
+`route` is required and must be 1-48 characters long.
 
 Key points:
 - Routes are owned and managed by the XNS name owner.
+- An XNS name owner can register unlimited routes for free.
 - A route stores `target`, `routeType`, `isActive`, and `isFrozen`.
-- Route freeze and route-book freeze are irreversible.
+- Route freeze and route book freeze are irreversible.
 - Active status can still be toggled after freeze.
 - `routeType` is a `uint32` tag whose meaning and interpretation are defined off-chain by route parsers.
-- Forward resolution is direct (`xnsName`, `routePrefix`, `route` → `target`). There is no global
-  on-chain mapping from `target` to `xnsName` or path; that needs event logs or an indexer. For a
-  **known** `xnsName`, use `getRouteKeyCount` and `getRouteKeys` with `getRouteRecordByRouteKey` (or the
-  batch overload) to find which route keys use a given `target`.
-- An append-only log of route storage keys per `xnsName` supports enumeration without an
-  indexer (`getRouteKeyCount`, `getRouteKeys`, `getRouteRecordByRouteKey` / overload for batches).
+  For example, `routeType = 0` may suggest that the `target` is an EOA.
+  `routeType = 1` may suggest that the `target` is a smart contract.
+  `routeType = 2` may suggest that the `target` is a special contract that returns parametrized calldata.
+  `routeType = 3` may suggest that the `target` returns a Bitcoin address.
+- Forward resolution is direct (`xnsName`, `routePrefix`, `route` → `target`). A global reverse
+  lookup from `target` to all names/routes is not stored on-chain.
+- For one known `xnsName`, on-chain enumeration is available without an indexer via the append-only
+  route-key log (`getRouteKeyCount`, `getRouteKeys`, `getRouteRecordByRouteKey` / batch overload).
 
 
 
@@ -64,8 +73,8 @@ function createRoute(string xnsName, string routePrefix, string route, address t
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | xnsName | string | The XNS name that owns the route space, e.g. "xns.action" |
-| routePrefix | string | Optional path segment before `:`; non-empty must pass local route-prefix        rules (same charset/hyphen constraints as XNS labels, max length 20);        empty means `xnsName/route/...` only (no `:` in the action segment). |
-| route | string | Required action label (same charset/hyphen constraints as XNS labels, max        length 48), e.g. "transfer-usdt" |
+| routePrefix | string | Optional path segment before `:`; non-empty must pass local route-prefix        rules (same charset/hyphen constraints as XNS labels, max length 20);        empty means `xnsName/route/...` only (no `:` in the routePath). |
+| route | string | Required route label (same charset/hyphen constraints as XNS labels, max        length 48). |
 | target | address | Build address for `routeType`; must be non-zero (`address(0)` is reserved        for "missing route"). |
 | routeType | uint32 | Opaque hint for parsers (semantics offchain) |
 | activate | bool | Initial value for stored `isActive`. |
@@ -245,6 +254,7 @@ Freeze a single route forever.
 
 **Requirements:**
 - `msg.sender` must be the current XNS owner for `xnsName`.
+- The route book for `xnsName` must not be frozen.
 - Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
 - The route must exist.
 
@@ -277,6 +287,7 @@ Freeze the entire route book under an XNS name forever.
 - No new routes may be added under `xnsName`.
 - No existing route targets may be changed under `xnsName`.
 - Routes may not be deleted under `xnsName`.
+- `freezeRoute` may not be called for routes under `xnsName`.
 - Route activation can still be toggled.
 
 ```solidity
@@ -403,7 +414,7 @@ function isRouteBookFrozen(string xnsName) external view returns (bool frozen)
 ### getRouteKeyCount
 
 
-Number of entries in the append-only route-key log for `xnsName` (not the count of live routes; 
+Number of entries in the append-only route-key log for `xnsName` (not the count of live routes;
 deletes do not shrink this).
 
 ```solidity
@@ -426,7 +437,7 @@ function getRouteKeyCount(string xnsName) external view returns (uint256 count)
 ### getRouteKeys
 
 
-Returns `keys[start:end]` from the append-only log for `xnsName` (`end` is exclusive). 
+Returns `keys[start:end]` from the append-only log for `xnsName` (`end` is exclusive).
 Reverts if `start > end` or `end` exceeds length.
 
 ```solidity
@@ -498,7 +509,7 @@ function getRouteRecordByRouteKey(bytes32[] routeKeys) external view returns (st
 
 
 Parse `fullRoutePath` into `(xnsName, routePrefix, route)`
-(first `/`, then first `:` in the action segment).
+(first `/`, then first `:` in the routePath).
 
 **Requirements:**
 - `fullRoutePath` must contain at least one `/`.
@@ -522,8 +533,8 @@ function splitFullPath(string fullRoutePath) external pure returns (string xnsNa
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | xnsName | string | Segment before the first `/`. |
-| routePrefix | string | Segment before the first `:` in the action part, or empty if there is no `:`. |
-| route | string | Remainder of the action part after `routePrefix` and `:`, or the whole         action part if there is no `:`. |
+| routePrefix | string | Segment before the first `:` in the routePath, or empty if there is no `:`. |
+| route | string | Remainder of the routePath after `routePrefix` and `:`, or the whole         routePath if there is no `:`. |
 
 
 ## Events

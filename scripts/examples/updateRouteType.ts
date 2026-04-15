@@ -56,7 +56,9 @@ async function main() {
   console.log(`route: ${GREEN}${route}${RESET}`);
   console.log(`newRouteType: ${GREEN}${newRouteType}${RESET}\n`);
 
-  const tx = await routes.connect(signer).updateRouteType(xnsName, routePrefix, route, newRouteType);
+  const tx = await routes
+    .connect(signer)
+    .updateRouteType(xnsName, routePrefix, route, newRouteType);
   console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
   console.log("Waiting for confirmation...\n");
   await tx.wait();

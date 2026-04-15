@@ -56,7 +56,11 @@ async function main() {
     return;
   }
 
-  const [target, isActive, isFrozen, routeType] = await routes.getRouteInfo(xnsName, routePrefix, route);
+  const [target, isActive, isFrozen, routeType] = await routes.getRouteInfo(
+    xnsName,
+    routePrefix,
+    route,
+  );
 
   console.log(`target:    ${GREEN}${target}${RESET}`);
   console.log(`isActive:  ${GREEN}${isActive}${RESET}`);

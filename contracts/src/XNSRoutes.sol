@@ -17,7 +17,6 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 // @todo create getter for isValid string functions?
 // --------------------------------
 
-
 /// @title XNSRoutes
 /// @author Wladimir Weinbender (DIVA Technologies AG)
 /// @notice Route registry for XNS names which enables XNS name owners to map URL-style
@@ -36,8 +35,8 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - Must consist only of [a-z0-9-] (lowercase letters, digits, and hyphens)
 /// - Cannot start or end with '-'
 /// - Cannot contain consecutive hyphens ('--')
-/// 
-/// `routePrefix` is optional; if provided, it must be 1-20 characters long. 
+///
+/// `routePrefix` is optional; if provided, it must be 1-20 characters long.
 /// `route` is required and must be 1-48 characters long.
 ///
 /// Key points:
@@ -47,17 +46,14 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - Route freeze and route book freeze are irreversible.
 /// - Active status can still be toggled after freeze.
 /// - `routeType` is a `uint32` tag whose meaning and interpretation are defined off-chain by route parsers.
-///   For example, `routeType = 0` may suggest that the `target` is an EOA. 
-///   `routeType = 1` may suggest that the `target` is a smart contract. 
-///   `routeType = 2` may suggest that the `target` is a special contract that returns parametrized calldata. 
+///   For example, `routeType = 0` may suggest that the `target` is an EOA.
+///   `routeType = 1` may suggest that the `target` is a smart contract.
+///   `routeType = 2` may suggest that the `target` is a special contract that returns parametrized calldata.
 ///   `routeType = 3` may suggest that the `target` returns a Bitcoin address.
-///   The interpretation of `routeType` is defined by off-chain consensus.
-/// - Forward resolution is direct (`xnsName`, `routePrefix`, `route` → `target`). There is no global
-///   on-chain mapping from `target` to `xnsName` or path; that needs event logs or an indexer. For a
-///   **known** `xnsName`, use `getRouteKeyCount` and `getRouteKeys` with `getRouteRecordByRouteKey` (or the
-///   batch overload) to find which route keys use a given `target`.
-/// - An append-only log of route storage keys per `xnsName` supports enumeration without an
-///   indexer (`getRouteKeyCount`, `getRouteKeys`, `getRouteRecordByRouteKey` / overload for batches).
+/// - Forward resolution is direct (`xnsName`, `routePrefix`, `route` → `target`). A global reverse
+///   lookup from `target` to all names/routes is not stored on-chain.
+/// - For one known `xnsName`, on-chain enumeration is available without an indexer via the append-only
+///   route-key log (`getRouteKeyCount`, `getRouteKeys`, `getRouteRecordByRouteKey` / batch overload).
 contract XNSRoutes {
     // -------------------------------------------------------------------------
     // Types
@@ -97,7 +93,7 @@ contract XNSRoutes {
         string xnsName,
         string routePrefix,
         string route,
-        address target,
+        address indexed target,
         bool isActive,
         bool isFrozen,
         uint32 routeType
@@ -110,7 +106,7 @@ contract XNSRoutes {
         string xnsName,
         string routePrefix,
         string route,
-        address target,
+        address indexed target,
         bool isActive,
         bool isFrozen,
         uint32 routeType
@@ -123,7 +119,7 @@ contract XNSRoutes {
         string xnsName,
         string routePrefix,
         string route,
-        address newTarget
+        address indexed newTarget
     );
 
     /// @dev Emitted in `updateRouteType` when route type changes.
@@ -156,7 +152,10 @@ contract XNSRoutes {
     );
 
     /// @dev Emitted in `freezeRouteBook` when the route book is frozen for an XNS name.
-    event RouteBookFrozenForName(bytes32 indexed nameHash, string xnsName);
+    event RouteBookFrozenForName(
+        bytes32 indexed nameHash,
+        string xnsName
+    );
 
     /// @dev Emitted in `deleteRoute`.
     event RouteDeleted(
@@ -178,7 +177,7 @@ contract XNSRoutes {
     ///   to `address(this)`; XNS-side rules (payment, exclusivity, name availability, etc.) apply
     ///   and deployment reverts if registration fails.
     ///
-    /// Because the owner of `routes.xns` is this contract, `createRoute` / `updateRoute` with 
+    /// Because the owner of `routes.xns` is this contract, `createRoute` / `updateRoute` with
     /// `xnsName == "routes.xns"` requires `msg.sender == address(this)`; use an authorized entrypoint
     /// with `this.createRoute` / `this.updateRoute` (or another XNS name owned by the operator).
     ///
@@ -207,8 +206,8 @@ contract XNSRoutes {
     /// @param xnsName The XNS name that owns the route space, e.g. "xns.action"
     /// @param routePrefix Optional path segment before `:`; non-empty must pass local route-prefix
     ///        rules (same charset/hyphen constraints as XNS labels, max length 20);
-    ///        empty means `xnsName/route/...` only (no `:` in the action segment).
-    /// @param route Required action label (same charset/hyphen constraints as XNS labels, max
+    ///        empty means `xnsName/route/...` only (no `:` in the routePath).
+    /// @param route Required route label (same charset/hyphen constraints as XNS labels, max
     ///        length 48).
     /// @param target Build address for `routeType`; must be non-zero (`address(0)` is reserved
     ///        for "missing route").
@@ -353,7 +352,11 @@ contract XNSRoutes {
     /// @param xnsName The XNS name that owns the route space.
     /// @param routePrefix Optional route prefix segment (empty means no prefix).
     /// @param route Route label segment.
-    function activateRoute(string calldata xnsName, string calldata routePrefix, string calldata route) external {
+    function activateRoute(
+        string calldata xnsName,
+        string calldata routePrefix,
+        string calldata route
+    ) external {
         _updateRouteActiveStatus(xnsName, routePrefix, route, true);
     }
 
@@ -369,7 +372,11 @@ contract XNSRoutes {
     /// @param xnsName The XNS name that owns the route space.
     /// @param routePrefix Optional route prefix segment (empty means no prefix).
     /// @param route Route label segment.
-    function deactivateRoute(string calldata xnsName, string calldata routePrefix, string calldata route) external {
+    function deactivateRoute(
+        string calldata xnsName,
+        string calldata routePrefix,
+        string calldata route
+    ) external {
         _updateRouteActiveStatus(xnsName, routePrefix, route, false);
     }
 
@@ -407,7 +414,14 @@ contract XNSRoutes {
         // if the active status changes
         if (record.isActive != active) {
             record.isActive = active;
-            emit RouteActiveStatusUpdated(_xnsNameKey(xnsName), routeKey, xnsName, routePrefix, route, active);
+            emit RouteActiveStatusUpdated(
+                _xnsNameKey(xnsName),
+                routeKey,
+                xnsName,
+                routePrefix,
+                route,
+                active
+            );
         }
     }
 
@@ -424,7 +438,11 @@ contract XNSRoutes {
     /// @param xnsName The XNS name that owns the route space.
     /// @param routePrefix Optional route prefix segment (empty means no prefix).
     /// @param route Route label segment.
-    function deleteRoute(string calldata xnsName, string calldata routePrefix, string calldata route) external {
+    function deleteRoute(
+        string calldata xnsName,
+        string calldata routePrefix,
+        string calldata route
+    ) external {
         // Check if the caller is authorized to delete a route (must be the XNS name owner)
         _requireXNSNameOwner(xnsName);
 
@@ -545,6 +563,7 @@ contract XNSRoutes {
     ///
     /// **Requirements:**
     /// - `msg.sender` must be the current XNS owner for `xnsName`.
+    /// - The route book for `xnsName` must not be frozen.
     /// - Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
     /// - The route must exist.
     ///
@@ -562,6 +581,9 @@ contract XNSRoutes {
         // Check if the caller is authorized to freeze the route (must be the XNS name owner)
         _requireXNSNameOwner(xnsName);
 
+        bytes32 nameKey = _xnsNameKey(xnsName);
+        require(!_routeBookFrozen[nameKey], "XNSRoutes: route book frozen");
+
         // Validate that the route prefix and route are valid strings
         _validateRoutePrefixAndRoute(routePrefix, route);
 
@@ -573,7 +595,7 @@ contract XNSRoutes {
         // Update the route freeze status and emit the `RouteFrozen` event, if the route is not frozen
         if (!record.isFrozen) {
             record.isFrozen = true;
-            emit RouteFrozen(_xnsNameKey(xnsName), routeKey, xnsName, routePrefix, route);
+            emit RouteFrozen(nameKey, routeKey, xnsName, routePrefix, route);
         }
     }
 
@@ -586,6 +608,7 @@ contract XNSRoutes {
     /// - No new routes may be added under `xnsName`.
     /// - No existing route targets may be changed under `xnsName`.
     /// - Routes may not be deleted under `xnsName`.
+    /// - `freezeRoute` may not be called for routes under `xnsName`.
     /// - Route activation can still be toggled.
     ///
     /// @param xnsName Fully-qualified XNS name whose route book to freeze.
@@ -619,11 +642,7 @@ contract XNSRoutes {
         string calldata xnsName,
         string calldata routePrefix,
         string calldata route
-    )
-        external
-        view
-        returns (address target, bool isActive, bool isFrozen, uint32 routeType)
-    {
+    ) external view returns (address target, bool isActive, bool isFrozen, uint32 routeType) {
         return _getRouteInfo(xnsName, routePrefix, route);
     }
 
@@ -632,12 +651,12 @@ contract XNSRoutes {
     /// **Requirements:**
     /// - `fullRoutePath` must contain at least one `/`.
     /// - Further requirements match `getRouteInfo` for the parsed components.
-    function getRouteInfoFromPath(string calldata fullRoutePath)
-        external
-        view
-        returns (address target, bool isActive, bool isFrozen, uint32 routeType)
-    {
-        (string memory xnsName, string memory routePrefix, string memory route) = _splitFullPath(fullRoutePath);
+    function getRouteInfoFromPath(
+        string calldata fullRoutePath
+    ) external view returns (address target, bool isActive, bool isFrozen, uint32 routeType) {
+        (string memory xnsName, string memory routePrefix, string memory route) = _splitFullPath(
+            fullRoutePath
+        );
         return _getRouteInfo(xnsName, routePrefix, route);
     }
 
@@ -677,8 +696,12 @@ contract XNSRoutes {
     /// **Requirements:**
     /// - `fullRoutePath` must contain at least one `/`.
     /// - Further requirements match `routeExists` for the parsed components.
-    function routeExistsFromPath(string calldata fullRoutePath) external view returns (bool exists) {
-        (string memory xnsName, string memory routePrefix, string memory route) = _splitFullPath(fullRoutePath);
+    function routeExistsFromPath(
+        string calldata fullRoutePath
+    ) external view returns (bool exists) {
+        (string memory xnsName, string memory routePrefix, string memory route) = _splitFullPath(
+            fullRoutePath
+        );
         return _routeExists(xnsName, routePrefix, route);
     }
 
@@ -701,7 +724,7 @@ contract XNSRoutes {
         return _routeBookFrozen[_xnsNameKey(xnsName)];
     }
 
-    /// @notice Number of entries in the append-only route-key log for `xnsName` (not the count of live routes; 
+    /// @notice Number of entries in the append-only route-key log for `xnsName` (not the count of live routes;
     /// deletes do not shrink this).
     /// @param xnsName The XNS name to get the route key count for.
     /// @return count The number of route keys.
@@ -709,17 +732,17 @@ contract XNSRoutes {
         return _routeKeysByName[_xnsNameKey(xnsName)].length;
     }
 
-    /// @notice Returns `keys[start:end]` from the append-only log for `xnsName` (`end` is exclusive). 
+    /// @notice Returns `keys[start:end]` from the append-only log for `xnsName` (`end` is exclusive).
     /// Reverts if `start > end` or `end` exceeds length.
     /// @param xnsName The XNS name to get the route keys for.
     /// @param start The start index (inclusive).
     /// @param end The end index (exclusive).
     /// @return keys The route keys.
-    function getRouteKeys(string calldata xnsName, uint256 start, uint256 end)
-        external
-        view
-        returns (bytes32[] memory keys)
-    {
+    function getRouteKeys(
+        string calldata xnsName,
+        uint256 start,
+        uint256 end
+    ) external view returns (bytes32[] memory keys) {
         bytes32[] storage arr = _routeKeysByName[_xnsNameKey(xnsName)];
         uint256 len = arr.length;
         require(start <= end && end <= len, "XNSRoutes: invalid route key slice");
@@ -734,7 +757,9 @@ contract XNSRoutes {
     /// `record.target == address(0)` means no record (never created or deleted).
     /// @param routeKey The route key to read.
     /// @return record The route record (same shape as each element of the batch overload).
-    function getRouteRecordByRouteKey(bytes32 routeKey) external view returns (RouteRecord memory record) {
+    function getRouteRecordByRouteKey(
+        bytes32 routeKey
+    ) external view returns (RouteRecord memory record) {
         RouteRecord storage s = _routes[routeKey];
         record = RouteRecord({
             target: s.target,
@@ -748,11 +773,9 @@ contract XNSRoutes {
     /// `getRouteRecordByRouteKey(bytes32)` per element.
     /// @param routeKeys The route keys to read.
     /// @return records The route records.
-    function getRouteRecordByRouteKey(bytes32[] calldata routeKeys)
-        external
-        view
-        returns (RouteRecord[] memory records)
-    {
+    function getRouteRecordByRouteKey(
+        bytes32[] calldata routeKeys
+    ) external view returns (RouteRecord[] memory records) {
         uint256 n = routeKeys.length;
         records = new RouteRecord[](n);
         for (uint256 i = 0; i < n; ++i) {
@@ -767,7 +790,7 @@ contract XNSRoutes {
     }
 
     /// @notice Parse `fullRoutePath` into `(xnsName, routePrefix, route)`
-    /// (first `/`, then first `:` in the action segment).
+    /// (first `/`, then first `:` in the routePath).
     ///
     /// **Requirements:**
     /// - `fullRoutePath` must contain at least one `/`.
@@ -777,10 +800,12 @@ contract XNSRoutes {
     ///
     /// @param fullRoutePath Full path, e.g. `bob.xns/eth:transfer-usdt` or `bob.xns/my-wallet`.
     /// @return xnsName Segment before the first `/`.
-    /// @return routePrefix Segment before the first `:` in the action part, or empty if there is no `:`.
-    /// @return route Remainder of the action part after `routePrefix` and `:`, or the whole
-    ///         action part if there is no `:`.
-    function splitFullPath(string calldata fullRoutePath)
+    /// @return routePrefix Segment before the first `:` in the routePath, or empty if there is no `:`.
+    /// @return route Remainder of the routePath after `routePrefix` and `:`, or the whole
+    ///         routePath if there is no `:`.
+    function splitFullPath(
+        string calldata fullRoutePath
+    )
         external
         pure
         returns (string memory xnsName, string memory routePrefix, string memory route)
@@ -788,9 +813,9 @@ contract XNSRoutes {
         return _splitFullPath(fullRoutePath);
     }
 
-    /// @dev Splits `fullRoutePath` at the first `/` into `xnsName` and `action`. Within `action`,
+    /// @dev Splits `fullRoutePath` at the first `/` into `xnsName` and `routePath`. Within `routePath`,
     /// splits at the first `:` if any. Reverts with `"XNSRoutes: invalid route path"` only when no
-    /// `/` is found. Does not validate XNS labels or reject extra `/` in `action`.
+    /// `/` is found. Does not validate XNS labels or reject extra `/` in `routePath`.
     ///
     /// **Requirements:**
     /// - `fullRoutePath` must contain at least one `/`.
@@ -799,11 +824,9 @@ contract XNSRoutes {
     /// @return xnsName The XNS name.
     /// @return routePrefix The route prefix.
     /// @return route The route.
-    function _splitFullPath(string calldata fullRoutePath)
-        private
-        pure
-        returns (string memory xnsName, string memory routePrefix, string memory route)
-    {
+    function _splitFullPath(
+        string calldata fullRoutePath
+    ) private pure returns (string memory xnsName, string memory routePrefix, string memory route) {
         bytes calldata b = bytes(fullRoutePath);
         uint256 n = b.length;
         uint256 slash;
@@ -819,32 +842,32 @@ contract XNSRoutes {
 
         xnsName = _calldataSubstringToString(b, 0, slash);
 
-        uint256 actionStart = slash + 1;
-        if (actionStart >= n) {
+        uint256 routePathStart = slash + 1;
+        if (routePathStart >= n) {
             return (xnsName, "", "");
         }
 
-        bytes calldata action = b[actionStart:n];
+        bytes calldata routePath = b[routePathStart:n];
 
         uint256 colon;
         bool foundColon;
-        for (uint256 j = 0; j < action.length; ++j) {
-            if (action[j] == 0x3a) {
+        for (uint256 j = 0; j < routePath.length; ++j) {
+            if (routePath[j] == 0x3a) {
                 colon = j;
                 foundColon = true;
                 break;
             }
         }
         if (!foundColon) {
-            return (xnsName, "", _calldataSubstringToString(action, 0, action.length));
+            return (xnsName, "", _calldataSubstringToString(routePath, 0, routePath.length));
         }
 
-        routePrefix = _calldataSubstringToString(action, 0, colon);
+        routePrefix = _calldataSubstringToString(routePath, 0, colon);
         uint256 routeStart = colon + 1;
-        if (routeStart >= action.length) {
+        if (routeStart >= routePath.length) {
             route = "";
         } else {
-            route = _calldataSubstringToString(action, routeStart, action.length);
+            route = _calldataSubstringToString(routePath, routeStart, routePath.length);
         }
     }
 
@@ -857,11 +880,11 @@ contract XNSRoutes {
     /// @param start The start index (inclusive).
     /// @param end The end index (exclusive).
     /// @return out The resulting string.
-    function _calldataSubstringToString(bytes calldata data, uint256 start, uint256 end)
-        private
-        pure
-        returns (string memory out)
-    {
+    function _calldataSubstringToString(
+        bytes calldata data,
+        uint256 start,
+        uint256 end
+    ) private pure returns (string memory out) {
         require(end >= start, "XNSRoutes: invalid route path");
         uint256 len = end - start;
         bytes memory buf = new bytes(len);
@@ -906,8 +929,14 @@ contract XNSRoutes {
     /// length is 48.
     /// @param routePrefix Optional route prefix segment to validate when non-empty.
     /// @param route Route label segment to validate.
-    function _validateRoutePrefixAndRoute(string memory routePrefix, string memory route) private pure {
-        require(bytes(routePrefix).length == 0 || _isValidRoutePrefix(routePrefix), "XNSRoutes: invalid route prefix");
+    function _validateRoutePrefixAndRoute(
+        string memory routePrefix,
+        string memory route
+    ) private pure {
+        require(
+            bytes(routePrefix).length == 0 || _isValidRoutePrefix(routePrefix),
+            "XNSRoutes: invalid route prefix"
+        );
         require(_isValidRoute(route), "XNSRoutes: invalid route");
     }
 
@@ -952,5 +981,4 @@ contract XNSRoutes {
         if (b[0] == 0x2D || b[len - 1] == 0x2D) return false;
         return true;
     }
-
 }
