@@ -200,10 +200,9 @@ describe("XNSRoutes", function () {
       ).to.be.revertedWith(XR.invalidXnsName);
     });
 
-    it("Should revert with InvalidRoutePrefix when XNS marks routePrefix label invalid", async function () {
-      const { routes, owner, mockXns, buildTarget } = await loadFixture(deployFixture);
-      const badRoutePrefix = "bad-prefix";
-      await mockXns.setLabelInvalid(badRoutePrefix, true);
+    it("Should revert with InvalidRoutePrefix when routePrefix exceeds 20 chars", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      const badRoutePrefix = "a".repeat(21);
 
       await expect(
         routes.connect(owner).createRoute(XNS_NAME, badRoutePrefix, ROUTE, buildTarget, RT0, true, false),
@@ -230,13 +229,17 @@ describe("XNSRoutes", function () {
       expect((await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, globalRoute))[0]).to.equal(other.address);
     });
 
-    it("Should revert with InvalidRoute when XNS marks route label invalid", async function () {
-      const { routes, owner, mockXns, buildTarget } = await loadFixture(deployFixture);
-      const badRoute = "bad-route";
-      await mockXns.setLabelInvalid(badRoute, true);
+    it("Should allow route length up to 48 chars and reject >48", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      const route48 = "a".repeat(48);
+      const route49 = "a".repeat(49);
 
       await expect(
-        routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, badRoute, buildTarget, RT0, true, false),
+        routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, route48, buildTarget, RT0, true, false),
+      ).to.emit(routes, "RouteCreated");
+
+      await expect(
+        routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, route49, buildTarget, RT0, true, false),
       ).to.be.revertedWith(XR.invalidRoute);
     });
 

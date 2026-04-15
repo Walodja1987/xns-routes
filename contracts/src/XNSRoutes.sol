@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import "./interfaces/IXNSMinimal.sol";
+import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 //                                                                                           //
@@ -14,13 +14,19 @@ import "./interfaces/IXNSMinimal.sol";
 //                                                                                           //
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
-// TODO: shall we allow longer routePrefixes and routes? Why limit to 20 characters?
-
 /// @title XNSRoutes
 /// @author Wladimir Weinbender (DIVA Technologies AG)
 /// @notice Route registry for XNS names.
 ///
-/// Route format: `[xnsName]/[routePrefix]:[route]` or `[xnsName]/[route]` when no prefix is used.
+/// Route format: `[xnsName]/[routePrefix:][route]` or `[xnsName]/[route]` when no prefix is used.
+///
+/// `routePrefix` and `route` must follow the same character and hyphenation rules as `xnsName`:
+/// - Must consist only of [a-z0-9-] (lowercase letters, digits, and hyphens)
+/// - Cannot start or end with '-'
+/// - Cannot contain consecutive hyphens ('--')
+/// 
+/// `routePrefix` is optional; if provided, it must be 1-20 characters long. 
+/// `route` is required and must be 1-48 characters long.
 ///
 /// Examples:
 /// - `alice.og/my-sub-wallet`
@@ -182,7 +188,7 @@ contract XNSRoutes {
     ///
     /// **Requirements:**
     /// - `msg.sender` must be the current XNS owner for `xnsName`.
-    /// - Non-empty `routePrefix` and `route` must satisfy XNS label rules.
+    /// - Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
     /// - `target` must not be the zero address.
     /// - The route book for `xnsName` must not be frozen.
     /// - The route key must not already exist.
@@ -191,9 +197,11 @@ contract XNSRoutes {
     /// (`getRouteKeyCount` / `getRouteKeys`).
     ///
     /// @param xnsName The XNS name that owns the route space, e.g. "xns.action"
-    /// @param routePrefix Optional path segment before `:`; non-empty must pass XNS label rules;
+    /// @param routePrefix Optional path segment before `:`; non-empty must pass local route-prefix
+    ///        rules (same charset/hyphen constraints as XNS labels, max length 20);
     ///        empty means `xnsName/route/...` only (no `:` in the action segment).
-    /// @param route Required action label (XNS label rules), e.g. "transfer-usdt"
+    /// @param route Required action label (same charset/hyphen constraints as XNS labels, max
+    ///        length 48).
     /// @param target Build address for `routeType`; must be non-zero (`address(0)` is reserved
     ///        for "missing route").
     /// @param routeType Opaque hint for parsers (semantics offchain)
@@ -261,7 +269,7 @@ contract XNSRoutes {
     /// - `msg.sender` must be the current XNS owner for `xnsName`.
     /// - `target` must not be the zero address.
     /// - The route book for `xnsName` must not be frozen.
-    /// - Non-empty `routePrefix` and `route` must satisfy XNS label rules.
+    /// - Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
     /// - The route must exist and must not already be per-route frozen.
     ///
     /// @param xnsName The XNS name that owns the route space, e.g. "xns.action"
@@ -329,7 +337,7 @@ contract XNSRoutes {
     ///
     /// **Requirements:**
     /// - `msg.sender` must be the current XNS owner for `xnsName`.
-    /// - Non-empty `routePrefix` and `route` must satisfy XNS label rules.
+    /// - Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
     /// - The route must exist.
     ///
     /// Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after route or route book freeze.
@@ -345,7 +353,7 @@ contract XNSRoutes {
     ///
     /// **Requirements:**
     /// - `msg.sender` must be the current XNS owner for `xnsName`.
-    /// - Non-empty `routePrefix` and `route` must satisfy XNS label rules.
+    /// - Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
     /// - The route must exist.
     ///
     /// Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after route or route book freeze.
@@ -361,7 +369,7 @@ contract XNSRoutes {
     ///
     /// **Requirements:**
     /// - `msg.sender` must be the current XNS owner for `xnsName`.
-    /// - Non-empty `routePrefix` and `route` must satisfy XNS label rules.
+    /// - Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
     /// - The route must exist.
     ///
     /// Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after route or route book freeze.
@@ -400,7 +408,7 @@ contract XNSRoutes {
     /// **Requirements:**
     /// - `msg.sender` must be the current XNS owner for `xnsName`.
     /// - The route book for `xnsName` must not be frozen.
-    /// - Non-empty `routePrefix` and `route` must satisfy XNS label rules.
+    /// - Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
     /// - The route must exist and must not be per-route frozen.
     ///
     /// Does not check `isActive`; use `deactivateRoute` for a soft disable without deleting.
@@ -438,7 +446,7 @@ contract XNSRoutes {
     /// **Requirements:**
     /// - `msg.sender` must be the current XNS owner for `xnsName`.
     /// - The route book for `xnsName` must not be frozen.
-    /// - Non-empty `routePrefix` and `route` must satisfy XNS label rules.
+    /// - Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
     /// - The route must exist and must not be per-route frozen.
     /// - `newTarget` must not be the zero address.
     ///
@@ -486,7 +494,7 @@ contract XNSRoutes {
     /// **Requirements:**
     /// - `msg.sender` must be the current XNS owner for `xnsName`.
     /// - The route book for `xnsName` must not be frozen.
-    /// - Non-empty `routePrefix` and `route` must satisfy XNS label rules.
+    /// - Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
     /// - The route must exist and must not be per-route frozen.
     ///
     /// Emits `RouteTypeUpdated` only when `newRouteType` differs from the stored value.
@@ -529,7 +537,7 @@ contract XNSRoutes {
     ///
     /// **Requirements:**
     /// - `msg.sender` must be the current XNS owner for `xnsName`.
-    /// - Non-empty `routePrefix` and `route` must satisfy XNS label rules.
+    /// - Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
     /// - The route must exist.
     ///
     /// After freezing, `target` and `routeType` can never be changed again; active/inactive can
@@ -885,20 +893,56 @@ contract XNSRoutes {
         return keccak256(abi.encodePacked(xnsName, "/", routePrefix, ":", route));
     }
 
-    /// @dev Non-empty `routePrefix` and `route` must satisfy XNS label rules so malformed tuples
-    /// cannot alias canonical keys.
+    /// @dev Non-empty `routePrefix` and `route` must satisfy slug rules (charset/hyphen constraints)
+    /// so malformed tuples cannot alias canonical keys. `routePrefix` max length is 20; `route` max
+    /// length is 48.
     /// @param routePrefix Optional route prefix segment to validate when non-empty.
     /// @param route Route label segment to validate.
-    function _validateRoutePrefixAndRoute(string memory routePrefix, string memory route) private view {
-        require(bytes(routePrefix).length == 0 || _isValidString(routePrefix), "XNSRoutes: invalid route prefix");
-        require(_isValidString(route), "XNSRoutes: invalid route");
+    function _validateRoutePrefixAndRoute(string memory routePrefix, string memory route) private pure {
+        require(bytes(routePrefix).length == 0 || _isValidRoutePrefix(routePrefix), "XNSRoutes: invalid route prefix");
+        require(_isValidRoute(route), "XNSRoutes: invalid route");
     }
 
-    /// @dev Whether `s` satisfies XNS label/namespace rules (length, charset, hyphen rules).
-    /// @param s Candidate label or namespace string.
-    /// @return isValid True when `s` passes XNS validation.
-    function _isValidString(string memory s) private view returns (bool isValid) {
-        return XNS.isValidLabelOrNamespace(s);
+    /// @dev Route-prefix validator (same character/hyphen rules as XNS labels, max length 20).
+    /// @param routePrefix Candidate route-prefix label.
+    /// @return isValid True when `routePrefix` is valid.
+    function _isValidRoutePrefix(string memory routePrefix) private pure returns (bool isValid) {
+        return _isValidSlug(routePrefix, 20);
+    }
+
+    /// @dev Route validator (same character/hyphen rules as XNS labels, max length 48).
+    /// @param route Candidate route label.
+    /// @return isValid True when `route` is valid.
+    function _isValidRoute(string memory route) private pure returns (bool isValid) {
+        return _isValidSlug(route, 48);
+    }
+
+    /// @dev Shared slug validator used by route-prefix and route checks.
+    /// Rules:
+    /// - length in [1, `maxLen`]
+    /// - chars are only [a-z], [0-9], or '-'
+    /// - no leading/trailing '-'
+    /// - no consecutive '--'
+    /// @param s Candidate slug string.
+    /// @param maxLen Inclusive maximum length.
+    /// @return isValid True when `s` satisfies all constraints.
+    function _isValidSlug(string memory s, uint256 maxLen) private pure returns (bool isValid) {
+        bytes memory b = bytes(s);
+        uint256 len = b.length;
+        if (len == 0 || len > maxLen) return false;
+
+        for (uint256 i = 0; i < len; i++) {
+            bytes1 c = b[i];
+            bool isLowercaseLetter = (c >= 0x61 && c <= 0x7A);
+            bool isDigit = (c >= 0x30 && c <= 0x39);
+            bool isHyphen = (c == 0x2D);
+            if (!(isLowercaseLetter || isDigit || isHyphen)) return false;
+
+            if (isHyphen && i > 0 && b[i - 1] == 0x2D) return false;
+        }
+
+        if (b[0] == 0x2D || b[len - 1] == 0x2D) return false;
+        return true;
     }
 
 }

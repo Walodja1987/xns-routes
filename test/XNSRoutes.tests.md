@@ -6,7 +6,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 ## Test setup
 
-- **Unit tests** use [`MockXNS`](../contracts/src/mocks/MockXNS.sol): set `xnsName → owner` via `setResolution`, and optionally mark labels invalid via `setLabelInvalid` for `"XNSRoutes: invalid route prefix"` / `"XNSRoutes: invalid route"` cases. `isValidLabelOrNamespace` applies the same charset / length / hyphen rules as on-chain XNS, then `setLabelInvalid` overrides.
+- **Unit tests** use [`MockXNS`](../contracts/src/mocks/MockXNS.sol): set `xnsName → owner` via `setResolution`. Route segment validation is local to `XNSRoutes` (not delegated to XNS): `routePrefix` allows 1–20 chars (or empty), while `route` allows 1–48 chars; both share lowercase/number/hyphen and hyphen-placement rules.
 - **Canonical on-chain XNS** addresses for deploy/scripts/fork work live in [`constants/addresses.ts`](../constants/addresses.ts) as `XNS_ADDRESS` (they are not used by the default local test suite).
 
 ---
@@ -41,7 +41,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Reverts
 
-- Owner, XNS label rules on non-empty `routePrefix` and on `route`, non-zero `target`, `"XNSRoutes: route book frozen"`, plus `"XNSRoutes: route already exists"` if the route key already exists.
+- Owner, local route-segment rules on non-empty `routePrefix` and on `route` (prefix 1–20; route 1–48), non-zero `target`, `"XNSRoutes: route book frozen"`, plus `"XNSRoutes: route already exists"` if the route key already exists.
 
 ---
 
@@ -62,7 +62,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 - Should revert with `"XNSRoutes: not XNS name owner"` when `msg.sender` is not `XNS.getAddress(xnsName)`.
 - Should revert with `"XNSRoutes: invalid XNS name"` when `XNS.getAddress(xnsName)` is zero (empty `xnsName` is included: XNS returns zero for `len == 0`).
-- Should revert with `"XNSRoutes: invalid route prefix"` / `"XNSRoutes: invalid route"` when `routePrefix` or `route` fails XNS label rules (same as `createRoute`), including empty `routePrefix` with a `route` containing `:` (prevents aliasing the canonical `prefix:route` key).
+- Should revert with `"XNSRoutes: invalid route prefix"` / `"XNSRoutes: invalid route"` when `routePrefix` or `route` fails local route-segment rules (same as `createRoute`), including empty `routePrefix` with a `route` containing `:` (prevents aliasing the canonical `prefix:route` key).
 - Should revert with `"XNSRoutes: invalid target"` when `target` is zero.
 - Should revert with `"XNSRoutes: route book frozen"` when `freezeRouteBook` has already been called for that `xnsName`.
 - Should revert with `"XNSRoutes: cannot update frozen route"` when updating a route that is already frozen (including changing only `routeType` or only `target`).
@@ -124,7 +124,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 #### Reverts
 
 - `"XNSRoutes: not XNS name owner"`, `"XNSRoutes: route not found"`, `"XNSRoutes: cannot update frozen route"`, `"XNSRoutes: route book frozen"` as above.
-- `"XNSRoutes: invalid route prefix"` / `"XNSRoutes: invalid route"` when `routePrefix` / `route` fail label rules (same as `createRoute`).
+- `"XNSRoutes: invalid route prefix"` / `"XNSRoutes: invalid route"` when `routePrefix` / `route` fail local route-segment rules (same as `createRoute`).
 - `updateTarget`: `"XNSRoutes: invalid target"` when `newTarget` is zero.
 
 ---
@@ -171,7 +171,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 - `routeExists` returns `false` before a route is created and `true` after.
 - `getRouteInfo` returns `(target, isActive, isFrozen, routeType)` consistent with `createRoute` / `updateRoute` / `updateTarget` / `updateRouteType` / `activateRoute` / `deactivateRoute` / `freezeRoute` (until `deleteRoute` clears the slot).
-- Both apply the same `routePrefix` / `route` label validation as mutating functions before deriving the key.
+- Both apply the same local `routePrefix` / `route` validation as mutating functions before deriving the key.
 
 #### Reverts
 

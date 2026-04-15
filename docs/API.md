@@ -10,15 +10,25 @@ Route registry for XNS names.
 Route format: `[xnsName]/[routePrefix]:[route]` or `[xnsName]/[route]` when no prefix is used.
 
 Examples:
-- `bob.xns/eth:transfer-usdt/to=0x.../amount=100`
 - `alice.og/my-sub-wallet`
-- `contracts.aave/v4:pools`
+- `contracts.aave/eth:v3-pool-contract`
+- `bob.xns/eth:approve-usdt`
+
+Each route's `target` is a non-zero Ethereum address. It may
+resolve to an EOA, a view contract that returns data (e.g. a Bitcoin
+or Solana address), a contract that builds calldata for transactions, or other patterns.
+The registry does not prescribe a taxonomy; wallets and route parsers decide how to use it.
 
 Key points:
-- Routes are owned and managed by the current XNS name owner.
+- Routes are owned and managed by the XNS name owner.
 - A route stores `target`, `routeType`, `isActive`, and `isFrozen`.
 - Route freeze and route-book freeze are irreversible.
 - Active status can still be toggled after freeze.
+- `routeType` is a `uint32` tag whose meaning and interpretation are defined off-chain by route parsers.
+- Forward resolution is direct (`xnsName`, `routePrefix`, `route` → `target`). There is no global
+  on-chain mapping from `target` to `xnsName` or path; that needs event logs or an indexer. For a
+  **known** `xnsName`, use `getRouteKeyCount` and `getRouteKeys` with `getRouteRecordByRouteKey` (or the
+  batch overload) to find which route keys use a given `target`.
 - An append-only log of route storage keys per `xnsName` supports enumeration without an
   indexer (`getRouteKeyCount`, `getRouteKeys`, `getRouteRecordByRouteKey` / overload for batches).
 
@@ -36,7 +46,7 @@ Create a route under `(xnsName, routePrefix, route)`. Reverts if that key alread
 
 **Requirements:**
 - `msg.sender` must be the current XNS owner for `xnsName`.
-- Non-empty `routePrefix` and `route` must satisfy XNS label rules.
+- Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
 - `target` must not be the zero address.
 - The route book for `xnsName` must not be frozen.
 - The route key must not already exist.
@@ -54,8 +64,8 @@ function createRoute(string xnsName, string routePrefix, string route, address t
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | xnsName | string | The XNS name that owns the route space, e.g. "xns.action" |
-| routePrefix | string | Optional path segment before `:`; non-empty must pass XNS label rules;        empty means `xnsName/route/...` only (no `:` in the action segment). |
-| route | string | Required action label (XNS label rules), e.g. "transfer-usdt" |
+| routePrefix | string | Optional path segment before `:`; non-empty must pass local route-prefix        rules (same charset/hyphen constraints as XNS labels, max length 20);        empty means `xnsName/route/...` only (no `:` in the action segment). |
+| route | string | Required action label (same charset/hyphen constraints as XNS labels, max        length 48), e.g. "transfer-usdt" |
 | target | address | Build address for `routeType`; must be non-zero (`address(0)` is reserved        for "missing route"). |
 | routeType | uint32 | Opaque hint for parsers (semantics offchain) |
 | activate | bool | Initial value for stored `isActive`. |
@@ -71,7 +81,7 @@ Update an existing route (target, routeType, activate, optional freeze in one tx
 - `msg.sender` must be the current XNS owner for `xnsName`.
 - `target` must not be the zero address.
 - The route book for `xnsName` must not be frozen.
-- Non-empty `routePrefix` and `route` must satisfy XNS label rules.
+- Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
 - The route must exist and must not already be per-route frozen.
 
 ```solidity
@@ -99,7 +109,7 @@ Mark an existing route as active.
 
 **Requirements:**
 - `msg.sender` must be the current XNS owner for `xnsName`.
-- Non-empty `routePrefix` and `route` must satisfy XNS label rules.
+- Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
 - The route must exist.
 
 Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after route or route book freeze.
@@ -125,7 +135,7 @@ Mark an existing route as inactive.
 
 **Requirements:**
 - `msg.sender` must be the current XNS owner for `xnsName`.
-- Non-empty `routePrefix` and `route` must satisfy XNS label rules.
+- Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
 - The route must exist.
 
 Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after route or route book freeze.
@@ -152,7 +162,7 @@ Remove a route so `createRoute` may register the same key again.
 **Requirements:**
 - `msg.sender` must be the current XNS owner for `xnsName`.
 - The route book for `xnsName` must not be frozen.
-- Non-empty `routePrefix` and `route` must satisfy XNS label rules.
+- Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
 - The route must exist and must not be per-route frozen.
 
 Does not check `isActive`; use `deactivateRoute` for a soft disable without deleting.
@@ -179,7 +189,7 @@ Update the build `target` for an existing route.
 **Requirements:**
 - `msg.sender` must be the current XNS owner for `xnsName`.
 - The route book for `xnsName` must not be frozen.
-- Non-empty `routePrefix` and `route` must satisfy XNS label rules.
+- Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
 - The route must exist and must not be per-route frozen.
 - `newTarget` must not be the zero address.
 
@@ -208,7 +218,7 @@ Update `routeType` for an existing route.
 **Requirements:**
 - `msg.sender` must be the current XNS owner for `xnsName`.
 - The route book for `xnsName` must not be frozen.
-- Non-empty `routePrefix` and `route` must satisfy XNS label rules.
+- Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
 - The route must exist and must not be per-route frozen.
 
 Emits `RouteTypeUpdated` only when `newRouteType` differs from the stored value.
@@ -235,7 +245,7 @@ Freeze a single route forever.
 
 **Requirements:**
 - `msg.sender` must be the current XNS owner for `xnsName`.
-- Non-empty `routePrefix` and `route` must satisfy XNS label rules.
+- Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
 - The route must exist.
 
 After freezing, `target` and `routeType` can never be changed again; active/inactive can
