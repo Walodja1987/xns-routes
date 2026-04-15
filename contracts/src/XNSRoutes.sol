@@ -16,9 +16,17 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 
 /// @title XNSRoutes
 /// @author Wladimir Weinbender (DIVA Technologies AG)
-/// @notice Route registry for XNS names.
+/// @notice Route registry for XNS names which enables XNS name owners to map URL-style
+/// identifiers (e.g., `bob.xns/my-usdt-wallet` or `alice.og/eth:aave-v3`) to any Ethereum address.
+/// Mappings are free and may point to EOAs, smart contract protocols, or helper/view contracts returning
+/// arbitrary data (such as Bitcoin or Solana addresses, calldata, or other information).
 ///
 /// Route format: `[xnsName]/[routePrefix:][route]` or `[xnsName]/[route]` when no prefix is used.
+///
+/// Examples:
+/// - `alice.og/my-sub-wallet`
+/// - `contracts.aave/eth:v3-pool-contract`
+/// - `bob.xns/eth:approve-usdt`
 ///
 /// `routePrefix` and `route` must follow the same character and hyphenation rules as `xnsName`:
 /// - Must consist only of [a-z0-9-] (lowercase letters, digits, and hyphens)
@@ -28,11 +36,6 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// `routePrefix` is optional; if provided, it must be 1-20 characters long. 
 /// `route` is required and must be 1-48 characters long.
 ///
-/// Examples:
-/// - `alice.og/my-sub-wallet`
-/// - `contracts.aave/eth:v3-pool-contract`
-/// - `bob.xns/eth:approve-usdt`
-///
 /// Each route's `target` is a non-zero Ethereum address. It may
 /// resolve to an EOA, a view contract that returns data (e.g. a Bitcoin
 /// or Solana address), a contract that builds calldata for transactions, or other patterns.
@@ -40,6 +43,7 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 ///
 /// Key points:
 /// - Routes are owned and managed by the XNS name owner.
+/// - Routes can be registered for free by the XNS name owner.
 /// - A route stores `target`, `routeType`, `isActive`, and `isFrozen`.
 /// - Route freeze and route-book freeze are irreversible.
 /// - Active status can still be toggled after freeze.
