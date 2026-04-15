@@ -14,14 +14,18 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 //                                                                                           //
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
+// @todo create getter for isValid string functions?
+// --------------------------------
+
+
 /// @title XNSRoutes
 /// @author Wladimir Weinbender (DIVA Technologies AG)
 /// @notice Route registry for XNS names which enables XNS name owners to map URL-style
-/// identifiers (e.g., `bob.xns/my-usdt-wallet` or `alice.og/eth:aave-v3`) to any Ethereum address.
-/// Mappings are free and may point to EOAs, smart contract protocols, or helper/view contracts returning
-/// arbitrary data (such as Bitcoin or Solana addresses, calldata, or other information).
+/// identifiers to any Ethereum address. Mappings are free and may point to EOAs and smart
+/// contracts including helper/view contracts returning arbitrary data, such as Bitcoin or Solana
+/// addresses, calldata, or other information.
 ///
-/// Route format: `[xnsName]/[routePrefix:][route]` or `[xnsName]/[route]` when no prefix is used.
+/// Route format: `[xnsName]/[routePrefix:][route]` with `routePrefix` being optional.
 ///
 /// Examples:
 /// - `alice.og/my-sub-wallet`
@@ -36,18 +40,18 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// `routePrefix` is optional; if provided, it must be 1-20 characters long. 
 /// `route` is required and must be 1-48 characters long.
 ///
-/// Each route's `target` is a non-zero Ethereum address. It may
-/// resolve to an EOA, a view contract that returns data (e.g. a Bitcoin
-/// or Solana address), a contract that builds calldata for transactions, or other patterns.
-/// The registry does not prescribe a taxonomy; wallets and route parsers decide how to use it.
-///
 /// Key points:
 /// - Routes are owned and managed by the XNS name owner.
-/// - Routes can be registered for free by the XNS name owner.
+/// - An XNS name owner can register unlimited routes for free.
 /// - A route stores `target`, `routeType`, `isActive`, and `isFrozen`.
-/// - Route freeze and route-book freeze are irreversible.
+/// - Route freeze and route book freeze are irreversible.
 /// - Active status can still be toggled after freeze.
 /// - `routeType` is a `uint32` tag whose meaning and interpretation are defined off-chain by route parsers.
+///   For example, `routeType = 0` may suggest that the `target` is an EOA. 
+///   `routeType = 1` may suggest that the `target` is a smart contract. 
+///   `routeType = 2` may suggest that the `target` is a special contract that returns parametrized calldata. 
+///   `routeType = 3` may suggest that the `target` returns a Bitcoin address.
+///   The interpretation of `routeType` is defined by off-chain consensus.
 /// - Forward resolution is direct (`xnsName`, `routePrefix`, `route` → `target`). There is no global
 ///   on-chain mapping from `target` to `xnsName` or path; that needs event logs or an indexer. For a
 ///   **known** `xnsName`, use `getRouteKeyCount` and `getRouteKeys` with `getRouteRecordByRouteKey` (or the
