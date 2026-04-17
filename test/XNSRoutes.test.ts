@@ -32,19 +32,28 @@ describe("XNSRoutes", function () {
     invalidRouteKeySlice: "XNSRoutes: invalid route key slice",
   } as const;
 
-  /** Matches `XNSRoutes._xnsNameKey` / `keccak256(bytes(xnsName))`. */
-  function xnsNameKey(xnsName: string): string {
-    return ethers.keccak256(ethers.toUtf8Bytes(xnsName));
+  /** Matches `_canonicalizeXNSName`: dotless `label` → `label.x`. */
+  function canonicalXnsName(xnsName: string): string {
+    for (let i = 0; i < xnsName.length; i++) {
+      if (xnsName[i] === ".") return xnsName;
+    }
+    return `${xnsName}.x`;
   }
 
-  /** Matches `XNSRoutes._routeKey` `abi.encodePacked` layout. */
+  /** Matches `XNSRoutes._xnsNameKey` / `keccak256(bytes(canonical xnsName))`. */
+  function xnsNameKey(xnsName: string): string {
+    return ethers.keccak256(ethers.toUtf8Bytes(canonicalXnsName(xnsName)));
+  }
+
+  /** Matches `XNSRoutes._routeKey` `abi.encodePacked` layout (canonical `xnsName`). */
   function routeStorageKey(xnsName: string, routePrefix: string, route: string): string {
+    const c = canonicalXnsName(xnsName);
     if (routePrefix === "") {
-      return ethers.solidityPackedKeccak256(["string", "string", "string"], [xnsName, "/", route]);
+      return ethers.solidityPackedKeccak256(["string", "string", "string"], [c, "/", route]);
     }
     return ethers.solidityPackedKeccak256(
       ["string", "string", "string", "string", "string"],
-      [xnsName, "/", routePrefix, ":", route],
+      [c, "/", routePrefix, ":", route],
     );
   }
 
@@ -1026,6 +1035,65 @@ describe("XNSRoutes", function () {
 
       await expect(routes.getRouteKeys(XNS_NAME, 1, 0)).to.be.revertedWith(XR.invalidRouteKeySlice);
       await expect(routes.getRouteKeys(XNS_NAME, 0, 2)).to.be.revertedWith(XR.invalidRouteKeySlice);
+    });
+  });
+
+  describe("bare XNS name canonicalization", function () {
+    const BARE_LABEL = "barecanon";
+    const BARE_CANON = "barecanon.x";
+
+    async function deployWithBare(): Promise<Fixture> {
+      const f = await deployFixture();
+      await f.mockXns.setResolution(BARE_CANON, f.owner.address);
+      return f;
+    }
+
+    it("Should resolve routes created with bare label when queried with canonical name", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployWithBare);
+      const r = "my-route";
+      await routes.connect(owner).createRoute(BARE_LABEL, "", r, buildTarget, RT0, true, false);
+
+      expect(await routes.routeExists(BARE_CANON, "", r)).to.equal(true);
+      expect((await routes.getRouteInfo(BARE_CANON, "", r))[0]).to.equal(buildTarget);
+    });
+
+    it("Should treat bare and canonical name as the same route book (second create reverts)", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployWithBare);
+      const r = "my-route";
+      await routes.connect(owner).createRoute(BARE_LABEL, "", r, buildTarget, RT0, true, false);
+
+      await expect(
+        routes.connect(owner).createRoute(BARE_CANON, "", r, buildTarget, RT0, true, false),
+      ).to.be.revertedWith(XR.routeAlreadyExists);
+    });
+
+    it("Should emit canonical xnsName in RouteActiveStatusUpdated", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployWithBare);
+      await routes
+        .connect(owner)
+        .createRoute(BARE_LABEL, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+
+      await expect(routes.connect(owner).deactivateRoute(BARE_CANON, ROUTE_PREFIX, ROUTE))
+        .to.emit(routes, "RouteActiveStatusUpdated")
+        .withArgs(
+          xnsNameKey(BARE_LABEL),
+          routeStorageKey(BARE_LABEL, ROUTE_PREFIX, ROUTE),
+          BARE_CANON,
+          ROUTE_PREFIX,
+          ROUTE,
+          false,
+        );
+    });
+
+    it("Should resolve getRouteInfoFromPath when the path uses a bare first segment", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployWithBare);
+      await routes
+        .connect(owner)
+        .createRoute(BARE_LABEL, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+
+      const fullPath = `${BARE_LABEL}/${ROUTE_PREFIX}:${ROUTE}`;
+      const [target] = await routes.getRouteInfoFromPath(fullPath);
+      expect(target).to.equal(buildTarget);
     });
   });
 });

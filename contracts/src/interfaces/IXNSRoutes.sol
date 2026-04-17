@@ -2,7 +2,8 @@
 pragma solidity 0.8.28;
 
 /// @title IXNSRoutes
-/// @notice Interface for the `XNSRoutes` route registry.
+/// @notice Interface for the `XNSRoutes` route registry. Dotless `xnsName` arguments are
+///         normalized to `label.x` for auth, storage keys, views, and event strings.
 interface IXNSRoutes {
     struct RouteRecord {
         address target;

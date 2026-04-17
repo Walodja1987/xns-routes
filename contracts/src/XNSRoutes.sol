@@ -54,6 +54,8 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 ///   lookup from `target` to all names/routes is not stored on-chain.
 /// - For one known `xnsName`, on-chain enumeration is available without an indexer via the append-only
 ///   route-key log (`getRouteKeyCount`, `getRouteKeys`, `getRouteRecordByRouteKey` / batch overload).
+/// - `xnsName` is canonicalized for storage, auth, views, and events: a dotless name `label` is treated
+///   as `label.x` (default XNS namespace `x`); names that already contain `.` are unchanged.
 contract XNSRoutes {
     // -------------------------------------------------------------------------
     // Types
@@ -73,13 +75,13 @@ contract XNSRoutes {
     /// @notice XNS registry this contract calls for name resolution and label validation.
     IXNSMinimal public immutable XNS;
 
-    // keccak256(bytes(xnsName)) => true if the route book for an XNS name is frozen
+    // keccak256(bytes(canonical xnsName)) => true if the route book for an XNS name is frozen
     mapping(bytes32 => bool) private _routeBookFrozen;
 
-    // _routeKey(xnsName, routePrefix, route) => route record
+    // _routeKey(canonical xnsName, routePrefix, route) => route record
     mapping(bytes32 => RouteRecord) private _routes;
 
-    // keccak256(bytes(xnsName)) => append-only log of route keys ever created under that
+    // keccak256(bytes(canonical xnsName)) => append-only log of route keys ever created under that
     // XNS name (not shortened on delete)
     mapping(bytes32 => bytes32[]) private _routeKeysByName;
 
@@ -223,10 +225,9 @@ contract XNSRoutes {
         bool activate,
         bool freeze
     ) external {
-        // Check if the caller is authorized to create a route (must be the XNS name owner)
-        _requireXNSNameOwner(xnsName);
+        string memory canonicalName = _requireXNSNameOwner(xnsName);
 
-        bytes32 nameKey = _xnsNameKey(xnsName);
+        bytes32 nameKey = _xnsNameKey(canonicalName);
 
         // Validate that the route prefix and route are valid strings
         _validateRoutePrefixAndRoute(routePrefix, route);
@@ -238,7 +239,7 @@ contract XNSRoutes {
         require(!_routeBookFrozen[nameKey], "XNSRoutes: route book frozen");
 
         // Derive the route key and check if the route already exists
-        bytes32 routeKey = _routeKey(xnsName, routePrefix, route);
+        bytes32 routeKey = _routeKey(canonicalName, routePrefix, route);
         require(_routes[routeKey].target == address(0), "XNSRoutes: route already exists");
 
         // Create the route record
@@ -253,14 +254,14 @@ contract XNSRoutes {
 
         // Emit the `RouteFrozen` event, if the route is frozen
         if (freeze) {
-            emit RouteFrozen(nameKey, routeKey, xnsName, routePrefix, route);
+            emit RouteFrozen(nameKey, routeKey, canonicalName, routePrefix, route);
         }
 
         // Emit the `RouteCreated` event
         emit RouteCreated(
             nameKey,
             routeKey,
-            xnsName,
+            canonicalName,
             routePrefix,
             route,
             target,
@@ -295,10 +296,9 @@ contract XNSRoutes {
         bool activate,
         bool freeze
     ) external {
-        // Check if the caller is authorized to update a route (must be the XNS name owner)
-        _requireXNSNameOwner(xnsName);
+        string memory canonicalName = _requireXNSNameOwner(xnsName);
 
-        bytes32 nameKey = _xnsNameKey(xnsName);
+        bytes32 nameKey = _xnsNameKey(canonicalName);
 
         // Confirm that the target is not the zero address
         require(target != address(0), "XNSRoutes: invalid target");
@@ -310,7 +310,7 @@ contract XNSRoutes {
         _validateRoutePrefixAndRoute(routePrefix, route);
 
         // Derive the route key and check if the route exists and is not frozen
-        bytes32 routeKey = _routeKey(xnsName, routePrefix, route);
+        bytes32 routeKey = _routeKey(canonicalName, routePrefix, route);
         RouteRecord storage record = _routes[routeKey];
         require(record.target != address(0), "XNSRoutes: route not found");
         require(!record.isFrozen, "XNSRoutes: cannot update frozen route");
@@ -323,14 +323,14 @@ contract XNSRoutes {
         // Emit the `RouteFrozen` event, if the route is frozen
         if (freeze) {
             record.isFrozen = true;
-            emit RouteFrozen(nameKey, routeKey, xnsName, routePrefix, route);
+            emit RouteFrozen(nameKey, routeKey, canonicalName, routePrefix, route);
         }
 
         // Emit the `RouteUpdated` event
         emit RouteUpdated(
             nameKey,
             routeKey,
-            xnsName,
+            canonicalName,
             routePrefix,
             route,
             target,
@@ -399,14 +399,13 @@ contract XNSRoutes {
         string calldata route,
         bool active
     ) private {
-        // Check if the caller is authorized to update the route active status (must be the XNS name owner)
-        _requireXNSNameOwner(xnsName);
+        string memory canonicalName = _requireXNSNameOwner(xnsName);
 
         // Validate that the route prefix and route are valid strings
         _validateRoutePrefixAndRoute(routePrefix, route);
 
         // Derive the route key and check if the route exists
-        bytes32 routeKey = _routeKey(xnsName, routePrefix, route);
+        bytes32 routeKey = _routeKey(canonicalName, routePrefix, route);
         RouteRecord storage record = _routes[routeKey];
         require(record.target != address(0), "XNSRoutes: route not found");
 
@@ -415,9 +414,9 @@ contract XNSRoutes {
         if (record.isActive != active) {
             record.isActive = active;
             emit RouteActiveStatusUpdated(
-                _xnsNameKey(xnsName),
+                _xnsNameKey(canonicalName),
                 routeKey,
-                xnsName,
+                canonicalName,
                 routePrefix,
                 route,
                 active
@@ -443,10 +442,9 @@ contract XNSRoutes {
         string calldata routePrefix,
         string calldata route
     ) external {
-        // Check if the caller is authorized to delete a route (must be the XNS name owner)
-        _requireXNSNameOwner(xnsName);
+        string memory canonicalName = _requireXNSNameOwner(xnsName);
 
-        bytes32 nameKey = _xnsNameKey(xnsName);
+        bytes32 nameKey = _xnsNameKey(canonicalName);
 
         // Check if the route book is frozen
         require(!_routeBookFrozen[nameKey], "XNSRoutes: route book frozen");
@@ -455,7 +453,7 @@ contract XNSRoutes {
         _validateRoutePrefixAndRoute(routePrefix, route);
 
         // Derive the route key and check if the route exists and is not frozen
-        bytes32 routeKey = _routeKey(xnsName, routePrefix, route);
+        bytes32 routeKey = _routeKey(canonicalName, routePrefix, route);
         RouteRecord storage record = _routes[routeKey];
         require(record.target != address(0), "XNSRoutes: route not found");
         require(!record.isFrozen, "XNSRoutes: cannot delete frozen route");
@@ -464,7 +462,7 @@ contract XNSRoutes {
         delete _routes[routeKey];
 
         // Emit the `RouteDeleted` event
-        emit RouteDeleted(nameKey, routeKey, xnsName, routePrefix, route);
+        emit RouteDeleted(nameKey, routeKey, canonicalName, routePrefix, route);
     }
 
     /// @notice Update the build `target` for an existing route.
@@ -488,10 +486,9 @@ contract XNSRoutes {
         string calldata route,
         address newTarget
     ) external {
-        // Check if the caller is authorized to update the target (must be the XNS name owner)
-        _requireXNSNameOwner(xnsName);
+        string memory canonicalName = _requireXNSNameOwner(xnsName);
 
-        bytes32 nameKey = _xnsNameKey(xnsName);
+        bytes32 nameKey = _xnsNameKey(canonicalName);
 
         // Check if the route book is frozen
         require(!_routeBookFrozen[nameKey], "XNSRoutes: route book frozen");
@@ -500,7 +497,7 @@ contract XNSRoutes {
         _validateRoutePrefixAndRoute(routePrefix, route);
 
         // Derive the route key and check if the route exists and is not frozen
-        bytes32 routeKey = _routeKey(xnsName, routePrefix, route);
+        bytes32 routeKey = _routeKey(canonicalName, routePrefix, route);
         RouteRecord storage record = _routes[routeKey];
         require(record.target != address(0), "XNSRoutes: route not found");
         require(!record.isFrozen, "XNSRoutes: cannot update frozen route");
@@ -511,7 +508,7 @@ contract XNSRoutes {
         // Update the target and emit the `RouteTargetUpdated` event, if the target changes
         if (record.target != newTarget) {
             record.target = newTarget;
-            emit RouteTargetUpdated(nameKey, routeKey, xnsName, routePrefix, route, newTarget);
+            emit RouteTargetUpdated(nameKey, routeKey, canonicalName, routePrefix, route, newTarget);
         }
     }
 
@@ -535,10 +532,9 @@ contract XNSRoutes {
         string calldata route,
         uint32 newRouteType
     ) external {
-        // Check if the caller is authorized to update the route type (must be the XNS name owner)
-        _requireXNSNameOwner(xnsName);
+        string memory canonicalName = _requireXNSNameOwner(xnsName);
 
-        bytes32 nameKey = _xnsNameKey(xnsName);
+        bytes32 nameKey = _xnsNameKey(canonicalName);
 
         // Check if the route book is frozen
         require(!_routeBookFrozen[nameKey], "XNSRoutes: route book frozen");
@@ -547,7 +543,7 @@ contract XNSRoutes {
         _validateRoutePrefixAndRoute(routePrefix, route);
 
         // Derive the route key and check if the route exists and is not frozen
-        bytes32 routeKey = _routeKey(xnsName, routePrefix, route);
+        bytes32 routeKey = _routeKey(canonicalName, routePrefix, route);
         RouteRecord storage record = _routes[routeKey];
         require(record.target != address(0), "XNSRoutes: route not found");
         require(!record.isFrozen, "XNSRoutes: cannot update frozen route");
@@ -555,7 +551,7 @@ contract XNSRoutes {
         // Update the route type and emit the `RouteTypeUpdated` event, if the route type changes
         if (record.routeType != newRouteType) {
             record.routeType = newRouteType;
-            emit RouteTypeUpdated(nameKey, routeKey, xnsName, routePrefix, route, newRouteType);
+            emit RouteTypeUpdated(nameKey, routeKey, canonicalName, routePrefix, route, newRouteType);
         }
     }
 
@@ -578,24 +574,23 @@ contract XNSRoutes {
         string calldata routePrefix,
         string calldata route
     ) external {
-        // Check if the caller is authorized to freeze the route (must be the XNS name owner)
-        _requireXNSNameOwner(xnsName);
+        string memory canonicalName = _requireXNSNameOwner(xnsName);
 
-        bytes32 nameKey = _xnsNameKey(xnsName);
+        bytes32 nameKey = _xnsNameKey(canonicalName);
         require(!_routeBookFrozen[nameKey], "XNSRoutes: route book frozen");
 
         // Validate that the route prefix and route are valid strings
         _validateRoutePrefixAndRoute(routePrefix, route);
 
         // Derive the route key and check if the route exists
-        bytes32 routeKey = _routeKey(xnsName, routePrefix, route);
+        bytes32 routeKey = _routeKey(canonicalName, routePrefix, route);
         RouteRecord storage record = _routes[routeKey];
         require(record.target != address(0), "XNSRoutes: route not found");
 
         // Update the route freeze status and emit the `RouteFrozen` event, if the route is not frozen
         if (!record.isFrozen) {
             record.isFrozen = true;
-            emit RouteFrozen(nameKey, routeKey, xnsName, routePrefix, route);
+            emit RouteFrozen(nameKey, routeKey, canonicalName, routePrefix, route);
         }
     }
 
@@ -613,14 +608,13 @@ contract XNSRoutes {
     ///
     /// @param xnsName Fully-qualified XNS name whose route book to freeze.
     function freezeRouteBook(string calldata xnsName) external {
-        // Check if the caller is authorized to freeze the route book (must be the XNS name owner)
-        _requireXNSNameOwner(xnsName);
+        string memory canonicalName = _requireXNSNameOwner(xnsName);
 
         // Check if the route book is not already frozen
-        bytes32 nameKey = _xnsNameKey(xnsName);
+        bytes32 nameKey = _xnsNameKey(canonicalName);
         if (!_routeBookFrozen[nameKey]) {
             _routeBookFrozen[nameKey] = true;
-            emit RouteBookFrozenForName(nameKey, xnsName);
+            emit RouteBookFrozenForName(nameKey, canonicalName);
         }
     }
 
@@ -716,7 +710,7 @@ contract XNSRoutes {
     }
 
     /// @notice Returns whether the entire route book under `xnsName` is frozen
-    /// (reads `_routeBookFrozen[keccak256(bytes(xnsName))]`).
+    /// (reads `_routeBookFrozen[keccak256(bytes(canonical xnsName))]`).
     ///
     /// @param xnsName Fully-qualified XNS name.
     /// @return frozen True if the route book is frozen.
@@ -894,34 +888,63 @@ contract XNSRoutes {
         out = string(buf);
     }
 
-    /// @dev XNS `getAddress` returns zero for empty `fullName` and for unregistered names.
-    /// @param xnsName Fully-qualified XNS name to authorize against.
-    function _requireXNSNameOwner(string calldata xnsName) private view {
-        address xnsNameOwner = XNS.getAddress(xnsName);
+    /// @dev Dotless `label` becomes `label.x` (default namespace `x`); otherwise returns `xnsName` unchanged.
+    /// @param xnsName User-supplied XNS name segment.
+    /// @return canonicalName Canonical form used for keys, storage, and events.
+    function _canonicalizeXNSName(
+        string memory xnsName
+    ) private pure returns (string memory canonicalName) {
+        bytes memory b = bytes(xnsName);
+        require(b.length > 0, "XNSRoutes: invalid XNS name");
+
+        bool hasDot;
+        for (uint256 i = 0; i < b.length; ++i) {
+            if (b[i] == 0x2E) {
+                hasDot = true;
+                break;
+            }
+        }
+
+        if (!hasDot) {
+            return string.concat(xnsName, ".x");
+        }
+
+        return xnsName;
+    }
+
+    /// @dev Resolves ownership against the canonical name. XNS `getAddress` returns zero for unregistered names.
+    /// @param xnsName XNS name as passed by the caller (bare or fully qualified).
+    /// @return canonicalName Canonical form used for keys, storage, and events.
+    function _requireXNSNameOwner(
+        string calldata xnsName
+    ) private view returns (string memory canonicalName) {
+        canonicalName = _canonicalizeXNSName(xnsName);
+        address xnsNameOwner = XNS.getAddress(canonicalName);
         require(xnsNameOwner != address(0), "XNSRoutes: invalid XNS name");
         require(msg.sender == xnsNameOwner, "XNSRoutes: not XNS name owner");
     }
 
-    /// @dev `keccak256(bytes(xnsName))`
-    function _xnsNameKey(string calldata xnsName) private pure returns (bytes32) {
-        return keccak256(bytes(xnsName));
+    /// @dev `keccak256(bytes(_canonicalizeXNSName(xnsName)))`
+    function _xnsNameKey(string memory xnsName) private pure returns (bytes32) {
+        return keccak256(bytes(_canonicalizeXNSName(xnsName)));
     }
 
-    /// @dev Empty `routePrefix`: packed `xnsName/route` (matches human path without `:`).
-    /// Non-empty: `xnsName/routePrefix:route`.
-    /// @param xnsName Fully-qualified XNS name.
+    /// @dev Empty `routePrefix`: packed `canonicalXnsName/route` (matches human path without `:`).
+    /// Non-empty: `canonicalXnsName/routePrefix:route`.
+    /// @param xnsName XNS name (canonicalized before packing).
     /// @param routePrefix Optional route prefix segment.
     /// @param route Route label segment.
-    /// @return key Keccak-256 route storage key for `(xnsName, routePrefix, route)`.
+    /// @return key Keccak-256 route storage key for `(canonical xnsName, routePrefix, route)`.
     function _routeKey(
         string memory xnsName,
         string memory routePrefix,
         string memory route
     ) private pure returns (bytes32 key) {
+        string memory canonicalName = _canonicalizeXNSName(xnsName);
         if (bytes(routePrefix).length == 0) {
-            return keccak256(abi.encodePacked(xnsName, "/", route));
+            return keccak256(abi.encodePacked(canonicalName, "/", route));
         }
-        return keccak256(abi.encodePacked(xnsName, "/", routePrefix, ":", route));
+        return keccak256(abi.encodePacked(canonicalName, "/", routePrefix, ":", route));
     }
 
     /// @dev Non-empty `routePrefix` and `route` must satisfy slug rules (charset/hyphen constraints)
