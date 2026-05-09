@@ -6,7 +6,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 ## Test setup
 
-- **Unit tests** use [`MockXNS`](../contracts/src/mocks/MockXNS.sol): set `xnsName → owner` via `setResolution`. Route segment validation is local to `XNSRoutes` (not delegated to XNS): `routePrefix` allows 1–20 chars (or empty), while `route` allows 1–48 chars; both share lowercase/number/hyphen and hyphen-placement rules.
+- **Unit tests** use [`MockXNS`](../contracts/src/mocks/MockXNS.sol): set `xnsName → owner` via `setResolution`. Route segment validation is local to `XNSRoutes` (not delegated to XNS): `routePrefix` allows 1–20 chars (or empty), while `route` allows 1–32 chars; both share lowercase/number/hyphen and hyphen-placement rules.
 - **Canonical on-chain XNS** addresses for deploy/scripts/fork work live in [`constants/addresses.ts`](../constants/addresses.ts) as `XNS_ADDRESS` (they are not used by the default local test suite).
 
 ---
@@ -41,7 +41,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Reverts
 
-- Owner, local route-segment rules on non-empty `routePrefix` and on `route` (prefix 1–20; route 1–48), non-zero `target`, `"XNSRoutes: route book frozen"`, plus `"XNSRoutes: route already exists"` if the route key already exists.
+- Owner, local route-segment rules on non-empty `routePrefix` and on `route` (prefix 1–20; route 1–32), non-zero `target`, `"XNSRoutes: route book frozen"`, plus `"XNSRoutes: route already exists"` if the route key already exists.
 
 ---
 
@@ -178,6 +178,14 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 - `getRouteInfo` should revert with `"XNSRoutes: route not found"` when the route does not exist.
 - Should revert with `"XNSRoutes: invalid route prefix"` / `"XNSRoutes: invalid route"` for malformed `routePrefix` / `route` (e.g. `:` in `route` when `routePrefix` is empty).
+
+---
+
+## `isValidRoutePrefix` / `isValidRoute` / `isValidRoutePrefixAndRoute`
+
+#### Functionality
+
+- Pure views mirror `_isValidRoutePrefix` / `_isValidRoute` / `_validateRoutePrefixAndRoute`: empty `routePrefix` is allowed; non-empty prefix and route must satisfy slug length and charset rules.
 
 ---
 

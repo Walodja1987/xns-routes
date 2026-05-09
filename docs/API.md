@@ -23,7 +23,7 @@ Examples:
 - Cannot contain consecutive hyphens ('--')
 
 `routePrefix` is optional; if provided, it must be 1-20 characters long.
-`route` is required and must be 1-48 characters long.
+`route` is required and must be 1-32 characters long.
 
 Key points:
 - Routes are owned and managed by the XNS name owner.
@@ -74,7 +74,7 @@ function createRoute(string xnsName, string routePrefix, string route, address t
 | ---- | ---- | ----------- |
 | xnsName | string | The XNS name that owns the route space, e.g. "xns.action" |
 | routePrefix | string | Optional path segment before `:`; non-empty must pass local route-prefix        rules (same charset/hyphen constraints as XNS labels, max length 20);        empty means `xnsName/route/...` only (no `:` in the routePath). |
-| route | string | Required route label (same charset/hyphen constraints as XNS labels, max        length 48). |
+| route | string | Required route label (same charset/hyphen constraints as XNS labels, max        length 32). |
 | target | address | Build address for `routeType`; must be non-zero (`address(0)` is reserved        for "missing route"). |
 | routeType | uint32 | Opaque hint for parsers (semantics offchain) |
 | activate | bool | Initial value for stored `isActive`. |
@@ -535,6 +535,31 @@ function splitFullPath(string fullRoutePath) external pure returns (string xnsNa
 | xnsName | string | Segment before the first `/`. |
 | routePrefix | string | Segment before the first `:` in the routePath, or empty if there is no `:`. |
 | route | string | Remainder of the routePath after `routePrefix` and `:`, or the whole         routePath if there is no `:`. |
+
+
+### isValidRoutePrefix
+
+Returns whether `routePrefix` satisfies local prefix rules. Empty string is valid (no prefix); non-empty values must match the same slug rules as non-empty prefixes in `createRoute` (1–20 characters).
+
+```solidity
+function isValidRoutePrefix(string routePrefix) external pure returns (bool valid)
+```
+
+### isValidRoute
+
+Returns whether `route` satisfies local route rules (1–32 characters, slug charset and hyphen placement).
+
+```solidity
+function isValidRoute(string route) external pure returns (bool valid)
+```
+
+### isValidRoutePrefixAndRoute
+
+Returns whether the pair `(routePrefix, route)` would pass validation used by mutating functions and tuple-based reads (`getRouteInfo`, `routeExists`, etc.).
+
+```solidity
+function isValidRoutePrefixAndRoute(string routePrefix, string route) external pure returns (bool valid)
+```
 
 
 ## Events

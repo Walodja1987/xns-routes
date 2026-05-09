@@ -167,6 +167,15 @@ interface IXNSRoutes {
         string calldata fullRoutePath
     ) external pure returns (string memory xnsName, string memory routePrefix, string memory route);
 
+    function isValidRoutePrefix(string calldata routePrefix) external pure returns (bool valid);
+
+    function isValidRoute(string calldata route) external pure returns (bool valid);
+
+    function isValidRoutePrefixAndRoute(
+        string calldata routePrefix,
+        string calldata route
+    ) external pure returns (bool valid);
+
     function getRouteKeyCount(string calldata xnsName) external view returns (uint256 count);
 
     function getRouteKeys(

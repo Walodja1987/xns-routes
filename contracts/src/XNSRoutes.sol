@@ -14,9 +14,6 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 //                                                                                           //
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
-// @todo create getter for isValid string functions?
-// --------------------------------
-
 /// @title XNSRoutes
 /// @author Wladimir Weinbender (DIVA Technologies AG)
 /// @notice Route registry for XNS names which enables XNS name owners to map URL-style
@@ -37,7 +34,7 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - Cannot contain consecutive hyphens ('--')
 ///
 /// `routePrefix` is optional; if provided, it must be 1-20 characters long.
-/// `route` is required and must be 1-48 characters long.
+/// `route` is required and must be 1-32 characters long.
 ///
 /// Key points:
 /// - Routes are owned and managed by the XNS name owner.
@@ -50,12 +47,11 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 ///   `routeType = 1` may suggest that the `target` is a smart contract.
 ///   `routeType = 2` may suggest that the `target` is a special contract that returns parametrized calldata.
 ///   `routeType = 3` may suggest that the `target` returns a Bitcoin address.
-/// - Forward resolution is direct (`xnsName`, `routePrefix`, `route` → `target`). A global reverse
-///   lookup from `target` to all names/routes is not stored on-chain.
+/// - Forward resolution is direct: `[xnsName]/[routePrefix:][route]` → `target`. Reverse lookup is not
+///   supported because many routes may point to the same `target`.
 /// - For one known `xnsName`, on-chain enumeration is available without an indexer via the append-only
 ///   route-key log (`getRouteKeyCount`, `getRouteKeys`, `getRouteRecordByRouteKey` / batch overload).
-/// - `xnsName` is canonicalized for storage, auth, views, and events: a dotless name `label` is treated
-///   as `label.x` (default XNS namespace `x`); names that already contain `.` are unchanged.
+/// - Bare names like `bob` are normalized/canonicalized to `bob.x` for storage.
 contract XNSRoutes {
     // -------------------------------------------------------------------------
     // Types
@@ -72,7 +68,7 @@ contract XNSRoutes {
     // Storage variables
     // -------------------------------------------------------------------------
 
-    /// @notice XNS registry this contract calls for name resolution and label validation.
+    /// @notice XNS registry this contract calls for name resolution.
     IXNSMinimal public immutable XNS;
 
     // keccak256(bytes(canonical xnsName)) => true if the route book for an XNS name is frozen
@@ -81,8 +77,8 @@ contract XNSRoutes {
     // _routeKey(canonical xnsName, routePrefix, route) => route record
     mapping(bytes32 => RouteRecord) private _routes;
 
-    // keccak256(bytes(canonical xnsName)) => append-only log of route keys ever created under that
-    // XNS name (not shortened on delete)
+    // keccak256(bytes(canonical xnsName)) => append-only log of route keys ever created
+    // under that XNS name (not shortened on delete)
     mapping(bytes32 => bytes32[]) private _routeKeysByName;
 
     // -------------------------------------------------------------------------
@@ -171,19 +167,13 @@ contract XNSRoutes {
     // -------------------------------------------------------------------------
     // Constructor
     // -------------------------------------------------------------------------
-    /// @notice Constructs the registry and registers `routes.xns` to this contract via XNS.
+    /// @notice Sets the XNS registry and registers the name `routes.xns` for this contract.
     ///
     /// **Requirements:**
     /// - `_xns` must not be the zero address.
-    /// - `msg.value` is forwarded to `registerName("routes","xns")` so `routes.xns` resolves
-    ///   to `address(this)`; XNS-side rules (payment, exclusivity, name availability, etc.) apply
-    ///   and deployment reverts if registration fails.
+    /// - `msg.value` must be exactly 0.001 ETH for the registration of `routes.xns`.
     ///
-    /// Because the owner of `routes.xns` is this contract, `createRoute` / `updateRoute` with
-    /// `xnsName == "routes.xns"` requires `msg.sender == address(this)`; use an authorized entrypoint
-    /// with `this.createRoute` / `this.updateRoute` (or another XNS name owned by the operator).
-    ///
-    /// @param _xns XNS registry implementing `IXNSMinimal`.
+    /// @param _xns XNS registry address.
     constructor(address _xns) payable {
         require(_xns != address(0), "XNSRoutes: 0x XNS address");
         XNS = IXNSMinimal(_xns);
@@ -193,29 +183,31 @@ contract XNSRoutes {
     // -------------------------------------------------------------------------
     // State-modifying functions
     // -------------------------------------------------------------------------
-    /// @notice Create a route under `(xnsName, routePrefix, route)`. Reverts if that key already exists.
+    /// @notice Create a route `[xnsName]/[routePrefix:][route]`. Reverts if the route already exists.
     ///
     /// **Requirements:**
-    /// - `msg.sender` must be the current XNS owner for `xnsName`.
-    /// - Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
+    /// - `msg.sender` must be the owner for `xnsName`.
+    /// - Non-empty `routePrefix` and `route` must satisfy local character set, hyphenation, and length rules.
+    /// - `route` must be a non-empty string.
     /// - `target` must not be the zero address.
     /// - The route book for `xnsName` must not be frozen.
     /// - The route key must not already exist.
     ///
-    /// On success, appends the route storage key to the per-name append-only log
-    /// (`getRouteKeyCount` / `getRouteKeys`).
+    /// On success, appends the route key to the append-only array `_routeKeysByName` associated with `xnsName`.
     ///
-    /// @param xnsName The XNS name that owns the route space, e.g. "xns.action"
+    /// Note: Bare names like `bob` are normalized/canonicalized to `bob.x` for storage.
+    ///
+    /// @param xnsName The XNS name that owns the route space, e.g. "xns.action".
     /// @param routePrefix Optional path segment before `:`; non-empty must pass local route-prefix
-    ///        rules (same charset/hyphen constraints as XNS labels, max length 20);
-    ///        empty means `xnsName/route/...` only (no `:` in the routePath).
-    /// @param route Required route label (same charset/hyphen constraints as XNS labels, max
-    ///        length 48).
-    /// @param target Build address for `routeType`; must be non-zero (`address(0)` is reserved
-    ///        for "missing route").
-    /// @param routeType Opaque hint for parsers (semantics offchain)
+    /// rules ([a-z0-9-], max length 20).
+    /// empty means `xnsName/route` only (no `:` in the routePath).
+    /// @param route Required route label ([a-z0-9-], max length 32).
+    /// @param target Target address for `routeType`; must be non-zero (`address(0)` is reserved
+    /// for non-existent route).
+    /// @param routeType Hint for route parsers on how to interpret the `target` output
+    /// (off-chain semantics), e.g. 0 = plain address, 2 = Bitcoin address, 3 = html, etc.
     /// @param activate Initial value for stored `isActive`.
-    /// @param freeze If true, set stored `isFrozen` in this same tx (irreversible for that route).
+    /// @param freeze If true, renders the route immutable.
     function createRoute(
         string calldata xnsName,
         string calldata routePrefix,
@@ -225,8 +217,10 @@ contract XNSRoutes {
         bool activate,
         bool freeze
     ) external {
+        // Confirm that the XNS name is owned by the caller
         string memory canonicalName = _requireXNSNameOwner(xnsName);
 
+        // Derive the name key (`keccak256(bytes(canonical xnsName))`) for the XNS name
         bytes32 nameKey = _xnsNameKey(canonicalName);
 
         // Validate that the route prefix and route are valid strings
@@ -465,7 +459,7 @@ contract XNSRoutes {
         emit RouteDeleted(nameKey, routeKey, canonicalName, routePrefix, route);
     }
 
-    /// @notice Update the build `target` for an existing route.
+    /// @notice Update the `target` address for an existing route.
     ///
     /// **Requirements:**
     /// - `msg.sender` must be the current XNS owner for `xnsName`.
@@ -479,7 +473,7 @@ contract XNSRoutes {
     /// @param xnsName The XNS name that owns the route space.
     /// @param routePrefix Optional route prefix segment (empty means no prefix).
     /// @param route Route label segment.
-    /// @param newTarget New build target; must be non-zero.
+    /// @param newTarget New target address; must be non-zero.
     function updateTarget(
         string calldata xnsName,
         string calldata routePrefix,
@@ -628,7 +622,7 @@ contract XNSRoutes {
     /// @param xnsName The XNS name that owns the route space.
     /// @param routePrefix Optional route prefix segment (empty means no prefix).
     /// @param route Route label segment.
-    /// @return target Stored build target address.
+    /// @return target Stored target address for the route.
     /// @return isActive Whether the route is active.
     /// @return isFrozen Whether the route is frozen per-route.
     /// @return routeType Opaque parser hint.
@@ -796,7 +790,7 @@ contract XNSRoutes {
     /// @return xnsName Segment before the first `/`.
     /// @return routePrefix Segment before the first `:` in the routePath, or empty if there is no `:`.
     /// @return route Remainder of the routePath after `routePrefix` and `:`, or the whole
-    ///         routePath if there is no `:`.
+    /// routePath if there is no `:`.
     function splitFullPath(
         string calldata fullRoutePath
     )
@@ -805,6 +799,33 @@ contract XNSRoutes {
         returns (string memory xnsName, string memory routePrefix, string memory route)
     {
         return _splitFullPath(fullRoutePath);
+    }
+
+    /// @notice Returns whether `routePrefix` satisfies local prefix rules. Empty string is valid
+    /// (no prefix); non-empty must be 1–20 chars and match the slug charset/hyphen rules.
+    /// @param routePrefix Candidate route-prefix segment (may be empty).
+    /// @return valid True when `routePrefix` is empty or passes `_isValidRoutePrefix`.
+    function isValidRoutePrefix(string calldata routePrefix) external pure returns (bool valid) {
+        return bytes(routePrefix).length == 0 || _isValidRoutePrefix(routePrefix);
+    }
+
+    /// @notice Returns whether `route` satisfies local route rules (1–32 chars, slug charset/hyphen rules).
+    /// @param route Candidate route label.
+    /// @return valid True when `route` passes `_isValidRoute`.
+    function isValidRoute(string calldata route) external pure returns (bool valid) {
+        return _isValidRoute(route);
+    }
+
+    /// @notice Returns whether `(routePrefix, route)` would pass validation used by mutating and tuple-based view functions.
+    /// @param routePrefix Candidate route-prefix segment (may be empty).
+    /// @param route Candidate route label.
+    /// @return valid True when the tuple passes `_validateRoutePrefixAndRoute` rules.
+    function isValidRoutePrefixAndRoute(
+        string calldata routePrefix,
+        string calldata route
+    ) external pure returns (bool valid) {
+        if (bytes(routePrefix).length != 0 && !_isValidRoutePrefix(routePrefix)) return false;
+        return _isValidRoute(route);
     }
 
     /// @dev Splits `fullRoutePath` at the first `/` into `xnsName` and `routePath`. Within `routePath`,
@@ -949,7 +970,7 @@ contract XNSRoutes {
 
     /// @dev Non-empty `routePrefix` and `route` must satisfy slug rules (charset/hyphen constraints)
     /// so malformed tuples cannot alias canonical keys. `routePrefix` max length is 20; `route` max
-    /// length is 48.
+    /// length is 32.
     /// @param routePrefix Optional route prefix segment to validate when non-empty.
     /// @param route Route label segment to validate.
     function _validateRoutePrefixAndRoute(
@@ -970,11 +991,11 @@ contract XNSRoutes {
         return _isValidSlug(routePrefix, 20);
     }
 
-    /// @dev Route validator (same character/hyphen rules as XNS labels, max length 48).
+    /// @dev Route validator (same character/hyphen rules as XNS labels, max length 32).
     /// @param route Candidate route label.
     /// @return isValid True when `route` is valid.
     function _isValidRoute(string memory route) private pure returns (bool isValid) {
-        return _isValidSlug(route, 48);
+        return _isValidSlug(route, 32);
     }
 
     /// @dev Shared slug validator used by route-prefix and route checks.

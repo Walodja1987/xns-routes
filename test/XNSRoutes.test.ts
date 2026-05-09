@@ -272,21 +272,21 @@ describe("XNSRoutes", function () {
       );
     });
 
-    it("Should allow route length up to 48 chars and reject >48", async function () {
+    it("Should allow route length up to 32 chars and reject >32", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
-      const route48 = "a".repeat(48);
-      const route49 = "a".repeat(49);
+      const route32 = "a".repeat(32);
+      const route33 = "a".repeat(33);
 
       await expect(
         routes
           .connect(owner)
-          .createRoute(XNS_NAME, ROUTE_PREFIX, route48, buildTarget, RT0, true, false),
+          .createRoute(XNS_NAME, ROUTE_PREFIX, route32, buildTarget, RT0, true, false),
       ).to.emit(routes, "RouteCreated");
 
       await expect(
         routes
           .connect(owner)
-          .createRoute(XNS_NAME, ROUTE_PREFIX, route49, buildTarget, RT0, true, false),
+          .createRoute(XNS_NAME, ROUTE_PREFIX, route33, buildTarget, RT0, true, false),
       ).to.be.revertedWith(XR.invalidRoute);
     });
 
@@ -1035,6 +1035,31 @@ describe("XNSRoutes", function () {
 
       await expect(routes.getRouteKeys(XNS_NAME, 1, 0)).to.be.revertedWith(XR.invalidRouteKeySlice);
       await expect(routes.getRouteKeys(XNS_NAME, 0, 2)).to.be.revertedWith(XR.invalidRouteKeySlice);
+    });
+  });
+
+  describe("route segment validation (pure views)", function () {
+    it("Should expose isValidRoutePrefix consistent with mutators", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      expect(await routes.isValidRoutePrefix("")).to.equal(true);
+      expect(await routes.isValidRoutePrefix(ROUTE_PREFIX)).to.equal(true);
+      expect(await routes.isValidRoutePrefix("a".repeat(21))).to.equal(false);
+      expect(await routes.isValidRoutePrefix("Bad")).to.equal(false);
+    });
+
+    it("Should expose isValidRoute consistent with mutators", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      expect(await routes.isValidRoute("")).to.equal(false);
+      expect(await routes.isValidRoute(ROUTE)).to.equal(true);
+      expect(await routes.isValidRoute("a".repeat(33))).to.equal(false);
+    });
+
+    it("Should expose isValidRoutePrefixAndRoute as conjunction", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      expect(await routes.isValidRoutePrefixAndRoute("", ROUTE)).to.equal(true);
+      expect(await routes.isValidRoutePrefixAndRoute(ROUTE_PREFIX, ROUTE)).to.equal(true);
+      expect(await routes.isValidRoutePrefixAndRoute("bad!", ROUTE)).to.equal(false);
+      expect(await routes.isValidRoutePrefixAndRoute(ROUTE_PREFIX, "")).to.equal(false);
     });
   });
 
