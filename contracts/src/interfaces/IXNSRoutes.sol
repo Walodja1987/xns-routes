@@ -2,7 +2,8 @@
 pragma solidity 0.8.28;
 
 /// @title IXNSRoutes
-/// @notice Interface for the `XNSRoutes` route registry.
+/// @notice Interface for the `XNSRoutes` route registry. Dotless `xnsName` arguments are
+///         normalized to `label.x` for auth, storage keys, views, and event strings.
 interface IXNSRoutes {
     struct RouteRecord {
         address target;
@@ -23,24 +24,13 @@ interface IXNSRoutes {
         uint32 routeType
     );
 
-    event RouteUpdated(
-        bytes32 indexed nameHash,
-        bytes32 indexed routeKey,
-        string xnsName,
-        string routePrefix,
-        string route,
-        address indexed target,
-        bool isActive,
-        bool isFrozen,
-        uint32 routeType
-    );
-
     event RouteTargetUpdated(
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,
         string xnsName,
         string routePrefix,
         string route,
+        address previousTarget,
         address indexed newTarget
     );
 
@@ -50,6 +40,7 @@ interface IXNSRoutes {
         string xnsName,
         string routePrefix,
         string route,
+        uint32 previousRouteType,
         uint32 newRouteType
     );
 
@@ -62,6 +53,7 @@ interface IXNSRoutes {
         bool isActive
     );
 
+    /// Emitted when an existing route becomes frozen (`updateRoute` / `freezeRoute`). Initial freeze-at-create is only in `RouteCreated`.
     event RouteFrozen(
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,
@@ -165,6 +157,15 @@ interface IXNSRoutes {
     function splitFullPath(
         string calldata fullRoutePath
     ) external pure returns (string memory xnsName, string memory routePrefix, string memory route);
+
+    function isValidRoutePrefix(string calldata routePrefix) external pure returns (bool valid);
+
+    function isValidRoute(string calldata route) external pure returns (bool valid);
+
+    function isValidRoutePrefixAndRoute(
+        string calldata routePrefix,
+        string calldata route
+    ) external pure returns (bool valid);
 
     function getRouteKeyCount(string calldata xnsName) external view returns (uint256 count);
 

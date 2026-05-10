@@ -25,7 +25,7 @@ Each route:
 Validation rules for route segments:
 
 - `routePrefix` may be empty, or `1-20` chars if provided
-- `route` must be `1-48` chars
+- `route` must be `1-32` chars
 - charset for both: lowercase `a-z`, digits `0-9`, and `-`
 - no leading/trailing `-`, and no consecutive `--`
 
@@ -37,7 +37,7 @@ Validation rules for route segments:
 | -------------- | ------------------------------------------------------------------------------------------ |
 | XNS name       | Identity / publisher                                                                       |
 | Route prefix   | Optional disambiguator before `:` (e.g. `eth`); often network/context; empty or 1-20 chars |
-| Route          | Action / intent label (e.g. `transfer-usdt`); 1-48 chars                                   |
+| Route          | Action / intent label (e.g. `transfer-usdt`); 1-32 chars                                   |
 | Build contract | How the transaction is built                                                               |
 
 > **XNS names resolve identities. Routes resolve actions.**
@@ -258,7 +258,7 @@ The registry keeps an **append-only log** of **route storage keys** (`bytes32`) 
 **Views (see NatSpec / [docs/API.md](docs/API.md))**
 
 - `getRouteKeyCount(xnsName)` — length of the log for that name
-- `getRouteKeys(xnsName, start, end)` — page through keys (`end` is **exclusive**)
+- `getRouteKeys(xnsName, start, end)` — page through keys (`end` **exclusive**; if `end` &gt; log length, it is clamped to the log length; if `start` is past that range, returns an empty array)
 - `getRouteRecordByRouteKey(bytes32)` — read one `RouteRecord` by key (no string tuple needed)
 - `getRouteRecordByRouteKey(bytes32[])` — same, batch; returns `RouteRecord[]` (ABI overload—some clients must pick the function by full signature, e.g. ethers: `getFunction("getRouteRecordByRouteKey(bytes32[])")`)
 

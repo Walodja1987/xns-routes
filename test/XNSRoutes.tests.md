@@ -6,7 +6,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 ## Test setup
 
-- **Unit tests** use [`MockXNS`](../contracts/src/mocks/MockXNS.sol): set `xnsName → owner` via `setResolution`. Route segment validation is local to `XNSRoutes` (not delegated to XNS): `routePrefix` allows 1–20 chars (or empty), while `route` allows 1–48 chars; both share lowercase/number/hyphen and hyphen-placement rules.
+- **Unit tests** use [`MockXNS`](../contracts/src/mocks/MockXNS.sol): set `xnsName → owner` via `setResolution`. Route segment validation is local to `XNSRoutes` (not delegated to XNS): `routePrefix` allows 1–20 chars (or empty), while `route` allows 1–32 chars; both share lowercase/number/hyphen and hyphen-placement rules.
 - **Canonical on-chain XNS** addresses for deploy/scripts/fork work live in [`constants/addresses.ts`](../constants/addresses.ts) as `XNS_ADDRESS` (they are not used by the default local test suite).
 
 ---
@@ -32,16 +32,16 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 - Name owner can **create** a route for `(xnsName, routePrefix, route)` with the given `target`, `routeType`, stored `isActive` from `activate`, and stored `isFrozen` from `freeze`.
 - Second `createRoute` for the same key should revert with `"XNSRoutes: route already exists"`.
-- With `freeze == true`, should set `isFrozen` and emit `RouteFrozen` (in addition to `RouteCreated`).
+- With `freeze == true`, should set `isFrozen` and emit `RouteCreated` with `isFrozen == true` (does **not** emit `RouteFrozen`; use `RouteFrozen` only when an existing route freezes later).
 
 #### Events
 
 - Should emit `RouteCreated` with indexed `nameHash` (`keccak256(bytes(xnsName))`), `routeKey` (same as `_routeKey`), and `target`, then `xnsName`, `routePrefix`, `route`, `isActive`, `isFrozen`, and `routeType` (non-indexed, full values in log data).
-- Should emit `RouteFrozen` with indexed `nameHash` / `routeKey` and full `xnsName`, `routePrefix`, `route` when `freeze` is true on create.
+- Should **not** emit `RouteFrozen` on create (even when `freeze` is true).
 
 #### Reverts
 
-- Owner, local route-segment rules on non-empty `routePrefix` and on `route` (prefix 1–20; route 1–48), non-zero `target`, `"XNSRoutes: route book frozen"`, plus `"XNSRoutes: route already exists"` if the route key already exists.
+- Owner, local route-segment rules on non-empty `routePrefix` and on `route` (prefix 1–20; route 1–32), non-zero `target`, `"XNSRoutes: route book frozen"`, plus `"XNSRoutes: route already exists"` if the route key already exists.
 
 ---
 
@@ -51,11 +51,11 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 - Name owner can **update** `target`, `routeType`, and `isActive` (via `activate`) on an **existing** route while the entry is not frozen and the route book for that XNS name is not frozen.
 - Should revert with `"XNSRoutes: route not found"` if no route exists for the key.
-- With `freeze == true`, should set `isFrozen` and emit `RouteFrozen` (in addition to `RouteUpdated`).
+- With `freeze == true`, should set `isFrozen` and emit `RouteFrozen`.
 
 #### Events
 
-- Should emit `RouteUpdated` with the same indexed `nameHash` / `routeKey` / `target` layout as `RouteCreated`, plus full strings and `isActive` / `isFrozen` / `routeType` in data.
+- Emits `RouteTargetUpdated`, `RouteTypeUpdated`, and/or `RouteActiveStatusUpdated` only when the corresponding stored field changes (same shapes as `updateTarget` / `updateRouteType` / `activateRoute`).
 - Should emit `RouteFrozen` (indexed `nameHash` / `routeKey` + strings) when `freeze` is true on update.
 
 #### Reverts
@@ -118,8 +118,8 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Events
 
-- `RouteTargetUpdated` with indexed `nameHash` / `routeKey` / `newTarget`, then `xnsName`, `routePrefix`, and `route`.
-- `RouteTypeUpdated` with indexed `nameHash` / `routeKey`, then strings and non-indexed `newRouteType`.
+- `RouteTargetUpdated` with indexed `nameHash` / `routeKey` / `newTarget`, then `xnsName`, `routePrefix`, `route`, and non-indexed `previousTarget`.
+- `RouteTypeUpdated` with indexed `nameHash` / `routeKey`, then strings and non-indexed `previousRouteType` / `newRouteType`.
 
 #### Reverts
 
@@ -178,6 +178,14 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 - `getRouteInfo` should revert with `"XNSRoutes: route not found"` when the route does not exist.
 - Should revert with `"XNSRoutes: invalid route prefix"` / `"XNSRoutes: invalid route"` for malformed `routePrefix` / `route` (e.g. `:` in `route` when `routePrefix` is empty).
+
+---
+
+## `isValidRoutePrefix` / `isValidRoute` / `isValidRoutePrefixAndRoute`
+
+#### Functionality
+
+- Pure views mirror `_isValidRoutePrefix` / `_isValidRoute` / `_validateRoutePrefixAndRoute`: empty `routePrefix` is allowed; non-empty prefix and route must satisfy slug length and charset rules.
 
 ---
 

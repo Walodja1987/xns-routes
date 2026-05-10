@@ -32,19 +32,28 @@ describe("XNSRoutes", function () {
     invalidRouteKeySlice: "XNSRoutes: invalid route key slice",
   } as const;
 
-  /** Matches `XNSRoutes._xnsNameKey` / `keccak256(bytes(xnsName))`. */
-  function xnsNameKey(xnsName: string): string {
-    return ethers.keccak256(ethers.toUtf8Bytes(xnsName));
+  /** Matches `_canonicalizeXNSName`: dotless `label` → `label.x`. */
+  function canonicalXnsName(xnsName: string): string {
+    for (let i = 0; i < xnsName.length; i++) {
+      if (xnsName[i] === ".") return xnsName;
+    }
+    return `${xnsName}.x`;
   }
 
-  /** Matches `XNSRoutes._routeKey` `abi.encodePacked` layout. */
+  /** Matches `XNSRoutes._xnsNameKey` / `keccak256(bytes(canonical xnsName))`. */
+  function xnsNameKey(xnsName: string): string {
+    return ethers.keccak256(ethers.toUtf8Bytes(canonicalXnsName(xnsName)));
+  }
+
+  /** Matches `XNSRoutes._routeKey` `abi.encodePacked` layout (canonical `xnsName`). */
   function routeStorageKey(xnsName: string, routePrefix: string, route: string): string {
+    const c = canonicalXnsName(xnsName);
     if (routePrefix === "") {
-      return ethers.solidityPackedKeccak256(["string", "string", "string"], [xnsName, "/", route]);
+      return ethers.solidityPackedKeccak256(["string", "string", "string"], [c, "/", route]);
     }
     return ethers.solidityPackedKeccak256(
       ["string", "string", "string", "string", "string"],
-      [xnsName, "/", routePrefix, ":", route],
+      [c, "/", routePrefix, ":", route],
     );
   }
 
@@ -133,7 +142,7 @@ describe("XNSRoutes", function () {
       expect(routeType).to.equal(RT0);
     });
 
-    it("Should emit RouteFrozen when freeze is true on create", async function () {
+    it("Should set isFrozen from RouteCreated when freeze is true on create (no RouteFrozen)", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
 
       await expect(
@@ -142,7 +151,7 @@ describe("XNSRoutes", function () {
           .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, true),
       )
         .to.emit(routes, "RouteCreated")
-        .and.to.emit(routes, "RouteFrozen");
+        .and.to.not.emit(routes, "RouteFrozen");
 
       expect((await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE))[2]).to.equal(true);
     });
@@ -158,7 +167,9 @@ describe("XNSRoutes", function () {
         routes
           .connect(owner)
           .updateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, newTarget, RT0, false, false),
-      ).to.emit(routes, "RouteUpdated");
+      )
+        .to.emit(routes, "RouteTargetUpdated")
+        .and.to.emit(routes, "RouteActiveStatusUpdated");
 
       const [target, isActive, isFrozen] = await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE);
       expect(target).to.equal(newTarget);
@@ -176,7 +187,7 @@ describe("XNSRoutes", function () {
         routes
           .connect(owner)
           .updateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, 1, true, false),
-      ).to.emit(routes, "RouteUpdated");
+      ).to.emit(routes, "RouteTypeUpdated");
 
       const [, , , routeType] = await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE);
       expect(routeType).to.equal(1);
@@ -192,9 +203,7 @@ describe("XNSRoutes", function () {
         routes
           .connect(owner)
           .updateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, true),
-      )
-        .to.emit(routes, "RouteFrozen")
-        .and.to.emit(routes, "RouteUpdated");
+      ).to.emit(routes, "RouteFrozen");
 
       expect((await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE))[2]).to.equal(true);
     });
@@ -263,21 +272,21 @@ describe("XNSRoutes", function () {
       );
     });
 
-    it("Should allow route length up to 48 chars and reject >48", async function () {
+    it("Should allow route length up to 32 chars and reject >32", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
-      const route48 = "a".repeat(48);
-      const route49 = "a".repeat(49);
+      const route32 = "a".repeat(32);
+      const route33 = "a".repeat(33);
 
       await expect(
         routes
           .connect(owner)
-          .createRoute(XNS_NAME, ROUTE_PREFIX, route48, buildTarget, RT0, true, false),
+          .createRoute(XNS_NAME, ROUTE_PREFIX, route32, buildTarget, RT0, true, false),
       ).to.emit(routes, "RouteCreated");
 
       await expect(
         routes
           .connect(owner)
-          .createRoute(XNS_NAME, ROUTE_PREFIX, route49, buildTarget, RT0, true, false),
+          .createRoute(XNS_NAME, ROUTE_PREFIX, route33, buildTarget, RT0, true, false),
       ).to.be.revertedWith(XR.invalidRoute);
     });
 
@@ -576,6 +585,7 @@ describe("XNSRoutes", function () {
           XNS_NAME,
           ROUTE_PREFIX,
           ROUTE,
+          buildTarget,
           other.address,
         );
 
@@ -620,6 +630,7 @@ describe("XNSRoutes", function () {
           XNS_NAME,
           ROUTE_PREFIX,
           ROUTE,
+          RT0,
           7,
         );
 
@@ -1018,14 +1029,120 @@ describe("XNSRoutes", function () {
       expect(empty.length).to.equal(0);
     });
 
-    it("Should revert getRouteKeys with InvalidRouteKeySlice on bad bounds", async function () {
+    it("Should revert getRouteKeys only when start > end; past-range start returns empty", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
         .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
 
       await expect(routes.getRouteKeys(XNS_NAME, 1, 0)).to.be.revertedWith(XR.invalidRouteKeySlice);
-      await expect(routes.getRouteKeys(XNS_NAME, 0, 2)).to.be.revertedWith(XR.invalidRouteKeySlice);
+
+      const pastRange = await routes.getRouteKeys(XNS_NAME, 2, 3);
+      expect(pastRange.length).to.equal(0);
+    });
+
+    it("Should clamp end to log length when end exceeds length", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes
+        .connect(owner)
+        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+
+      const k0 = routeStorageKey(XNS_NAME, ROUTE_PREFIX, ROUTE);
+      const clamped = await routes.getRouteKeys(XNS_NAME, 0, 999);
+      const explicit = await routes.getRouteKeys(XNS_NAME, 0, 1);
+      expect(clamped.length).to.equal(1);
+      expect(clamped[0]).to.equal(k0);
+      expect(clamped.length).to.equal(explicit.length);
+      expect(clamped[0]).to.equal(explicit[0]);
+
+      const maxEnd = (1n << 256n) - 1n;
+      const allViaMax = await routes.getRouteKeys(XNS_NAME, 0, maxEnd);
+      expect(allViaMax.length).to.equal(1);
+      expect(allViaMax[0]).to.equal(k0);
+    });
+  });
+
+  describe("route segment validation (pure views)", function () {
+    it("Should expose isValidRoutePrefix consistent with mutators", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      expect(await routes.isValidRoutePrefix("")).to.equal(true);
+      expect(await routes.isValidRoutePrefix(ROUTE_PREFIX)).to.equal(true);
+      expect(await routes.isValidRoutePrefix("a".repeat(21))).to.equal(false);
+      expect(await routes.isValidRoutePrefix("Bad")).to.equal(false);
+    });
+
+    it("Should expose isValidRoute consistent with mutators", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      expect(await routes.isValidRoute("")).to.equal(false);
+      expect(await routes.isValidRoute(ROUTE)).to.equal(true);
+      expect(await routes.isValidRoute("a".repeat(33))).to.equal(false);
+    });
+
+    it("Should expose isValidRoutePrefixAndRoute as conjunction", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      expect(await routes.isValidRoutePrefixAndRoute("", ROUTE)).to.equal(true);
+      expect(await routes.isValidRoutePrefixAndRoute(ROUTE_PREFIX, ROUTE)).to.equal(true);
+      expect(await routes.isValidRoutePrefixAndRoute("bad!", ROUTE)).to.equal(false);
+      expect(await routes.isValidRoutePrefixAndRoute(ROUTE_PREFIX, "")).to.equal(false);
+    });
+  });
+
+  describe("bare XNS name canonicalization", function () {
+    const BARE_LABEL = "barecanon";
+    const BARE_CANON = "barecanon.x";
+
+    async function deployWithBare(): Promise<Fixture> {
+      const f = await deployFixture();
+      await f.mockXns.setResolution(BARE_CANON, f.owner.address);
+      return f;
+    }
+
+    it("Should resolve routes created with bare label when queried with canonical name", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployWithBare);
+      const r = "my-route";
+      await routes.connect(owner).createRoute(BARE_LABEL, "", r, buildTarget, RT0, true, false);
+
+      expect(await routes.routeExists(BARE_CANON, "", r)).to.equal(true);
+      expect((await routes.getRouteInfo(BARE_CANON, "", r))[0]).to.equal(buildTarget);
+    });
+
+    it("Should treat bare and canonical name as the same route book (second create reverts)", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployWithBare);
+      const r = "my-route";
+      await routes.connect(owner).createRoute(BARE_LABEL, "", r, buildTarget, RT0, true, false);
+
+      await expect(
+        routes.connect(owner).createRoute(BARE_CANON, "", r, buildTarget, RT0, true, false),
+      ).to.be.revertedWith(XR.routeAlreadyExists);
+    });
+
+    it("Should emit canonical xnsName in RouteActiveStatusUpdated", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployWithBare);
+      await routes
+        .connect(owner)
+        .createRoute(BARE_LABEL, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+
+      await expect(routes.connect(owner).deactivateRoute(BARE_CANON, ROUTE_PREFIX, ROUTE))
+        .to.emit(routes, "RouteActiveStatusUpdated")
+        .withArgs(
+          xnsNameKey(BARE_LABEL),
+          routeStorageKey(BARE_LABEL, ROUTE_PREFIX, ROUTE),
+          BARE_CANON,
+          ROUTE_PREFIX,
+          ROUTE,
+          false,
+        );
+    });
+
+    it("Should resolve getRouteInfoFromPath when the path uses a bare first segment", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployWithBare);
+      await routes
+        .connect(owner)
+        .createRoute(BARE_LABEL, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+
+      const fullPath = `${BARE_LABEL}/${ROUTE_PREFIX}:${ROUTE}`;
+      const [target] = await routes.getRouteInfoFromPath(fullPath);
+      expect(target).to.equal(buildTarget);
     });
   });
 });
