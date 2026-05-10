@@ -30,6 +30,7 @@ interface IXNSRoutes {
         string xnsName,
         string routePrefix,
         string route,
+        address previousTarget,
         address indexed newTarget
     );
 
@@ -39,6 +40,7 @@ interface IXNSRoutes {
         string xnsName,
         string routePrefix,
         string route,
+        uint32 previousRouteType,
         uint32 newRouteType
     );
 
@@ -51,6 +53,7 @@ interface IXNSRoutes {
         bool isActive
     );
 
+    /// Emitted when an existing route becomes frozen (`updateRoute` / `freezeRoute`). Initial freeze-at-create is only in `RouteCreated`.
     event RouteFrozen(
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,

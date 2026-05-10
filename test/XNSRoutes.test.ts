@@ -142,7 +142,7 @@ describe("XNSRoutes", function () {
       expect(routeType).to.equal(RT0);
     });
 
-    it("Should emit RouteFrozen when freeze is true on create", async function () {
+    it("Should set isFrozen from RouteCreated when freeze is true on create (no RouteFrozen)", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
 
       await expect(
@@ -151,7 +151,7 @@ describe("XNSRoutes", function () {
           .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, true),
       )
         .to.emit(routes, "RouteCreated")
-        .and.to.emit(routes, "RouteFrozen");
+        .and.to.not.emit(routes, "RouteFrozen");
 
       expect((await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE))[2]).to.equal(true);
     });
@@ -585,6 +585,7 @@ describe("XNSRoutes", function () {
           XNS_NAME,
           ROUTE_PREFIX,
           ROUTE,
+          buildTarget,
           other.address,
         );
 
@@ -629,6 +630,7 @@ describe("XNSRoutes", function () {
           XNS_NAME,
           ROUTE_PREFIX,
           ROUTE,
+          RT0,
           7,
         );
 

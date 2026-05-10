@@ -3,7 +3,7 @@
 
 Route-scoped events (`RouteCreated`, `RouteTargetUpdated`, etc.) include indexed `nameHash`
 (`keccak256(bytes(xnsName))`) and `routeKey` (same as on-chain `_routeKey`) as log topics.
-`RouteCreated` indexes `target`; `RouteTargetUpdated` indexes `newTarget`.
+`RouteCreated` indexes `target`; `RouteTargetUpdated` indexes `newTarget` (previous target is non-indexed in log data).
 Remaining fields are non-indexed (strings, flags, types) in log data. Use topics for narrow
 `eth_getLogs` filters; decoded `args` expose the same fields by name.
 

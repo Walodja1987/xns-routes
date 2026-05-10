@@ -636,7 +636,7 @@ _Emitted in `createRoute`._
 
 
 ```solidity
-event RouteTargetUpdated(bytes32 nameHash, bytes32 routeKey, string xnsName, string routePrefix, string route, address newTarget)
+event RouteTargetUpdated(bytes32 nameHash, bytes32 routeKey, string xnsName, string routePrefix, string route, address previousTarget, address newTarget)
 ```
 
 _Emitted in `updateTarget` when target changes; also in `updateRoute` when `target` changes._
@@ -650,7 +650,7 @@ _Emitted in `updateTarget` when target changes; also in `updateRoute` when `targ
 
 
 ```solidity
-event RouteTypeUpdated(bytes32 nameHash, bytes32 routeKey, string xnsName, string routePrefix, string route, uint32 newRouteType)
+event RouteTypeUpdated(bytes32 nameHash, bytes32 routeKey, string xnsName, string routePrefix, string route, uint32 previousRouteType, uint32 newRouteType)
 ```
 
 _Emitted in `updateRouteType` when route type changes; also in `updateRoute` when `routeType` changes._
@@ -681,7 +681,7 @@ _Emitted in `activateRoute` and `deactivateRoute` when active status changes; al
 event RouteFrozen(bytes32 nameHash, bytes32 routeKey, string xnsName, string routePrefix, string route)
 ```
 
-_Emitted in `createRoute`, `updateRoute`, and `freezeRoute` when route freeze is applied._
+_Emitted in `updateRoute` and `freezeRoute` when an existing route transitions to frozen. Initial freeze-at-create is only indicated by `RouteCreated` (`isFrozen`)._
 
 
 

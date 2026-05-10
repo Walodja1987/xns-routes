@@ -104,6 +104,7 @@ contract XNSRoutes {
         string xnsName,
         string routePrefix,
         string route,
+        address previousTarget,
         address indexed newTarget
     );
 
@@ -114,6 +115,7 @@ contract XNSRoutes {
         string xnsName,
         string routePrefix,
         string route,
+        uint32 previousRouteType,
         uint32 newRouteType
     );
 
@@ -127,7 +129,8 @@ contract XNSRoutes {
         bool isActive
     );
 
-    /// @dev Emitted in `createRoute`, `updateRoute`, and `freezeRoute` when route freeze is applied.
+    /// @dev Emitted in `updateRoute` and `freezeRoute` when an existing route becomes frozen.
+    /// Initial freeze-at-create is reflected only in `RouteCreated` (`isFrozen`).
     event RouteFrozen(
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,
@@ -233,11 +236,6 @@ contract XNSRoutes {
 
         _routeKeysByXNSName[nameKey].push(routeKey);
 
-        // Emit the `RouteFrozen` event, if the route is frozen
-        if (freeze) {
-            emit RouteFrozen(nameKey, routeKey, canonicalXNSName, routePrefix, route);
-        }
-
         // Emit the `RouteCreated` event
         emit RouteCreated(
             nameKey,
@@ -252,14 +250,14 @@ contract XNSRoutes {
         );
     }
 
-    /// @notice Update an existing route (target, routeType, activate, optional freeze in one tx).
+    /// @notice Update an existing route (target, routeType, activate, freeze in one tx).
     ///
     /// **Requirements:**
-    /// - `msg.sender` must be the current XNS owner for `xnsName`.
+    /// - `msg.sender` must be the XNS name owner of `xnsName`.
     /// - `target` must not be the zero address.
     /// - The route book for `xnsName` must not be frozen.
-    /// - Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
-    /// - The route must exist and must not already be per-route frozen.
+    /// - Non-empty `routePrefix` and `route` must satisfy character rules.
+    /// - The route must exist and must not already be frozen.
     ///
     /// @param xnsName The XNS name that owns the route space, e.g. "xns.action"
     /// @param routePrefix Same as at create time (may be empty).
@@ -308,10 +306,26 @@ contract XNSRoutes {
         record.isActive = activate;
 
         if (target != oldTarget) {
-            emit RouteTargetUpdated(nameKey, routeKey, canonicalXNSName, routePrefix, route, target);
+            emit RouteTargetUpdated(
+                nameKey,
+                routeKey,
+                canonicalXNSName,
+                routePrefix,
+                route,
+                oldTarget,
+                target
+            );
         }
         if (routeType != oldRouteType) {
-            emit RouteTypeUpdated(nameKey, routeKey, canonicalXNSName, routePrefix, route, routeType);
+            emit RouteTypeUpdated(
+                nameKey,
+                routeKey,
+                canonicalXNSName,
+                routePrefix,
+                route,
+                oldRouteType,
+                routeType
+            );
         }
         if (activate != oldActive) {
             emit RouteActiveStatusUpdated(
@@ -332,8 +346,8 @@ contract XNSRoutes {
     /// @notice Mark an existing route as active.
     ///
     /// **Requirements:**
-    /// - `msg.sender` must be the current XNS owner for `xnsName`.
-    /// - Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
+    /// - `msg.sender` must be the XNS name owner of `xnsName`.
+    /// - Non-empty `routePrefix` and `route` must satisfy character rules.
     /// - The route must exist.
     ///
     /// Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after route or route book freeze.
@@ -352,8 +366,8 @@ contract XNSRoutes {
     /// @notice Mark an existing route as inactive.
     ///
     /// **Requirements:**
-    /// - `msg.sender` must be the current XNS owner for `xnsName`.
-    /// - Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
+    /// - `msg.sender` must be the XNS name owner of `xnsName`.
+    /// - Non-empty `routePrefix` and `route` must satisfy character rules.
     /// - The route must exist.
     ///
     /// Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after route or route book freeze.
@@ -372,8 +386,8 @@ contract XNSRoutes {
     /// @dev Used by `activateRoute` and `deactivateRoute`.
     ///
     /// **Requirements:**
-    /// - `msg.sender` must be the current XNS owner for `xnsName`.
-    /// - Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
+    /// - `msg.sender` must be the XNS name owner of `xnsName`.
+    /// - Non-empty `routePrefix` and `route` must satisfy character rules.
     /// - The route must exist.
     ///
     /// Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after route or route book freeze.
@@ -416,10 +430,10 @@ contract XNSRoutes {
     /// @notice Remove a route so `createRoute` may register the same key again.
     ///
     /// **Requirements:**
-    /// - `msg.sender` must be the current XNS owner for `xnsName`.
+    /// - `msg.sender` must be the XNS name owner of `xnsName`.
     /// - The route book for `xnsName` must not be frozen.
-    /// - Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
-    /// - The route must exist and must not be per-route frozen.
+    /// - Non-empty `routePrefix` and `route` must satisfy character rules.
+    /// - The route must exist and must not already be frozen.
     ///
     /// Does not check `isActive`; use `deactivateRoute` for a soft disable without deleting.
     ///
@@ -459,8 +473,8 @@ contract XNSRoutes {
     /// **Requirements:**
     /// - `msg.sender` must be the current XNS owner for `xnsName`.
     /// - The route book for `xnsName` must not be frozen.
-    /// - Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
-    /// - The route must exist and must not be per-route frozen.
+    /// - Non-empty `routePrefix` and `route` must satisfy character rules.
+    /// - The route must exist and must not already be frozen.
     /// - `newTarget` must not be the zero address.
     ///
     /// Emits `RouteTargetUpdated` only when `newTarget` differs from the stored target.
@@ -496,18 +510,27 @@ contract XNSRoutes {
 
         // Update the target and emit the `RouteTargetUpdated` event, if the target changes
         if (record.target != newTarget) {
+            address previousTarget = record.target;
             record.target = newTarget;
-            emit RouteTargetUpdated(nameKey, routeKey, canonicalXNSName, routePrefix, route, newTarget);
+            emit RouteTargetUpdated(
+                nameKey,
+                routeKey,
+                canonicalXNSName,
+                routePrefix,
+                route,
+                previousTarget,
+                newTarget
+            );
         }
     }
 
     /// @notice Update `routeType` for an existing route.
     ///
     /// **Requirements:**
-    /// - `msg.sender` must be the current XNS owner for `xnsName`.
+    /// - `msg.sender` must be the XNS name owner of `xnsName`.
     /// - The route book for `xnsName` must not be frozen.
-    /// - Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
-    /// - The route must exist and must not be per-route frozen.
+    /// - Non-empty `routePrefix` and `route` must satisfy character rules.
+    /// - The route must exist and must not already be frozen.
     ///
     /// Emits `RouteTypeUpdated` only when `newRouteType` differs from the stored value.
     ///
@@ -539,17 +562,26 @@ contract XNSRoutes {
 
         // Update the route type and emit the `RouteTypeUpdated` event, if the route type changes
         if (record.routeType != newRouteType) {
+            uint32 previousRouteType = record.routeType;
             record.routeType = newRouteType;
-            emit RouteTypeUpdated(nameKey, routeKey, canonicalXNSName, routePrefix, route, newRouteType);
+            emit RouteTypeUpdated(
+                nameKey,
+                routeKey,
+                canonicalXNSName,
+                routePrefix,
+                route,
+                previousRouteType,
+                newRouteType
+            );
         }
     }
 
     /// @notice Freeze a single route forever.
     ///
     /// **Requirements:**
-    /// - `msg.sender` must be the current XNS owner for `xnsName`.
+    /// - `msg.sender` must be the XNS name owner of `xnsName`.
     /// - The route book for `xnsName` must not be frozen.
-    /// - Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
+    /// - Non-empty `routePrefix` and `route` must satisfy character rules.
     /// - The route must exist.
     ///
     /// After freezing, `target` and `routeType` can never be changed again; active/inactive can
@@ -586,7 +618,7 @@ contract XNSRoutes {
     /// @notice Freeze the entire route book under an XNS name forever.
     ///
     /// **Requirements:**
-    /// - `msg.sender` must be the current XNS owner for `xnsName`.
+    /// - `msg.sender` must be the XNS name owner of `xnsName`.
     ///
     /// **Effects (irreversible):**
     /// - No new routes may be added under `xnsName`.
@@ -619,7 +651,7 @@ contract XNSRoutes {
     /// @param route Route label segment.
     /// @return target Stored target address for the route.
     /// @return isActive Whether the route is active.
-    /// @return isFrozen Whether the route is frozen per-route.
+    /// @return isFrozen Whether the route is frozen.
     /// @return routeType Opaque parser hint.
     function getRouteInfo(
         string calldata xnsName,

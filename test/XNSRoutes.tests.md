@@ -32,12 +32,12 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 - Name owner can **create** a route for `(xnsName, routePrefix, route)` with the given `target`, `routeType`, stored `isActive` from `activate`, and stored `isFrozen` from `freeze`.
 - Second `createRoute` for the same key should revert with `"XNSRoutes: route already exists"`.
-- With `freeze == true`, should set `isFrozen` and emit `RouteFrozen` (in addition to `RouteCreated`).
+- With `freeze == true`, should set `isFrozen` and emit `RouteCreated` with `isFrozen == true` (does **not** emit `RouteFrozen`; use `RouteFrozen` only when an existing route freezes later).
 
 #### Events
 
 - Should emit `RouteCreated` with indexed `nameHash` (`keccak256(bytes(xnsName))`), `routeKey` (same as `_routeKey`), and `target`, then `xnsName`, `routePrefix`, `route`, `isActive`, `isFrozen`, and `routeType` (non-indexed, full values in log data).
-- Should emit `RouteFrozen` with indexed `nameHash` / `routeKey` and full `xnsName`, `routePrefix`, `route` when `freeze` is true on create.
+- Should **not** emit `RouteFrozen` on create (even when `freeze` is true).
 
 #### Reverts
 
@@ -118,8 +118,8 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Events
 
-- `RouteTargetUpdated` with indexed `nameHash` / `routeKey` / `newTarget`, then `xnsName`, `routePrefix`, and `route`.
-- `RouteTypeUpdated` with indexed `nameHash` / `routeKey`, then strings and non-indexed `newRouteType`.
+- `RouteTargetUpdated` with indexed `nameHash` / `routeKey` / `newTarget`, then `xnsName`, `routePrefix`, `route`, and non-indexed `previousTarget`.
+- `RouteTypeUpdated` with indexed `nameHash` / `routeKey`, then strings and non-indexed `previousRouteType` / `newRouteType`.
 
 #### Reverts
 
