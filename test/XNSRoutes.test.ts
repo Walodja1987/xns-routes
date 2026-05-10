@@ -167,7 +167,9 @@ describe("XNSRoutes", function () {
         routes
           .connect(owner)
           .updateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, newTarget, RT0, false, false),
-      ).to.emit(routes, "RouteUpdated");
+      )
+        .to.emit(routes, "RouteTargetUpdated")
+        .and.to.emit(routes, "RouteActiveStatusUpdated");
 
       const [target, isActive, isFrozen] = await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE);
       expect(target).to.equal(newTarget);
@@ -185,7 +187,7 @@ describe("XNSRoutes", function () {
         routes
           .connect(owner)
           .updateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, 1, true, false),
-      ).to.emit(routes, "RouteUpdated");
+      ).to.emit(routes, "RouteTypeUpdated");
 
       const [, , , routeType] = await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE);
       expect(routeType).to.equal(1);
@@ -201,9 +203,7 @@ describe("XNSRoutes", function () {
         routes
           .connect(owner)
           .updateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, true),
-      )
-        .to.emit(routes, "RouteFrozen")
-        .and.to.emit(routes, "RouteUpdated");
+      ).to.emit(routes, "RouteFrozen");
 
       expect((await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE))[2]).to.equal(true);
     });
@@ -1027,14 +1027,36 @@ describe("XNSRoutes", function () {
       expect(empty.length).to.equal(0);
     });
 
-    it("Should revert getRouteKeys with InvalidRouteKeySlice on bad bounds", async function () {
+    it("Should revert getRouteKeys only when start > end; past-range start returns empty", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
         .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
 
       await expect(routes.getRouteKeys(XNS_NAME, 1, 0)).to.be.revertedWith(XR.invalidRouteKeySlice);
-      await expect(routes.getRouteKeys(XNS_NAME, 0, 2)).to.be.revertedWith(XR.invalidRouteKeySlice);
+
+      const pastRange = await routes.getRouteKeys(XNS_NAME, 2, 3);
+      expect(pastRange.length).to.equal(0);
+    });
+
+    it("Should clamp end to log length when end exceeds length", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes
+        .connect(owner)
+        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+
+      const k0 = routeStorageKey(XNS_NAME, ROUTE_PREFIX, ROUTE);
+      const clamped = await routes.getRouteKeys(XNS_NAME, 0, 999);
+      const explicit = await routes.getRouteKeys(XNS_NAME, 0, 1);
+      expect(clamped.length).to.equal(1);
+      expect(clamped[0]).to.equal(k0);
+      expect(clamped.length).to.equal(explicit.length);
+      expect(clamped[0]).to.equal(explicit[0]);
+
+      const maxEnd = (1n << 256n) - 1n;
+      const allViaMax = await routes.getRouteKeys(XNS_NAME, 0, maxEnd);
+      expect(allViaMax.length).to.equal(1);
+      expect(allViaMax[0]).to.equal(k0);
     });
   });
 

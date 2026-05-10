@@ -24,18 +24,6 @@ interface IXNSRoutes {
         uint32 routeType
     );
 
-    event RouteUpdated(
-        bytes32 indexed nameHash,
-        bytes32 indexed routeKey,
-        string xnsName,
-        string routePrefix,
-        string route,
-        address indexed target,
-        bool isActive,
-        bool isFrozen,
-        uint32 routeType
-    );
-
     event RouteTargetUpdated(
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,

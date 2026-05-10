@@ -36,10 +36,11 @@ Key points:
   `routeType = 1` may suggest that the `target` is a smart contract.
   `routeType = 2` may suggest that the `target` is a special contract that returns parametrized calldata.
   `routeType = 3` may suggest that the `target` returns a Bitcoin address.
-- Forward resolution is direct (`xnsName`, `routePrefix`, `route` → `target`). A global reverse
-  lookup from `target` to all names/routes is not stored on-chain.
+- Forward resolution is direct: `[xnsName]/[routePrefix:][route]` → `target`. Reverse lookup is not
+  supported because many routes may point to the same `target`.
 - For one known `xnsName`, on-chain enumeration is available without an indexer via the append-only
   route-key log (`getRouteKeyCount`, `getRouteKeys`, `getRouteRecordByRouteKey` / batch overload).
+- Bare names like `bob` are normalized/canonicalized to `bob.x` for storage.
 
 
 
@@ -51,17 +52,19 @@ Key points:
 ### createRoute
 
 
-Create a route under `(xnsName, routePrefix, route)`. Reverts if that key already exists.
+Create a route `[xnsName]/[routePrefix:][route]`. Reverts if the route already exists.
 
 **Requirements:**
-- `msg.sender` must be the current XNS owner for `xnsName`.
-- Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
+- `msg.sender` must be the owner for `xnsName`.
+- Non-empty `routePrefix` and `route` must satisfy local character set, hyphenation, and length rules.
+- `route` must be a non-empty string.
 - `target` must not be the zero address.
 - The route book for `xnsName` must not be frozen.
 - The route key must not already exist.
 
-On success, appends the route storage key to the per-name append-only log
-(`getRouteKeyCount` / `getRouteKeys`).
+On success, appends the route key to the append-only array `_routeKeysByXNSName` associated with `xnsName`.
+
+Note: Bare names like `bob` are normalized/canonicalized to `bob.x` for storage.
 
 ```solidity
 function createRoute(string xnsName, string routePrefix, string route, address target, uint32 routeType, bool activate, bool freeze) external
@@ -72,13 +75,13 @@ function createRoute(string xnsName, string routePrefix, string route, address t
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| xnsName | string | The XNS name that owns the route space, e.g. "xns.action" |
-| routePrefix | string | Optional path segment before `:`; non-empty must pass local route-prefix        rules (same charset/hyphen constraints as XNS labels, max length 20);        empty means `xnsName/route/...` only (no `:` in the routePath). |
-| route | string | Required route label (same charset/hyphen constraints as XNS labels, max        length 32). |
-| target | address | Build address for `routeType`; must be non-zero (`address(0)` is reserved        for "missing route"). |
-| routeType | uint32 | Opaque hint for parsers (semantics offchain) |
+| xnsName | string | The XNS name that owns the route space, e.g. "xns.action". |
+| routePrefix | string | Optional path segment before `:`; non-empty must pass local route-prefix rules ([a-z0-9-], max length 20). empty means `xnsName/route` only (no `:` in the routePath). |
+| route | string | Required route label ([a-z0-9-], max length 32). |
+| target | address | Target address for `routeType`; must be non-zero (`address(0)` is reserved for non-existent route). |
+| routeType | uint32 | Hint for route parsers on how to interpret the `target` output (off-chain semantics), e.g. 0 = plain address, 2 = Bitcoin address, 3 = html, etc. |
 | activate | bool | Initial value for stored `isActive`. |
-| freeze | bool | If true, set stored `isFrozen` in this same tx (irreversible for that route). |
+| freeze | bool | If true, renders the route immutable. |
 
 
 ### updateRoute
@@ -92,6 +95,9 @@ Update an existing route (target, routeType, activate, optional freeze in one tx
 - The route book for `xnsName` must not be frozen.
 - Non-empty `routePrefix` and `route` must satisfy local route-segment rules.
 - The route must exist and must not already be per-route frozen.
+
+Emits `RouteTargetUpdated`, `RouteTypeUpdated`, and/or `RouteActiveStatusUpdated` only when the
+corresponding field changes from its stored value; emits `RouteFrozen` when `freeze` is true.
 
 ```solidity
 function updateRoute(string xnsName, string routePrefix, string route, address target, uint32 routeType, bool activate, bool freeze) external
@@ -193,7 +199,7 @@ function deleteRoute(string xnsName, string routePrefix, string route) external
 ### updateTarget
 
 
-Update the build `target` for an existing route.
+Update the `target` address for an existing route.
 
 **Requirements:**
 - `msg.sender` must be the current XNS owner for `xnsName`.
@@ -216,7 +222,7 @@ function updateTarget(string xnsName, string routePrefix, string route, address 
 | xnsName | string | The XNS name that owns the route space. |
 | routePrefix | string | Optional route prefix segment (empty means no prefix). |
 | route | string | Route label segment. |
-| newTarget | address | New build target; must be non-zero. |
+| newTarget | address | New target address; must be non-zero. |
 
 
 ### updateRouteType
@@ -325,7 +331,7 @@ function getRouteInfo(string xnsName, string routePrefix, string route) external
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| target | address | Stored build target address. |
+| target | address | Stored target address for the route. |
 | isActive | bool | Whether the route is active. |
 | isFrozen | bool | Whether the route is frozen per-route. |
 | routeType | uint32 | Opaque parser hint. |
@@ -392,7 +398,7 @@ function routeExistsFromPath(string fullRoutePath) external view returns (bool e
 
 
 Returns whether the entire route book under `xnsName` is frozen
-(reads `_routeBookFrozen[keccak256(bytes(xnsName))]`).
+(reads `_routeBookFrozen[keccak256(bytes(canonical xnsName))]`).
 
 ```solidity
 function isRouteBookFrozen(string xnsName) external view returns (bool frozen)
@@ -437,8 +443,11 @@ function getRouteKeyCount(string xnsName) external view returns (uint256 count)
 ### getRouteKeys
 
 
-Returns `keys[start:end]` from the append-only log for `xnsName` (`end` is exclusive).
-Reverts if `start > end` or `end` exceeds length.
+Returns `keys[start:end]` from the route keys array associated with
+`xnsName` (`end` is exclusive). If `end` is greater than the array length, behaves
+like `end == length` (caller may pass any large upper bound to fetch "the rest"
+without needing to know the exact array length). If `start` lies past the end of
+the array, returns an empty array. Reverts only when `start > end`.
 
 ```solidity
 function getRouteKeys(string xnsName, uint256 start, uint256 end) external view returns (bytes32[] keys)
@@ -451,7 +460,7 @@ function getRouteKeys(string xnsName, uint256 start, uint256 end) external view 
 | ---- | ---- | ----------- |
 | xnsName | string | The XNS name to get the route keys for. |
 | start | uint256 | The start index (inclusive). |
-| end | uint256 | The end index (exclusive). |
+| end | uint256 | The end index (exclusive); may exceed array length. |
 
 #### Return Values
 
@@ -534,32 +543,75 @@ function splitFullPath(string fullRoutePath) external pure returns (string xnsNa
 | ---- | ---- | ----------- |
 | xnsName | string | Segment before the first `/`. |
 | routePrefix | string | Segment before the first `:` in the routePath, or empty if there is no `:`. |
-| route | string | Remainder of the routePath after `routePrefix` and `:`, or the whole         routePath if there is no `:`. |
-
+| route | string | Remainder of the routePath after `routePrefix` and `:`, or the whole routePath if there is no `:`. |
 
 ### isValidRoutePrefix
 
-Returns whether `routePrefix` satisfies local prefix rules. Empty string is valid (no prefix); non-empty values must match the same slug rules as non-empty prefixes in `createRoute` (1–20 characters).
+
+Returns whether `routePrefix` satisfies local prefix rules. Empty string is valid
+(no prefix); non-empty must be 1–20 chars and match the slug charset/hyphen rules.
 
 ```solidity
 function isValidRoutePrefix(string routePrefix) external pure returns (bool valid)
 ```
 
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| routePrefix | string | Candidate route-prefix segment (may be empty). |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| valid | bool | True when `routePrefix` is empty or passes `_isValidRoutePrefix`. |
+
 ### isValidRoute
 
-Returns whether `route` satisfies local route rules (1–32 characters, slug charset and hyphen placement).
+
+Returns whether `route` satisfies local route rules (1–32 chars, slug charset/hyphen rules).
 
 ```solidity
 function isValidRoute(string route) external pure returns (bool valid)
 ```
 
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| route | string | Candidate route label. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| valid | bool | True when `route` passes `_isValidRoute`. |
+
 ### isValidRoutePrefixAndRoute
 
-Returns whether the pair `(routePrefix, route)` would pass validation used by mutating functions and tuple-based reads (`getRouteInfo`, `routeExists`, etc.).
+
+Returns whether `(routePrefix, route)` would pass validation used by mutating and tuple-based view functions.
 
 ```solidity
 function isValidRoutePrefixAndRoute(string routePrefix, string route) external pure returns (bool valid)
 ```
+
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| routePrefix | string | Candidate route-prefix segment (may be empty). |
+| route | string | Candidate route label. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| valid | bool | True when the tuple passes `_validateRoutePrefixAndRoute` rules. |
 
 
 ## Events
@@ -578,20 +630,6 @@ _Emitted in `createRoute`._
 
 
 
-### RouteUpdated
-
-
-
-
-```solidity
-event RouteUpdated(bytes32 nameHash, bytes32 routeKey, string xnsName, string routePrefix, string route, address target, bool isActive, bool isFrozen, uint32 routeType)
-```
-
-_Emitted in `updateRoute`._
-
-
-
-
 ### RouteTargetUpdated
 
 
@@ -601,7 +639,7 @@ _Emitted in `updateRoute`._
 event RouteTargetUpdated(bytes32 nameHash, bytes32 routeKey, string xnsName, string routePrefix, string route, address newTarget)
 ```
 
-_Emitted in `updateTarget` when target changes._
+_Emitted in `updateTarget` when target changes; also in `updateRoute` when `target` changes._
 
 
 
@@ -615,7 +653,7 @@ _Emitted in `updateTarget` when target changes._
 event RouteTypeUpdated(bytes32 nameHash, bytes32 routeKey, string xnsName, string routePrefix, string route, uint32 newRouteType)
 ```
 
-_Emitted in `updateRouteType` when route type changes._
+_Emitted in `updateRouteType` when route type changes; also in `updateRoute` when `routeType` changes._
 
 
 
@@ -629,7 +667,7 @@ _Emitted in `updateRouteType` when route type changes._
 event RouteActiveStatusUpdated(bytes32 nameHash, bytes32 routeKey, string xnsName, string routePrefix, string route, bool isActive)
 ```
 
-_Emitted in `activateRoute` and `deactivateRoute` when active status changes._
+_Emitted in `activateRoute` and `deactivateRoute` when active status changes; also in `updateRoute` when `isActive` changes._
 
 
 
@@ -684,7 +722,7 @@ _Emitted in `deleteRoute`._
 ### XNS
 
 
-XNS registry this contract calls for name resolution and label validation.
+XNS registry this contract calls for name resolution.
 
 ```solidity
 contract IXNSMinimal XNS

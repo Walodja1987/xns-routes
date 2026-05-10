@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Simple SQLite indexer for XNSRoutes events.
 
-Route-scoped events (`RouteCreated`, `RouteUpdated`, etc.) include indexed `nameHash`
+Route-scoped events (`RouteCreated`, `RouteTargetUpdated`, etc.) include indexed `nameHash`
 (`keccak256(bytes(xnsName))`) and `routeKey` (same as on-chain `_routeKey`) as log topics.
-`RouteCreated` / `RouteUpdated` also index `target`; `RouteTargetUpdated` indexes `newTarget`.
+`RouteCreated` indexes `target`; `RouteTargetUpdated` indexes `newTarget`.
 Remaining fields are non-indexed (strings, flags, types) in log data. Use topics for narrow
 `eth_getLogs` filters; decoded `args` expose the same fields by name.
 
@@ -29,7 +29,6 @@ from web3 import Web3
 
 EVENT_NAMES = (
     "RouteCreated",
-    "RouteUpdated",
     "RouteTargetUpdated",
     "RouteTypeUpdated",
     "RouteActiveStatusUpdated",
@@ -208,7 +207,7 @@ def apply_event(conn: sqlite3.Connection, chain_id: int, contract: str, evt: dic
     }
 
     name = evt["name"]
-    if name in ("RouteCreated", "RouteUpdated"):
+    if name == "RouteCreated":
         upsert_route(
             conn,
             **common,

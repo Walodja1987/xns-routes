@@ -6,7 +6,6 @@
   "event RouteFrozen(bytes32 indexed,bytes32 indexed,string,string,string)",
   "event RouteTargetUpdated(bytes32 indexed,bytes32 indexed,string,string,string,address indexed)",
   "event RouteTypeUpdated(bytes32 indexed,bytes32 indexed,string,string,string,uint32)",
-  "event RouteUpdated(bytes32 indexed,bytes32 indexed,string,string,string,address indexed,bool,bool,uint32)",
   "function XNS() view returns (address)",
   "function activateRoute(string,string,string)",
   "function createRoute(string,string,string,address,uint32,bool,bool)",

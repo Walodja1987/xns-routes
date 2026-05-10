@@ -51,11 +51,11 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 - Name owner can **update** `target`, `routeType`, and `isActive` (via `activate`) on an **existing** route while the entry is not frozen and the route book for that XNS name is not frozen.
 - Should revert with `"XNSRoutes: route not found"` if no route exists for the key.
-- With `freeze == true`, should set `isFrozen` and emit `RouteFrozen` (in addition to `RouteUpdated`).
+- With `freeze == true`, should set `isFrozen` and emit `RouteFrozen`.
 
 #### Events
 
-- Should emit `RouteUpdated` with the same indexed `nameHash` / `routeKey` / `target` layout as `RouteCreated`, plus full strings and `isActive` / `isFrozen` / `routeType` in data.
+- Emits `RouteTargetUpdated`, `RouteTypeUpdated`, and/or `RouteActiveStatusUpdated` only when the corresponding stored field changes (same shapes as `updateTarget` / `updateRouteType` / `activateRoute`).
 - Should emit `RouteFrozen` (indexed `nameHash` / `routeKey` + strings) when `freeze` is true on update.
 
 #### Reverts
