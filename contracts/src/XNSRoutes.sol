@@ -194,8 +194,8 @@ contract XNSRoutes {
     /// @param route Required route label ([a-z0-9-], max length 32).
     /// @param target Target address for `routeType`; must be non-zero (`address(0)` is reserved
     /// for non-existent route).
-    /// @param routeType Route type integer for how to interpret the `target` output
-    /// (off-chain semantics), e.g. 0 = plain address, 2 = Bitcoin address, 3 = html, etc.
+    /// @param routeType Parser hint for how to interpret `target` (off-chain semantics),
+    /// e.g. 0 = plain address, 2 = Bitcoin address, 3 = html, etc.
     /// @param activate Initial value for stored `isActive`.
     /// @param freeze If true, renders the route immutable.
     function createRoute(
@@ -381,20 +381,9 @@ contract XNSRoutes {
         _updateRouteActiveStatus(xnsName, routePrefix, route, false);
     }
 
-    /// @dev Used by `activateRoute` and `deactivateRoute`.
-    ///
-    /// **Requirements:**
-    /// - `msg.sender` must be the XNS name owner of `xnsName`.
-    /// - Non-empty `routePrefix` and `route` must satisfy character rules.
-    /// - The route must exist.
-    ///
-    /// Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after route
-    /// or route book freeze.
-    ///
-    /// @param xnsName The XNS name that owns the route space.
-    /// @param routePrefix Route prefix of the route path to be updated (may be empty).
-    /// @param route Route label of the route path to be updated.
-    /// @param active New active status to set.
+    /// @dev Implementation for `activateRoute` / `deactivateRoute`.
+    /// Requirements, validation, reverts, and events match the documentation on `activateRoute`
+    /// and `deactivateRoute`.
     function _updateRouteActiveStatus(
         string calldata xnsName,
         string calldata routePrefix,
@@ -665,6 +654,12 @@ contract XNSRoutes {
     /// **Requirements:**
     /// - `fullRoutePath` must contain at least one `/`.
     /// - Further requirements match `getRouteInfo` for the parsed components.
+    ///
+    /// @param fullRoutePath The full route path to get the route info for.
+    /// @return target Stored target address for the route.
+    /// @return isActive Whether the route is active.
+    /// @return isFrozen Whether the route is frozen.
+    /// @return routeType Route type integer.
     function getRouteInfoFromPath(
         string calldata fullRoutePath
     ) external view returns (address target, bool isActive, bool isFrozen, uint32 routeType) {
@@ -674,15 +669,9 @@ contract XNSRoutes {
         return _getRouteInfo(xnsName, routePrefix, route);
     }
 
-    /// @dev Shared by `getRouteInfo` and `getRouteInfoFromPath`.
-    ///
-    /// @param xnsName The XNS name that owns the route space.
-    /// @param routePrefix Route prefix of the route path to be queried (may be empty).
-    /// @param route Route label of the route path to be queried.
-    /// @return target Stored target address for the route.
-    /// @return isActive Whether the route is active.
-    /// @return isFrozen Whether the route is frozen.
-    /// @return routeType Route type integer.
+    /// @dev Loads `(target, isActive, isFrozen, routeType)` after `_validateRoutePrefixAndRoute`.
+    /// Reverts `"XNSRoutes: route not found"` when missing. Tuple semantics match `getRouteInfo`
+    /// and `getRouteInfoFromPath`.
     function _getRouteInfo(
         string memory xnsName,
         string memory routePrefix,
@@ -728,12 +717,7 @@ contract XNSRoutes {
         return _routeExists(xnsName, routePrefix, route);
     }
 
-    /// @dev Shared by `routeExists` and `routeExistsFromPath`.
-    ///
-    /// @param xnsName The XNS name that owns the route space.
-    /// @param routePrefix Route prefix of the route path to be queried (may be empty).
-    /// @param route Route label of the route path to be queried.
-    /// @return exists True if a route record exists for the key.
+    /// @dev Used by `routeExists` / `routeExistsFromPath`; validation and keying match `routeExists`.
     function _routeExists(
         string memory xnsName,
         string memory routePrefix,
@@ -885,13 +869,7 @@ contract XNSRoutes {
     /// splits at the first `:` if any. Reverts with `"XNSRoutes: invalid route path"` only when no
     /// `/` is found. Does not validate XNS labels or reject extra `/` in `routePath`.
     ///
-    /// **Requirements:**
-    /// - `fullRoutePath` must contain at least one `/`.
-    ///
-    /// @param fullRoutePath The full route path to split.
-    /// @return xnsName The XNS name.
-    /// @return routePrefix The route prefix.
-    /// @return route The route.
+    /// Return tuple matches `splitFullPath`.
     function _splitFullPath(
         string calldata fullRoutePath
     ) private pure returns (string memory xnsName, string memory routePrefix, string memory route) {
@@ -939,15 +917,7 @@ contract XNSRoutes {
         }
     }
 
-    /// @dev Copies `data[start:end]` (end exclusive) into a UTF-8 string in memory.
-    ///
-    /// **Requirements:**
-    /// - `end` must be greater than or equal to `start`.
-    ///
-    /// @param data The bytes to copy.
-    /// @param start The start index (inclusive).
-    /// @param end The end index (exclusive).
-    /// @return out The resulting string.
+    /// @dev Copies `data[start:end]` (end exclusive) into memory as a string; requires `end >= start`.
     function _calldataSubstringToString(
         bytes calldata data,
         uint256 start,
@@ -963,9 +933,7 @@ contract XNSRoutes {
     }
 
     /// @dev Bare names like `bob` become `bob.x`; otherwise returns `xnsName` unchanged.
-    ///
-    /// @param xnsName User-supplied XNS name.
-    /// @return canonicalXNSName Canonical form of the XNS name.
+    /// Reverts `"XNSRoutes: invalid XNS name"` when empty.
     function _canonicalizeXNSName(
         string memory xnsName
     ) private pure returns (string memory canonicalXNSName) {
@@ -987,10 +955,7 @@ contract XNSRoutes {
         return xnsName;
     }
 
-    /// @dev Resolves ownership against the canonical name. XNS `getAddress` returns zero for unregistered names.
-    ///
-    /// @param xnsName XNS name as passed by the caller (bare or fully qualified).
-    /// @return canonicalXNSName Canonical form used for keys, storage, and events.
+    /// @dev Canonicalizes `xnsName`, requires XNS `getAddress` non-zero and `msg.sender` as owner.
     function _requireXNSNameOwner(
         string calldata xnsName
     ) private view returns (string memory canonicalXNSName) {
@@ -1000,21 +965,13 @@ contract XNSRoutes {
         require(msg.sender == xnsNameOwner, "XNSRoutes: not XNS name owner");
     }
 
-    /// @dev `keccak256(bytes(_canonicalizeXNSName(xnsName)))`
-    ///
-    /// @param xnsName The XNS name to get the key for.
-    /// @return key The key for the XNS name.
+    /// @dev Route-book scope key: `keccak256(bytes(_canonicalizeXNSName(xnsName)))`.
     function _xnsNameKey(string memory xnsName) private pure returns (bytes32) {
         return keccak256(bytes(_canonicalizeXNSName(xnsName)));
     }
 
-    /// @dev Empty `routePrefix`: packed `canonicalXnsName/route` (matches human path without `:`).
-    /// Non-empty: `canonicalXnsName/routePrefix:route`.
-    ///
-    /// @param xnsName XNS name (canonicalized before packing).
-    /// @param routePrefix Route prefix of the route path to be packed (may be empty).
-    /// @param route Route label of the route path to be packed.
-    /// @return key Keccak-256 route storage key for `(canonical xnsName, routePrefix, route)`.
+    /// @dev Storage key for `(canonical xnsName, routePrefix, route)`: empty prefix uses
+    /// `canonical/name`; non-empty uses `canonical/prefix:route`. Always canonicalizes `xnsName`.
     function _routeKey(
         string memory xnsName,
         string memory routePrefix,
@@ -1027,12 +984,8 @@ contract XNSRoutes {
         return keccak256(abi.encodePacked(canonicalXNSName, "/", routePrefix, ":", route));
     }
 
-    /// @dev Non-empty `routePrefix` and `route` must satisfy slug rules (charset/hyphen constraints)
-    /// so malformed tuples cannot alias canonical keys. `routePrefix` max length is 20; `route` max
-    /// length is 32.
-    ///
-    /// @param routePrefix Route prefix of the route path to be validated (may be empty).
-    /// @param route Route label of the route path to be validated.
+    /// @dev Enforces slug rules on `(routePrefix, route)` so segment spelling is canonical and keys
+    /// stay unambiguous (`routePrefix` max 20 chars; `route` max 32). Empty `routePrefix` is allowed.
     function _validateRoutePrefixAndRoute(
         string memory routePrefix,
         string memory route
@@ -1044,32 +997,18 @@ contract XNSRoutes {
         require(_isValidRoute(route), "XNSRoutes: invalid route");
     }
 
-    /// @dev Route-prefix validator (same character/hyphen rules as XNS labels, max length 20).
-    ///
-    /// @param routePrefix Candidate route-prefix label.
-    /// @return isValid True when `routePrefix` is valid.
+    /// @dev Slug rules, max length 20 (same charset/hyphens as route segments).
     function _isValidRoutePrefix(string memory routePrefix) private pure returns (bool isValid) {
         return _isValidSlug(routePrefix, 20);
     }
 
-    /// @dev Route validator (same character/hyphen rules as XNS labels, max length 32).
-    ///
-    /// @param route Candidate route label.
-    /// @return isValid True when `route` is valid.
+    /// @dev Slug rules, max length 32.
     function _isValidRoute(string memory route) private pure returns (bool isValid) {
         return _isValidSlug(route, 32);
     }
 
-    /// @dev Shared slug validator used by route-prefix and route checks.
-    /// Rules:
-    /// - length in [1, `maxLen`]
-    /// - chars are only [a-z], [0-9], or '-'
-    /// - no leading/trailing '-'
-    /// - no consecutive '--'
-    ///
-    /// @param s Candidate slug string.
-    /// @param maxLen Inclusive maximum length.
-    /// @return isValid True when `s` satisfies all constraints.
+    /// @dev Lowercase alphanumeric + hyphen slug; length in `[1, maxLen]`; no leading/trailing or
+    /// doubled hyphens.
     function _isValidSlug(string memory s, uint256 maxLen) private pure returns (bool isValid) {
         bytes memory b = bytes(s);
         uint256 len = b.length;
