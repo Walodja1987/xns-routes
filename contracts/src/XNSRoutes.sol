@@ -56,6 +56,7 @@ contract XNSRoutes {
     // -------------------------------------------------------------------------
     // Types
     // -------------------------------------------------------------------------
+
     /// @dev Data structure to store route metadata.
     struct RouteRecord {
         address target;
@@ -84,6 +85,7 @@ contract XNSRoutes {
     // -------------------------------------------------------------------------
     // Events
     // -------------------------------------------------------------------------
+
     /// @dev Emitted in `createRoute`.
     event RouteCreated(
         bytes32 indexed nameHash,
@@ -97,7 +99,7 @@ contract XNSRoutes {
         uint32 routeType
     );
 
-    /// @dev Emitted in `updateTarget` when target changes, and in `updateRoute` when `target` changes.
+    /// @dev Emitted in `updateTarget` and `updateRoute` when `target` changes.
     event RouteTargetUpdated(
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,
@@ -108,7 +110,7 @@ contract XNSRoutes {
         address indexed newTarget
     );
 
-    /// @dev Emitted in `updateRouteType` when route type changes, and in `updateRoute` when `routeType` changes.
+    /// @dev Emitted in `updateRouteType` and `updateRoute` when `routeType` changes.
     event RouteTypeUpdated(
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,
@@ -157,6 +159,7 @@ contract XNSRoutes {
     // -------------------------------------------------------------------------
     // Constructor
     // -------------------------------------------------------------------------
+
     /// @notice Sets the XNS registry and registers the name `routes.xns` for this contract.
     ///
     /// **Requirements:**
@@ -173,29 +176,30 @@ contract XNSRoutes {
     // -------------------------------------------------------------------------
     // State-modifying functions
     // -------------------------------------------------------------------------
+
     /// @notice Create a route `[xnsName]/[routePrefix:][route]`. Reverts if the route already exists.
     ///
     /// **Requirements:**
     /// - `msg.sender` must be the owner for `xnsName`.
-    /// - Non-empty `routePrefix` and `route` must satisfy local character set, hyphenation, and length rules.
+    /// - Non-empty `routePrefix` and `route` must satisfy local character rules.
     /// - `route` must be a non-empty string.
     /// - `target` must not be the zero address.
     /// - The route book for `xnsName` must not be frozen.
     /// - The route key must not already exist.
     ///
-    /// On success, appends the route key to the append-only array `_routeKeysByXNSName` associated with `xnsName`.
-    ///
+    /// On success, appends the route key to the append-only array `_routeKeysByXNSName` associated
+    /// with `xnsName`, querieable via `getRouteKeys`.
     /// Note: Bare names like `bob` are normalized/canonicalized to `bob.x` for storage.
     ///
     /// @param xnsName The XNS name that owns the route space, e.g. "xns.action".
     /// @param routePrefix Optional path segment before `:`; non-empty must pass local route-prefix
-    /// rules ([a-z0-9-], max length 20).
-    /// empty means `xnsName/route` only (no `:` in the routePath).
+    /// rules ([a-z0-9-], max length 20); empty means `xnsName/route` only (no `:` in the routePath).
+    /// 
     /// @param route Required route label ([a-z0-9-], max length 32).
     /// @param target Target address for `routeType`; must be non-zero (`address(0)` is reserved
     /// for non-existent route).
     /// @param routeType Parser hint for how to interpret `target` (off-chain semantics),
-    /// e.g. 0 = plain address, 2 = Bitcoin address, 3 = html, etc.
+    /// e.g. 0 = plain address, 2 = Bitcoin address, 3 = address exposing a html, etc.
     /// @param activate Initial value for stored `isActive`.
     /// @param freeze If true, renders the route immutable.
     function createRoute(
