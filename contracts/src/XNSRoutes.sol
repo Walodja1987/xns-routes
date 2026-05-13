@@ -177,7 +177,7 @@ contract XNSRoutes {
     // State-modifying functions
     // -------------------------------------------------------------------------
 
-    /// @notice Create a route `[xnsName]/[routePrefix:][route]`. Reverts if the route already exists.
+    /// @notice Create a route `[xnsName]/[routePrefix:][route]`.
     ///
     /// **Requirements:**
     /// - `msg.sender` must be the owner for `xnsName`.
@@ -194,7 +194,6 @@ contract XNSRoutes {
     /// @param xnsName The XNS name that owns the route space, e.g. "xns.action".
     /// @param routePrefix Optional path segment before `:`; non-empty must pass local route-prefix
     /// rules ([a-z0-9-], max length 20); empty means `xnsName/route` only (no `:` in the routePath).
-    /// 
     /// @param route Required route label ([a-z0-9-], max length 32).
     /// @param target Target address for `routeType`; must be non-zero (`address(0)` is reserved
     /// for non-existent route).
@@ -636,7 +635,7 @@ contract XNSRoutes {
     // -------------------------------------------------------------------------
 
     /// @notice Return full route metadata. Applies the same `routePrefix`/`route` validation as
-    /// mutating functions, then reads storage. Reverts when no route exists for the key.
+    /// mutating functions, then reads storage.
     ///
     /// @param xnsName The XNS name that owns the route space.
     /// @param routePrefix Route prefix of the route path to be queried (may be empty).
@@ -674,8 +673,7 @@ contract XNSRoutes {
     }
 
     /// @dev Loads `(target, isActive, isFrozen, routeType)` after `_validateRoutePrefixAndRoute`.
-    /// Reverts `"XNSRoutes: route not found"` when missing. Tuple semantics match `getRouteInfo`
-    /// and `getRouteInfoFromPath`.
+    /// Tuple semantics and revert behavior match `getRouteInfo` / `getRouteInfoFromPath`.
     function _getRouteInfo(
         string memory xnsName,
         string memory routePrefix,
@@ -753,7 +751,9 @@ contract XNSRoutes {
     /// `xnsName` (`end` is exclusive). If `end` is greater than the array length, behaves
     /// like `end == length` (caller may pass any large upper bound to fetch "the rest"
     /// without needing to know the exact array length). If `start` lies past the end of
-    /// the array, returns an empty array. Reverts only when `start > end`.
+    /// the array, returns an empty array.
+    ///
+    /// Requires `start <= end`.
     ///
     /// @param xnsName The XNS name to get the route keys for.
     /// @param start The start index (inclusive).
@@ -869,11 +869,9 @@ contract XNSRoutes {
         return _isValidRoute(route);
     }
 
-    /// @dev Splits `fullRoutePath` at the first `/` into `xnsName` and `routePath`. Within `routePath`,
-    /// splits at the first `:` if any. Reverts with `"XNSRoutes: invalid route path"` only when no
-    /// `/` is found. Does not validate XNS labels or reject extra `/` in `routePath`.
-    ///
-    /// Return tuple matches `splitFullPath`.
+    /// @dev Splits `fullRoutePath` at the first `/`, then at the first `:` in the remainder.
+    /// Does not validate XNS labels or slug rules on segments. Parsing rules and revert behavior
+    /// match `splitFullPath`.
     function _splitFullPath(
         string calldata fullRoutePath
     ) private pure returns (string memory xnsName, string memory routePrefix, string memory route) {
@@ -937,7 +935,7 @@ contract XNSRoutes {
     }
 
     /// @dev Bare names like `bob` become `bob.x`; otherwise returns `xnsName` unchanged.
-    /// Reverts `"XNSRoutes: invalid XNS name"` when empty.
+    /// Requires non-empty `xnsName`.
     function _canonicalizeXNSName(
         string memory xnsName
     ) private pure returns (string memory canonicalXNSName) {

@@ -52,7 +52,7 @@ Key points:
 ### createRoute
 
 
-Create a route `[xnsName]/[routePrefix:][route]`. Reverts if the route already exists.
+Create a route `[xnsName]/[routePrefix:][route]`.
 
 **Requirements:**
 - `msg.sender` must be the owner for `xnsName`.
@@ -109,7 +109,7 @@ function updateRoute(string xnsName, string routePrefix, string route, address t
 | routePrefix | string | Route prefix of the route path to be updated (may be empty). |
 | route | string | Route label of the route path to be updated. |
 | target | address | New target address. Must be non-zero. |
-| routeType | uint32 | New route type integer. |
+| routeType | uint32 | New parser hint (same semantics as `routeType` in `createRoute`). |
 | activate | bool | New value for stored `isActive`. |
 | freeze | bool | If true, renders the route immutable. Emits `RouteTargetUpdated`, `RouteTypeUpdated`, and/or `RouteActiveStatusUpdated` only when the corresponding stored field changes; emits `RouteFrozen` when `freeze` is true. |
 
@@ -309,7 +309,7 @@ function freezeRouteBook(string xnsName) external
 
 
 Return full route metadata. Applies the same `routePrefix`/`route` validation as
-mutating functions, then reads storage. Reverts when no route exists for the key.
+mutating functions, then reads storage.
 
 ```solidity
 function getRouteInfo(string xnsName, string routePrefix, string route) external view returns (address target, bool isActive, bool isFrozen, uint32 routeType)
@@ -331,7 +331,7 @@ function getRouteInfo(string xnsName, string routePrefix, string route) external
 | target | address | Stored target address for the route. |
 | isActive | bool | Whether the route is active. |
 | isFrozen | bool | Whether the route is frozen. |
-| routeType | uint32 | Route type integer. |
+| routeType | uint32 | Parser hint (off-chain semantics). |
 
 ### getRouteInfoFromPath
 
@@ -360,7 +360,7 @@ function getRouteInfoFromPath(string fullRoutePath) external view returns (addre
 | target | address | Stored target address for the route. |
 | isActive | bool | Whether the route is active. |
 | isFrozen | bool | Whether the route is frozen. |
-| routeType | uint32 | Route type integer. |
+| routeType | uint32 | Parser hint (off-chain semantics). |
 
 ### routeExists
 
@@ -456,7 +456,10 @@ Returns `keys[start:end]` from the route keys array associated with
 `xnsName` (`end` is exclusive). If `end` is greater than the array length, behaves
 like `end == length` (caller may pass any large upper bound to fetch "the rest"
 without needing to know the exact array length). If `start` lies past the end of
-the array, returns an empty array. Reverts only when `start > end`.
+the array, returns an empty array.
+
+**Requirements:**
+- `start <= end`.
 
 ```solidity
 function getRouteKeys(string xnsName, uint256 start, uint256 end) external view returns (bytes32[] keys)
