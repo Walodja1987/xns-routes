@@ -956,14 +956,13 @@ contract XNSRoutes {
         return xnsName;
     }
 
-    /// @dev Canonicalizes `xnsName`, requires XNS `getAddress` non-zero and `msg.sender` as owner.
+    /// @dev Canonicalizes `xnsName` and requires `msg.sender` == `XNS.getAddress(canonicalXNSName)`.
+    /// In particular, reverts when the name is not registered on XNS (`getAddress` returns `address(0)`).
     function _requireXNSNameOwner(
         string calldata xnsName
     ) private view returns (string memory canonicalXNSName) {
         canonicalXNSName = _canonicalizeXNSName(xnsName);
-        address xnsNameOwner = XNS.getAddress(canonicalXNSName);
-        require(xnsNameOwner != address(0), "XNSRoutes: invalid XNS name");
-        require(msg.sender == xnsNameOwner, "XNSRoutes: not XNS name owner");
+        require(msg.sender == XNS.getAddress(canonicalXNSName), "XNSRoutes: not XNS name owner");
     }
 
     /// @dev Route-book scope key: `keccak256(bytes(_canonicalizeXNSName(xnsName)))`.

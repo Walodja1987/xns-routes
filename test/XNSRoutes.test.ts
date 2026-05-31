@@ -226,7 +226,7 @@ describe("XNSRoutes", function () {
       ).to.be.revertedWith(XR.invalidXnsName);
     });
 
-    it("Should revert with InvalidXnsName when XNS resolves owner to zero", async function () {
+    it("Should revert with NotXnsNameOwner when XNS resolves owner to zero", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       const orphan = "orphan.test";
 
@@ -234,7 +234,7 @@ describe("XNSRoutes", function () {
         routes
           .connect(owner)
           .createRoute(orphan, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false),
-      ).to.be.revertedWith(XR.invalidXnsName);
+      ).to.be.revertedWith(XR.notXnsNameOwner);
     });
 
     it("Should revert with InvalidRoutePrefix when routePrefix exceeds 20 chars", async function () {

@@ -60,8 +60,8 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Reverts
 
-- Should revert with `"XNSRoutes: not XNS name owner"` when `msg.sender` is not `XNS.getAddress(xnsName)`.
-- Should revert with `"XNSRoutes: invalid XNS name"` when `XNS.getAddress(xnsName)` is zero (empty `xnsName` is included: XNS returns zero for `len == 0`).
+- Should revert with `"XNSRoutes: not XNS name owner"` when `msg.sender` is not `XNS.getAddress(xnsName)` (includes unregistered names where XNS returns `address(0)`).
+- Should revert with `"XNSRoutes: invalid XNS name"` when `xnsName` is empty (in `_canonicalizeXNSName`, before the owner check).
 - Should revert with `"XNSRoutes: invalid route prefix"` / `"XNSRoutes: invalid route"` when `routePrefix` or `route` fails local route-segment rules (same as `createRoute`), including empty `routePrefix` with a `route` containing `:` (prevents aliasing the canonical `prefix:route` key).
 - Should revert with `"XNSRoutes: invalid target"` when `target` is zero.
 - Should revert with `"XNSRoutes: route book frozen"` when `freezeRouteBook` has already been called for that `xnsName`.
