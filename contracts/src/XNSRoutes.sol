@@ -18,8 +18,8 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// @author Wladimir Weinbender (DIVA Technologies AG)
 /// @notice Route registry for XNS names which enables XNS name owners to map URL-style
 /// identifiers to any Ethereum address. Mappings are free and may point to EOAs and smart
-/// contracts including helper/view contracts returning arbitrary data, such as Bitcoin or Solana
-/// addresses, calldata, or other information.
+/// contracts including helper/view contracts returning arbitrary data, such as Bitcoin or
+/// Solana addresses, calldata, or other information.
 ///
 /// Route format: `[xnsName]/[routePrefix:][route]` with `routePrefix` being optional.
 ///
@@ -270,8 +270,8 @@ contract XNSRoutes {
     /// @param activate New value for stored `isActive`.
     /// @param freeze If true, renders the route immutable.
     ///
-    /// Emits `RouteTargetUpdated`, `RouteTypeUpdated`, and/or `RouteActiveStatusUpdated` only when the
-    /// corresponding stored field changes; emits `RouteFrozen` when `freeze` is true.
+    /// Emits `RouteTargetUpdated`, `RouteTypeUpdated`, and/or `RouteActiveStatusUpdated` only
+    /// when the corresponding stored field changes; emits `RouteFrozen` when `freeze` is true.
     function updateRoute(
         string calldata xnsName,
         string calldata routePrefix,
@@ -818,8 +818,7 @@ contract XNSRoutes {
 
     /// @notice Utility function to parse `fullRoutePath` into `(xnsName, routePrefix, route)`.
     ///
-    /// **Requirements:**
-    /// - `fullRoutePath` must contain at least one `/`.
+    /// Requires `fullRoutePath` to contain at least one `/`.
     ///
     /// Does not apply XNS label validation; pass the returned tuple into tuple-based functions,
     /// which validate `routePrefix` and `route`.
@@ -856,7 +855,7 @@ contract XNSRoutes {
         return _isValidRoute(route);
     }
 
-    /// @notice Returns whether `(routePrefix, route)` would pass validation used by mutating and tuple-based view functions.
+    /// @notice Returns whether `routePrefix` and `route` would pass the string validation rules.
     ///
     /// @param routePrefix Candidate route-prefix segment (may be empty).
     /// @param route Candidate route label.
@@ -972,8 +971,9 @@ contract XNSRoutes {
         return keccak256(bytes(_canonicalizeXNSName(xnsName)));
     }
 
-    /// @dev Storage key for `(canonical xnsName, routePrefix, route)`: empty prefix uses
-    /// `canonical/name`; non-empty uses `canonical/prefix:route`. Always canonicalizes `xnsName`.
+    /// @dev Returns keccak256 of the route path string: `{canonicalXNSName}/{route}` when
+    /// `routePrefix` is empty, else `{canonicalXNSName}/{routePrefix}:{route}`.
+    /// Canonicalizes `xnsName` (e.g. `bob` → `bob.x`) before hashing.
     function _routeKey(
         string memory xnsName,
         string memory routePrefix,
@@ -986,8 +986,8 @@ contract XNSRoutes {
         return keccak256(abi.encodePacked(canonicalXNSName, "/", routePrefix, ":", route));
     }
 
-    /// @dev Enforces slug rules on `(routePrefix, route)` so segment spelling is canonical and keys
-    /// stay unambiguous (`routePrefix` max 20 chars; `route` max 32). Empty `routePrefix` is allowed.
+    /// @dev Enforces slug rules on `routePrefix` and `route` (`routePrefix` max 20 chars;
+    /// `route` max 32 chars). Empty `routePrefix` is allowed.
     function _validateRoutePrefixAndRoute(
         string memory routePrefix,
         string memory route
@@ -999,18 +999,18 @@ contract XNSRoutes {
         require(_isValidRoute(route), "XNSRoutes: invalid route");
     }
 
-    /// @dev Slug rules, max length 20 (same charset/hyphens as route segments).
+    /// @dev Validates `routePrefix` against the slug rules, max length 20.
     function _isValidRoutePrefix(string memory routePrefix) private pure returns (bool isValid) {
         return _isValidSlug(routePrefix, 20);
     }
 
-    /// @dev Slug rules, max length 32.
+    /// @dev Validates `route` against the slug rules, max length 32.
     function _isValidRoute(string memory route) private pure returns (bool isValid) {
         return _isValidSlug(route, 32);
     }
 
-    /// @dev Lowercase alphanumeric + hyphen slug; length in `[1, maxLen]`; no leading/trailing or
-    /// doubled hyphens.
+    /// @dev Validates that slug `s` is non-empty, up to `maxLen` characters long, only lowercase letters,
+    /// digits, and hyphens, cannot start or end with '-', cannot contain consecutive hyphens ('--').
     function _isValidSlug(string memory s, uint256 maxLen) private pure returns (bool isValid) {
         bytes memory b = bytes(s);
         uint256 len = b.length;
