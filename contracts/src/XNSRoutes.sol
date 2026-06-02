@@ -816,18 +816,23 @@ contract XNSRoutes {
         }
     }
 
-    /// @notice Utility function to parse `fullRoutePath` into `(xnsName, routePrefix, route)`.
-    ///
+    /// @notice Parses a `fullRoutePath` (e.g., `bro.xns/eth:my-wallet`) string into its components
+    /// `(xnsName, routePrefix, route)`. Useful when calling functions that require these components
+    /// as separate arguments (e.g., `updateRoute`, `activateRoute`, `routeExists`, `getRouteInfo`, etc.).
+    /// 
+    /// Note: This function does not validate the extracted `routePrefix` and `route` segments; 
+    /// any validation (such as character set or length enforcement) is enforced by the specific 
+    /// route-handling functions. As a result, if `fullRoutePath` is malformed, the output 
+    /// components `(xnsName, routePrefix, route)` may still be returned but will fail in downstream 
+    /// functions that require valid route identifiers.
+    /// 
     /// Requires `fullRoutePath` to contain at least one `/`.
-    ///
-    /// Does not apply XNS label validation; pass the returned tuple into tuple-based functions,
-    /// which validate `routePrefix` and `route`.
     ///
     /// @param fullRoutePath Full path, e.g. `bob.xns/eth:transfer-usdt` or `bob.xns/my-wallet`.
     /// @return xnsName Segment before the first `/`.
     /// @return routePrefix Segment before the first `:` in the routePath, or empty if there is no `:`.
-    /// @return route Remainder of the routePath after `routePrefix` and `:`, or the whole
-    /// routePath if there is no `:`.
+    /// @return route The segment after `:` if a `routePrefix` is present, or the segment after
+    /// `/` if there is no `routePrefix`.
     function splitFullPath(
         string calldata fullRoutePath
     )
