@@ -21,12 +21,19 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// contracts including helper/view contracts returning arbitrary data, such as Bitcoin or
 /// Solana addresses, calldata, or other information.
 ///
-/// XRL (XNS Route Locator) grammar: `xnsName "/" route [ "/" params… ]`.
-/// **Registry XRL** is the on-chain subset `xnsName "/" route` (no param path). Full XRLs with
-/// trailing params are valid off-chain; `splitXRL` and registry functions accept registry XRL only.
+/// Routes are addressed with **XRL** (XNS Route Locator) strings. The format is:
 ///
-/// `route` is either `routeLabel` or `routeScope ":" routeLabel` (e.g. `eth:123` or `my-wallet`).
+/// XRL = `xnsName/[routeScope:]routeLabel[/params]`
 ///
+/// - **xnsName** — XNS name that owns the route book (e.g. `bob.xns`).
+/// - **route** — `[routeScope:]routeLabel` after the first `/` (e.g. `eth:usdt-wallet` or `my-wallet`).
+/// - **routeScope** — optional segment before `:` (1–20 chars if present).
+/// - **routeLabel** — required slug (1–32 chars).
+/// - **params** — optional tail for off-chain builders; not stored or validated on-chain.
+///
+/// Registry XRL = `xnsName/route` (XRL without the params tail). 
+/// This contract only parses and keys registry XRL.
+//
 /// Examples (registry XRL):
 /// - `alice.og/my-sub-wallet`
 /// - `contracts.aave/eth:v3-pool-contract`
@@ -37,13 +44,10 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - Cannot start or end with '-'
 /// - Cannot contain consecutive hyphens ('--')
 ///
-/// `routeScope` is optional; if provided, it must be 1-20 characters long.
-/// `routeLabel` is required and must be 1-32 characters long.
-///
 /// Key points:
 /// - Routes are owned and managed by the XNS name owner.
 /// - An XNS name owner can register unlimited routes for free.
-/// - A route stores `target`, `routeType`, `isActive`, and `isFrozen`.
+/// - A route record stores `target`, `routeType`, `isActive`, and `isFrozen`.
 /// - Route freeze and route book freeze are irreversible.
 /// - Active status can still be toggled after freeze.
 /// - `routeType` is a `uint32` tag whose meaning and interpretation are defined off-chain by route parsers.
@@ -51,9 +55,9 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 ///   `routeType = 1` may suggest that the `target` is a smart contract.
 ///   `routeType = 2` may suggest that the `target` is a special contract that returns parametrized calldata.
 ///   `routeType = 3` may suggest that the `target` returns a Bitcoin address.
-/// - Forward resolution is direct: registry XRL → `target`. Reverse lookup is not supported because
+/// - Forward resolution is direct: registry XRL -> `target`. Reverse lookup is not supported because
 ///   many routes may point to the same `target`.
-/// - `routeKey` is `keccak256` of canonical registry XRL (`xnsName "/" route`; params excluded).
+/// - `routeKey` is `keccak256` of canonical registry XRL (`xnsName/route`; params excluded).
 /// - For one known `xnsName`, on-chain enumeration is available without an indexer via the append-only
 ///   route-key log (`getRouteKeyCount`, `getRouteKeys`, `getRouteRecordByRouteKey` / batch overload).
 /// - Bare names like `bob` are normalized/canonicalized to `bob.x` for storage.
@@ -979,7 +983,7 @@ contract XNSRoutes {
 
     /// @dev Returns keccak256 of canonical registry routeLabel: `{canonicalXNSName}/{routeLabel}` when
     /// `routeScope` is empty, else `{canonicalXNSName}/{routeScope}:{routeLabel}`.
-    /// Canonicalizes `xnsName` (e.g. `bob` → `bob.x`) before hashing.
+    /// Canonicalizes `xnsName` (e.g. `bob` -> `bob.x`) before hashing.
     function _routeKey(
         string memory xnsName,
         string memory routeScope,
