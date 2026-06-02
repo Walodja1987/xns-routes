@@ -8,7 +8,17 @@ Instead of sharing raw calldata or relying on a single frontend, protocols and u
 
 ## ✨ What are Routes?
 
-An XNS route is a **named action** under an XNS name, with optional **route prefix** and required **route** label. Paths look like `xnsName/routePrefix:route/params…` when a prefix is set (one `:` in the routePath). For routes **without** a prefix (e.g. same EOA everywhere), use an empty `routePrefix` in the registry and a path like `xnsName/route/params…` (no `:` in the routePath).
+Routes are registered under an XNS name using **XRL** (XNS Route Locator) strings.
+
+**Grammar:**
+
+```text
+XRL           = xnsName "/" route [ "/" params… ]
+registry XRL  = xnsName "/" route          (no params; on-chain subset)
+```
+
+- **route** = `routeLabel` or `routeScope ":" routeLabel` (e.g. `eth:register-name` or `my-wallet`)
+- **params** (e.g. `/label=bro/namespace=og`) are off-chain; the contract only accepts **registry XRL**
 
 ```
 xns.action/eth:register-name/label=bro/namespace=og
@@ -17,17 +27,33 @@ usdt.action/eth:transfer-usdt/to=0x.../amount=100
 
 Each route:
 
-- belongs to an XNS name (e.g. `xns.action`)
-- has an optional **route prefix** (e.g. `eth`, `137-poly`) or **empty** for single-segment routes, plus a **route** label (e.g. `transfer-usdt`)
-- points to a **build contract**
-- produces transaction calldata
+- belongs to an **xnsName** (e.g. `xns.action`)
+- has an optional **route scope** (e.g. `eth`, `137-poly`) and a required **route label** (e.g. `transfer-usdt`)
+- points to a **build contract** (`target`)
+- produces transaction calldata off-chain
 
-Validation rules for route segments:
+Validation rules:
 
-- `routePrefix` may be empty, or `1-20` chars if provided
-- `route` must be `1-32` chars
+- `routeScope` may be empty, or `1-20` chars if provided
+- `routeLabel` must be `1-32` chars
 - charset for both: lowercase `a-z`, digits `0-9`, and `-`
 - no leading/trailing `-`, and no consecutive `--`
+
+---
+
+## 📖 XRL vocabulary
+
+| Term | Example | Notes |
+|------|---------|--------|
+| **XRL** | `ai.xns/eth:123/label=bro` | Full locator; optional param path after the route |
+| **Registry XRL** | `ai.xns/eth:123` | On-chain subset of XRL: `xnsName "/" route` only (no params). Used by `splitXRL`, `routeKey`, and registry lookups |
+| **xnsName** | `ai.xns` | Host / owner scope |
+| **route** | `eth:123` | Part after `/` in a registry XRL |
+| **route scope** | `eth` | Optional; before `:` |
+| **route label** | `123` | Required slug |
+| **route key** | `bytes32` | `keccak256(canonical registry XRL)`; params never included |
+
+Contract tuple APIs use `(xnsName, routeScope, routeLabel)` — equivalent to parsing a registry XRL. Path helpers: `splitXRL`, `getRouteInfoFromXRL`, `routeExistsFromXRL` (input must be a registry XRL).
 
 ---
 
@@ -35,10 +61,10 @@ Validation rules for route segments:
 
 | Component      | Meaning                                                                                    |
 | -------------- | ------------------------------------------------------------------------------------------ |
-| XNS name       | Identity / publisher                                                                       |
-| Route prefix   | Optional disambiguator before `:` (e.g. `eth`); often network/context; empty or 1-20 chars |
-| Route          | Action / intent label (e.g. `transfer-usdt`); 1-32 chars                                   |
-| Build contract | How the transaction is built                                                               |
+| XNS name       | Identity / publisher (`xnsName`)                                                           |
+| Route scope    | Optional disambiguator before `:` (e.g. `eth`); 0 or 1-20 chars                            |
+| Route label    | Action slug (e.g. `transfer-usdt`); 1-32 chars                                             |
+| Build contract | How the transaction is built (`target`)                                                    |
 
 > **XNS names resolve identities. Routes resolve actions.**
 
@@ -73,8 +99,8 @@ A route is registered under an XNS name:
 ```solidity
 createRoute(
   "xns.action",
-  "eth",           // routePrefix
-  "register-name", // route
+  "eth",           // routeScope
+  "register-name", // routeLabel
   address(builder),
   0,      // routeType (offchain-defined parser hint)
   true,   // activate → stored isActive
@@ -114,7 +140,7 @@ A wallet:
 
 1. Resolves `xns.action`
 2. Parses `eth` and `register-name` from `eth:register-name`
-3. Looks up `(xnsName, routePrefix, route)` on the registry (`routePrefix` may be empty)
+3. Looks up `(xnsName, routeScope, routeLabel)` on the registry (`routeScope` may be empty)
 4. Calls `build(...)`
 5. Gets:
    - target chain
@@ -201,9 +227,9 @@ usdt.action/eth:transfer-usdt/to=0x.../amount=100
 
 ---
 
-## 🧭 Suggested route label (and prefix)
+## 🧭 Suggested route label (and scope)
 
-Build contracts can suggest the **route** label (the part after `routePrefix:` in the path). The **route prefix** (e.g. `eth`) often comes from the builder’s target network or app defaults.
+Build contracts can suggest the **route label** (the part after `routeScope:` in the path). The **route scope** (e.g. `eth`) often comes from the builder’s target network or app defaults.
 
 ```solidity
 function suggestedRouteName() external pure returns (string memory);
@@ -212,8 +238,8 @@ function suggestedRouteName() external pure returns (string memory);
 ### UX Flow
 
 - User picks builder from library
-- App reads suggested **route** label and sets **route prefix** (e.g. from `TARGET_CHAIN_ID` or user choice)
-- Prefills `routePrefix:route` in the path
+- App reads suggested **route** label and sets **route scope** (e.g. from `TARGET_CHAIN_ID` or user choice)
+- Prefills `routeScope:routeLabel` in the path
 - User accepts or edits
 
 ---
@@ -261,6 +287,7 @@ The registry keeps an **append-only log** of **route storage keys** (`bytes32`) 
 - `getRouteKeys(xnsName, start, end)` — page through keys (`end` **exclusive**; if `end` &gt; log length, it is clamped to the log length; if `start` is past that range, returns an empty array)
 - `getRouteRecordByRouteKey(bytes32)` — read one `RouteRecord` by key (no string tuple needed)
 - `getRouteRecordByRouteKey(bytes32[])` — same, batch; returns `RouteRecord[]` (ABI overload—some clients must pick the function by full signature, e.g. ethers: `getFunction("getRouteRecordByRouteKey(bytes32[])")`)
+- `splitXRL`, `getRouteInfoFromXRL`, `routeExistsFromXRL` — accept **registry XRL** only (not full XRL with params)
 
 **Important semantics (don’t skip this)**
 
@@ -268,7 +295,7 @@ The registry keeps an **append-only log** of **route storage keys** (`bytes32`) 
    `getRouteKeyCount` counts **append-only log entries**, not routes that still exist. After `deleteRoute`, the key **stays in the log**; storage for that key is cleared, so `getRouteRecordByRouteKey` returns **`target == address(0)`** for that slot. Treat **zero `target` as deleted / empty** and filter those out off-chain (or in your UI) when you only want **live** routes.
 
 2. **Duplicate keys in the log**  
-   If a route is **deleted and later recreated** with the same `(xnsName, routePrefix, route)`, **`createRoute` appends the same `bytes32` again**. That is **intentional**: duplicates hint at **churn** (tear-down and re-registration). If you only care about unique keys, **dedupe by hash** off-chain.
+   If a route is **deleted and later recreated** with the same `(xnsName, routeScope, routeLabel)`, **`createRoute` appends the same `bytes32` again**. That is **intentional**: duplicates hint at **churn** (tear-down and re-registration). If you only care about unique keys, **dedupe by hash** off-chain.
 
 ---
 
@@ -329,7 +356,7 @@ Each script has a `USER INPUTS` section at the top. Fill in [constants/addresses
 - Always verify route + builder before execution
 - Wallets should clearly display:
   - route
-  - route prefix (if any)
+  - route scope (if any)
   - target contract
   - calldata summary
 

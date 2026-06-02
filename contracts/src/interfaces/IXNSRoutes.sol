@@ -16,8 +16,8 @@ interface IXNSRoutes {
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,
         string xnsName,
-        string routePrefix,
-        string route,
+        string routeScope,
+        string routeLabel,
         address indexed target,
         bool isActive,
         bool isFrozen,
@@ -28,8 +28,8 @@ interface IXNSRoutes {
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,
         string xnsName,
-        string routePrefix,
-        string route,
+        string routeScope,
+        string routeLabel,
         address previousTarget,
         address indexed newTarget
     );
@@ -38,8 +38,8 @@ interface IXNSRoutes {
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,
         string xnsName,
-        string routePrefix,
-        string route,
+        string routeScope,
+        string routeLabel,
         uint32 previousRouteType,
         uint32 newRouteType
     );
@@ -48,8 +48,8 @@ interface IXNSRoutes {
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,
         string xnsName,
-        string routePrefix,
-        string route,
+        string routeScope,
+        string routeLabel,
         bool isActive
     );
 
@@ -58,8 +58,8 @@ interface IXNSRoutes {
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,
         string xnsName,
-        string routePrefix,
-        string route
+        string routeScope,
+        string routeLabel
     );
 
     event RouteBookFrozenForName(bytes32 indexed nameHash, string xnsName);
@@ -68,8 +68,8 @@ interface IXNSRoutes {
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,
         string xnsName,
-        string routePrefix,
-        string route
+        string routeScope,
+        string routeLabel
     );
 
     function XNS() external view returns (address);
@@ -78,8 +78,8 @@ interface IXNSRoutes {
 
     function createRoute(
         string calldata xnsName,
-        string calldata routePrefix,
-        string calldata route,
+        string calldata routeScope,
+        string calldata routeLabel,
         address target,
         uint32 routeType,
         bool activate,
@@ -88,8 +88,8 @@ interface IXNSRoutes {
 
     function updateRoute(
         string calldata xnsName,
-        string calldata routePrefix,
-        string calldata route,
+        string calldata routeScope,
+        string calldata routeLabel,
         address target,
         uint32 routeType,
         bool activate,
@@ -98,73 +98,73 @@ interface IXNSRoutes {
 
     function activateRoute(
         string calldata xnsName,
-        string calldata routePrefix,
-        string calldata route
+        string calldata routeScope,
+        string calldata routeLabel
     ) external;
 
     function deactivateRoute(
         string calldata xnsName,
-        string calldata routePrefix,
-        string calldata route
+        string calldata routeScope,
+        string calldata routeLabel
     ) external;
 
     function deleteRoute(
         string calldata xnsName,
-        string calldata routePrefix,
-        string calldata route
+        string calldata routeScope,
+        string calldata routeLabel
     ) external;
 
     function updateTarget(
         string calldata xnsName,
-        string calldata routePrefix,
-        string calldata route,
+        string calldata routeScope,
+        string calldata routeLabel,
         address newTarget
     ) external;
 
     function updateRouteType(
         string calldata xnsName,
-        string calldata routePrefix,
-        string calldata route,
+        string calldata routeScope,
+        string calldata routeLabel,
         uint32 newRouteType
     ) external;
 
     function freezeRoute(
         string calldata xnsName,
-        string calldata routePrefix,
-        string calldata route
+        string calldata routeScope,
+        string calldata routeLabel
     ) external;
 
     function freezeRouteBook(string calldata xnsName) external;
 
     function getRouteInfo(
         string calldata xnsName,
-        string calldata routePrefix,
-        string calldata route
+        string calldata routeScope,
+        string calldata routeLabel
     ) external view returns (address target, bool isActive, bool isFrozen, uint32 routeType);
 
     function routeExists(
         string calldata xnsName,
-        string calldata routePrefix,
-        string calldata route
+        string calldata routeScope,
+        string calldata routeLabel
     ) external view returns (bool);
 
-    function getRouteInfoFromPath(
-        string calldata fullRoutePath
+    function getRouteInfoFromXRL(
+        string calldata xrl
     ) external view returns (address target, bool isActive, bool isFrozen, uint32 routeType);
 
-    function routeExistsFromPath(string calldata fullRoutePath) external view returns (bool exists);
+    function routeExistsFromXRL(string calldata xrl) external view returns (bool exists);
 
-    function splitFullPath(
-        string calldata fullRoutePath
-    ) external pure returns (string memory xnsName, string memory routePrefix, string memory route);
+    function splitXRL(
+        string calldata xrl
+    ) external pure returns (string memory xnsName, string memory routeScope, string memory routeLabel);
 
-    function isValidRoutePrefix(string calldata routePrefix) external pure returns (bool valid);
+    function isValidRouteScope(string calldata routeScope) external pure returns (bool valid);
 
-    function isValidRoute(string calldata route) external pure returns (bool valid);
+    function isValidRouteLabel(string calldata routeLabel) external pure returns (bool valid);
 
-    function isValidRoutePrefixAndRoute(
-        string calldata routePrefix,
-        string calldata route
+    function isValidRouteScopeAndLabel(
+        string calldata routeScope,
+        string calldata routeLabel
     ) external pure returns (bool valid);
 
     function getRouteKeyCount(string calldata xnsName) external view returns (uint256 count);

@@ -9,8 +9,8 @@ describe("XNSRoutes", function () {
   const { ethers } = hre;
 
   const XNS_NAME = "xns.action";
-  const ROUTE_PREFIX = "eth";
-  const ROUTE = "register-name";
+  const ROUTE_SCOPE = "eth";
+  const ROUTE_LABEL = "register-name";
   const OTHER_BASE = "other.action";
   /** Default `routeType` in tests; semantics are offchain */
   const RT0 = 0;
@@ -19,8 +19,8 @@ describe("XNSRoutes", function () {
   const XR = {
     zeroXnsAddress: "XNSRoutes: 0x XNS address",
     invalidXnsName: "XNSRoutes: invalid XNS name",
-    invalidRoutePrefix: "XNSRoutes: invalid route prefix",
-    invalidRoute: "XNSRoutes: invalid route",
+    invalidRouteScope: "XNSRoutes: invalid route scope",
+    invalidRouteLabel: "XNSRoutes: invalid route label",
     invalidTarget: "XNSRoutes: invalid target",
     notXnsNameOwner: "XNSRoutes: not XNS name owner",
     routeNotFound: "XNSRoutes: route not found",
@@ -28,7 +28,7 @@ describe("XNSRoutes", function () {
     routeBookFrozen: "XNSRoutes: route book frozen",
     routeAlreadyExists: "XNSRoutes: route already exists",
     cannotDeleteFrozenRoute: "XNSRoutes: cannot delete frozen route",
-    invalidRoutePath: "XNSRoutes: invalid route path",
+    invalidXRL: "XNSRoutes: invalid XRL",
     invalidRouteKeySlice: "XNSRoutes: invalid route key slice",
   } as const;
 
@@ -46,14 +46,14 @@ describe("XNSRoutes", function () {
   }
 
   /** Matches `XNSRoutes._routeKey` `abi.encodePacked` layout (canonical `xnsName`). */
-  function routeStorageKey(xnsName: string, routePrefix: string, route: string): string {
+  function routeStorageKey(xnsName: string, routeScope: string, routeLabel: string): string {
     const c = canonicalXnsName(xnsName);
-    if (routePrefix === "") {
-      return ethers.solidityPackedKeccak256(["string", "string", "string"], [c, "/", route]);
+    if (routeScope === "") {
+      return ethers.solidityPackedKeccak256(["string", "string", "string"], [c, "/", routeLabel]);
     }
     return ethers.solidityPackedKeccak256(
       ["string", "string", "string", "string", "string"],
-      [c, "/", routePrefix, ":", route],
+      [c, "/", routeScope, ":", routeLabel],
     );
   }
 
@@ -125,16 +125,16 @@ describe("XNSRoutes", function () {
       await expect(
         routes
           .connect(owner)
-          .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false),
+          .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false),
       )
         .to.emit(routes, "RouteCreated")
         .and.to.not.emit(routes, "RouteFrozen");
 
-      expect(await routes.routeExists(XNS_NAME, ROUTE_PREFIX, ROUTE)).to.equal(true);
+      expect(await routes.routeExists(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).to.equal(true);
       const [target, isActive, isFrozen, routeType] = await routes.getRouteInfo(
         XNS_NAME,
-        ROUTE_PREFIX,
-        ROUTE,
+        ROUTE_SCOPE,
+        ROUTE_LABEL,
       );
       expect(target).to.equal(buildTarget);
       expect(isActive).to.equal(true);
@@ -148,30 +148,30 @@ describe("XNSRoutes", function () {
       await expect(
         routes
           .connect(owner)
-          .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, true),
+          .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, true),
       )
         .to.emit(routes, "RouteCreated")
         .and.to.not.emit(routes, "RouteFrozen");
 
-      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE))[2]).to.equal(true);
+      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))[2]).to.equal(true);
     });
 
     it("Should let the name owner update target and isActive when not frozen", async function () {
       const { routes, owner, buildTarget, other } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
       const newTarget = other.address;
       await expect(
         routes
           .connect(owner)
-          .updateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, newTarget, RT0, false, false),
+          .updateRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, newTarget, RT0, false, false),
       )
         .to.emit(routes, "RouteTargetUpdated")
         .and.to.emit(routes, "RouteActiveStatusUpdated");
 
-      const [target, isActive, isFrozen] = await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE);
+      const [target, isActive, isFrozen] = await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
       expect(target).to.equal(newTarget);
       expect(isActive).to.equal(false);
       expect(isFrozen).to.equal(false);
@@ -181,15 +181,15 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
       await expect(
         routes
           .connect(owner)
-          .updateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, 1, true, false),
+          .updateRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, 1, true, false),
       ).to.emit(routes, "RouteTypeUpdated");
 
-      const [, , , routeType] = await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE);
+      const [, , , routeType] = await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
       expect(routeType).to.equal(1);
     });
 
@@ -197,15 +197,15 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
       await expect(
         routes
           .connect(owner)
-          .updateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, true),
+          .updateRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, true),
       ).to.emit(routes, "RouteFrozen");
 
-      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE))[2]).to.equal(true);
+      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))[2]).to.equal(true);
     });
 
     it("Should revert with NotXnsNameOwner when caller is not XNS owner", async function () {
@@ -214,7 +214,7 @@ describe("XNSRoutes", function () {
       await expect(
         routes
           .connect(other)
-          .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false),
+          .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false),
       ).to.be.revertedWith(XR.notXnsNameOwner);
     });
 
@@ -222,7 +222,7 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
 
       await expect(
-        routes.connect(owner).createRoute("", ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false),
+        routes.connect(owner).createRoute("", ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false),
       ).to.be.revertedWith(XR.invalidXnsName);
     });
 
@@ -233,22 +233,22 @@ describe("XNSRoutes", function () {
       await expect(
         routes
           .connect(owner)
-          .createRoute(orphan, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false),
+          .createRoute(orphan, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false),
       ).to.be.revertedWith(XR.notXnsNameOwner);
     });
 
-    it("Should revert with InvalidRoutePrefix when routePrefix exceeds 20 chars", async function () {
+    it("Should revert with InvalidRouteScope when routeScope exceeds 20 chars", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       const badRoutePrefix = "a".repeat(21);
 
       await expect(
         routes
           .connect(owner)
-          .createRoute(XNS_NAME, badRoutePrefix, ROUTE, buildTarget, RT0, true, false),
-      ).to.be.revertedWith(XR.invalidRoutePrefix);
+          .createRoute(XNS_NAME, badRoutePrefix, ROUTE_LABEL, buildTarget, RT0, true, false),
+      ).to.be.revertedWith(XR.invalidRouteScope);
     });
 
-    it("Should allow empty routePrefix without InvalidRoutePrefix (single-segment route)", async function () {
+    it("Should allow empty routeScope without InvalidRouteScope (single-segment route)", async function () {
       const { routes, owner, buildTarget, other } = await loadFixture(deployFixture);
       const globalRoute = "my-wallet";
 
@@ -258,16 +258,16 @@ describe("XNSRoutes", function () {
 
       expect(await routes.routeExists(XNS_NAME, "", globalRoute)).to.equal(true);
       expect((await routes.getRouteInfo(XNS_NAME, "", globalRoute))[0]).to.equal(buildTarget);
-      expect(await routes.routeExists(XNS_NAME, ROUTE_PREFIX, globalRoute)).to.equal(false);
-      await expect(routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, globalRoute)).to.be.revertedWith(
+      expect(await routes.routeExists(XNS_NAME, ROUTE_SCOPE, globalRoute)).to.equal(false);
+      await expect(routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, globalRoute)).to.be.revertedWith(
         XR.routeNotFound,
       );
 
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, globalRoute, other.address, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, globalRoute, other.address, RT0, true, false);
       expect((await routes.getRouteInfo(XNS_NAME, "", globalRoute))[0]).to.equal(buildTarget);
-      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, globalRoute))[0]).to.equal(
+      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, globalRoute))[0]).to.equal(
         other.address,
       );
     });
@@ -280,14 +280,14 @@ describe("XNSRoutes", function () {
       await expect(
         routes
           .connect(owner)
-          .createRoute(XNS_NAME, ROUTE_PREFIX, route32, buildTarget, RT0, true, false),
+          .createRoute(XNS_NAME, ROUTE_SCOPE, route32, buildTarget, RT0, true, false),
       ).to.emit(routes, "RouteCreated");
 
       await expect(
         routes
           .connect(owner)
-          .createRoute(XNS_NAME, ROUTE_PREFIX, route33, buildTarget, RT0, true, false),
-      ).to.be.revertedWith(XR.invalidRoute);
+          .createRoute(XNS_NAME, ROUTE_SCOPE, route33, buildTarget, RT0, true, false),
+      ).to.be.revertedWith(XR.invalidRouteLabel);
     });
 
     it("Should revert with InvalidTarget when target is zero", async function () {
@@ -296,7 +296,7 @@ describe("XNSRoutes", function () {
       await expect(
         routes
           .connect(owner)
-          .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, ethers.ZeroAddress, RT0, true, false),
+          .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, ethers.ZeroAddress, RT0, true, false),
       ).to.be.revertedWith(XR.invalidTarget);
     });
 
@@ -307,7 +307,7 @@ describe("XNSRoutes", function () {
       await expect(
         routes
           .connect(owner)
-          .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false),
+          .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false),
       ).to.be.revertedWith(XR.routeBookFrozen);
     });
 
@@ -315,45 +315,45 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget, other } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, true);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, true);
 
       await expect(
         routes
           .connect(owner)
-          .updateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, other.address, RT0, true, false),
+          .updateRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, other.address, RT0, true, false),
       ).to.be.revertedWith(XR.cannotUpdateFrozenRoute);
     });
 
-    it("Should keep routes independent per xnsName, routePrefix, and route", async function () {
+    it("Should keep routes independent per xnsName, routeScope, and route", async function () {
       const { routes, owner, other, buildTarget } = await loadFixture(deployFixture);
       const t1 = buildTarget;
       const t2 = other.address;
 
-      await routes.connect(owner).createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, t1, RT0, true, false);
+      await routes.connect(owner).createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, t1, RT0, true, false);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, "other-route", t2, RT0, true, false);
-      await routes.connect(owner).createRoute(XNS_NAME, "base", ROUTE, t2, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, "other-route", t2, RT0, true, false);
+      await routes.connect(owner).createRoute(XNS_NAME, "base", ROUTE_LABEL, t2, RT0, true, false);
       await routes
         .connect(other)
-        .createRoute(OTHER_BASE, ROUTE_PREFIX, ROUTE, t2, RT0, false, false);
+        .createRoute(OTHER_BASE, ROUTE_SCOPE, ROUTE_LABEL, t2, RT0, false, false);
 
-      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE))[0]).to.equal(t1);
-      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, "other-route"))[0]).to.equal(t2);
-      expect((await routes.getRouteInfo(XNS_NAME, "base", ROUTE))[0]).to.equal(t2);
-      expect((await routes.getRouteInfo(OTHER_BASE, ROUTE_PREFIX, ROUTE))[0]).to.equal(t2);
+      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))[0]).to.equal(t1);
+      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, "other-route"))[0]).to.equal(t2);
+      expect((await routes.getRouteInfo(XNS_NAME, "base", ROUTE_LABEL))[0]).to.equal(t2);
+      expect((await routes.getRouteInfo(OTHER_BASE, ROUTE_SCOPE, ROUTE_LABEL))[0]).to.equal(t2);
     });
 
     it("Should revert with RouteAlreadyExists when createRoute is called twice for same key", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
       await expect(
         routes
           .connect(owner)
-          .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false),
+          .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false),
       ).to.be.revertedWith(XR.routeAlreadyExists);
     });
 
@@ -363,7 +363,7 @@ describe("XNSRoutes", function () {
       await expect(
         routes
           .connect(owner)
-          .updateRoute(XNS_NAME, ROUTE_PREFIX, "missing", buildTarget, RT0, true, false),
+          .updateRoute(XNS_NAME, ROUTE_SCOPE, "missing", buildTarget, RT0, true, false),
       ).to.be.revertedWith(XR.routeNotFound);
     });
 
@@ -371,12 +371,12 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
-      const aliasRoute = `${ROUTE_PREFIX}:${ROUTE}`;
+      const aliasRoute = `${ROUTE_SCOPE}:${ROUTE_LABEL}`;
       await expect(
         routes.connect(owner).updateRoute(XNS_NAME, "", aliasRoute, buildTarget, RT0, true, false),
-      ).to.be.revertedWith(XR.invalidRoute);
+      ).to.be.revertedWith(XR.invalidRouteLabel);
     });
   });
 
@@ -385,53 +385,53 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
-      await expect(routes.connect(owner).deactivateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE))
+      await expect(routes.connect(owner).deactivateRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))
         .to.emit(routes, "RouteActiveStatusUpdated")
         .withArgs(
           xnsNameKey(XNS_NAME),
-          routeStorageKey(XNS_NAME, ROUTE_PREFIX, ROUTE),
+          routeStorageKey(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
           XNS_NAME,
-          ROUTE_PREFIX,
-          ROUTE,
+          ROUTE_SCOPE,
+          ROUTE_LABEL,
           false,
         );
 
-      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE))[1]).to.equal(false);
+      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))[1]).to.equal(false);
     });
 
     it("Should activate after deactivate and emit RouteActiveStatusUpdated", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
-      await routes.connect(owner).deactivateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
+      await routes.connect(owner).deactivateRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
 
-      await expect(routes.connect(owner).activateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE))
+      await expect(routes.connect(owner).activateRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))
         .to.emit(routes, "RouteActiveStatusUpdated")
         .withArgs(
           xnsNameKey(XNS_NAME),
-          routeStorageKey(XNS_NAME, ROUTE_PREFIX, ROUTE),
+          routeStorageKey(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
           XNS_NAME,
-          ROUTE_PREFIX,
-          ROUTE,
+          ROUTE_SCOPE,
+          ROUTE_LABEL,
           true,
         );
 
-      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE))[1]).to.equal(true);
+      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))[1]).to.equal(true);
     });
 
     it("Should not emit RouteActiveStatusUpdated when deactivate called twice", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
-      await routes.connect(owner).deactivateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
+      await routes.connect(owner).deactivateRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
 
       const filter = routes.filters.RouteActiveStatusUpdated();
       const before = (await routes.queryFilter(filter)).length;
-      await routes.connect(owner).deactivateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE);
+      await routes.connect(owner).deactivateRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
       const after = (await routes.queryFilter(filter)).length;
       expect(after).to.equal(before);
     });
@@ -440,11 +440,11 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
       const filter = routes.filters.RouteActiveStatusUpdated();
       const before = (await routes.queryFilter(filter)).length;
-      await routes.connect(owner).activateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE);
+      await routes.connect(owner).activateRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
       const after = (await routes.queryFilter(filter)).length;
       expect(after).to.equal(before);
     });
@@ -453,23 +453,23 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, true);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, true);
 
-      await expect(routes.connect(owner).deactivateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE)).to.emit(
+      await expect(routes.connect(owner).deactivateRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).to.emit(
         routes,
         "RouteActiveStatusUpdated",
       );
-      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE))[1]).to.equal(false);
+      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))[1]).to.equal(false);
     });
 
     it("Should succeed after route book freeze", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
       await routes.connect(owner).freezeRouteBook(XNS_NAME);
 
-      await expect(routes.connect(owner).deactivateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE)).to.emit(
+      await expect(routes.connect(owner).deactivateRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).to.emit(
         routes,
         "RouteActiveStatusUpdated",
       );
@@ -479,10 +479,10 @@ describe("XNSRoutes", function () {
       const { routes, owner, other, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
       await expect(
-        routes.connect(other).deactivateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE),
+        routes.connect(other).deactivateRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
       ).to.be.revertedWith(XR.notXnsNameOwner);
     });
 
@@ -490,7 +490,7 @@ describe("XNSRoutes", function () {
       const { routes, owner } = await loadFixture(deployFixture);
 
       await expect(
-        routes.connect(owner).deactivateRoute(XNS_NAME, ROUTE_PREFIX, "missing"),
+        routes.connect(owner).deactivateRoute(XNS_NAME, ROUTE_SCOPE, "missing"),
       ).to.be.revertedWith(XR.routeNotFound);
     });
   });
@@ -500,41 +500,41 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget, other } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
-      await expect(routes.connect(owner).deleteRoute(XNS_NAME, ROUTE_PREFIX, ROUTE))
+      await expect(routes.connect(owner).deleteRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))
         .to.emit(routes, "RouteDeleted")
         .withArgs(
           xnsNameKey(XNS_NAME),
-          routeStorageKey(XNS_NAME, ROUTE_PREFIX, ROUTE),
+          routeStorageKey(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
           XNS_NAME,
-          ROUTE_PREFIX,
-          ROUTE,
+          ROUTE_SCOPE,
+          ROUTE_LABEL,
         );
 
-      expect(await routes.routeExists(XNS_NAME, ROUTE_PREFIX, ROUTE)).to.equal(false);
-      await expect(routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE)).to.be.revertedWith(
+      expect(await routes.routeExists(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).to.equal(false);
+      await expect(routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).to.be.revertedWith(
         XR.routeNotFound,
       );
 
       await expect(
         routes
           .connect(owner)
-          .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, other.address, RT0, false, false),
+          .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, other.address, RT0, false, false),
       ).to.emit(routes, "RouteCreated");
 
-      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE))[0]).to.equal(other.address);
+      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))[0]).to.equal(other.address);
     });
 
     it("Should revert with CannotDeleteFrozenRoute after freezeRoute", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
-      await routes.connect(owner).freezeRoute(XNS_NAME, ROUTE_PREFIX, ROUTE);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
+      await routes.connect(owner).freezeRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
 
       await expect(
-        routes.connect(owner).deleteRoute(XNS_NAME, ROUTE_PREFIX, ROUTE),
+        routes.connect(owner).deleteRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
       ).to.be.revertedWith(XR.cannotDeleteFrozenRoute);
     });
 
@@ -542,11 +542,11 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
       await routes.connect(owner).freezeRouteBook(XNS_NAME);
 
       await expect(
-        routes.connect(owner).deleteRoute(XNS_NAME, ROUTE_PREFIX, ROUTE),
+        routes.connect(owner).deleteRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
       ).to.be.revertedWith(XR.routeBookFrozen);
     });
 
@@ -554,10 +554,10 @@ describe("XNSRoutes", function () {
       const { routes, owner, other, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
       await expect(
-        routes.connect(other).deleteRoute(XNS_NAME, ROUTE_PREFIX, ROUTE),
+        routes.connect(other).deleteRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
       ).to.be.revertedWith(XR.notXnsNameOwner);
     });
 
@@ -565,7 +565,7 @@ describe("XNSRoutes", function () {
       const { routes, owner } = await loadFixture(deployFixture);
 
       await expect(
-        routes.connect(owner).deleteRoute(XNS_NAME, ROUTE_PREFIX, "missing"),
+        routes.connect(owner).deleteRoute(XNS_NAME, ROUTE_SCOPE, "missing"),
       ).to.be.revertedWith(XR.routeNotFound);
     });
   });
@@ -575,32 +575,32 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget, other } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
-      await expect(routes.connect(owner).updateTarget(XNS_NAME, ROUTE_PREFIX, ROUTE, other.address))
+      await expect(routes.connect(owner).updateTarget(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, other.address))
         .to.emit(routes, "RouteTargetUpdated")
         .withArgs(
           xnsNameKey(XNS_NAME),
-          routeStorageKey(XNS_NAME, ROUTE_PREFIX, ROUTE),
+          routeStorageKey(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
           XNS_NAME,
-          ROUTE_PREFIX,
-          ROUTE,
+          ROUTE_SCOPE,
+          ROUTE_LABEL,
           buildTarget,
           other.address,
         );
 
-      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE))[0]).to.equal(other.address);
+      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))[0]).to.equal(other.address);
     });
 
     it("Should not emit RouteTargetUpdated when updateTarget is no-op", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
       const filter = routes.filters.RouteTargetUpdated();
       const before = (await routes.queryFilter(filter)).length;
-      await routes.connect(owner).updateTarget(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget);
+      await routes.connect(owner).updateTarget(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget);
       const after = (await routes.queryFilter(filter)).length;
       expect(after).to.equal(before);
     });
@@ -609,10 +609,10 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
       await expect(
-        routes.connect(owner).updateTarget(XNS_NAME, ROUTE_PREFIX, ROUTE, ethers.ZeroAddress),
+        routes.connect(owner).updateTarget(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, ethers.ZeroAddress),
       ).to.be.revertedWith(XR.invalidTarget);
     });
 
@@ -620,32 +620,32 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
-      await expect(routes.connect(owner).updateRouteType(XNS_NAME, ROUTE_PREFIX, ROUTE, 7))
+      await expect(routes.connect(owner).updateRouteType(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, 7))
         .to.emit(routes, "RouteTypeUpdated")
         .withArgs(
           xnsNameKey(XNS_NAME),
-          routeStorageKey(XNS_NAME, ROUTE_PREFIX, ROUTE),
+          routeStorageKey(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
           XNS_NAME,
-          ROUTE_PREFIX,
-          ROUTE,
+          ROUTE_SCOPE,
+          ROUTE_LABEL,
           RT0,
           7,
         );
 
-      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE))[3]).to.equal(7);
+      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))[3]).to.equal(7);
     });
 
     it("Should not emit RouteTypeUpdated when updateRouteType is no-op", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
       const filter = routes.filters.RouteTypeUpdated();
       const before = (await routes.queryFilter(filter)).length;
-      await routes.connect(owner).updateRouteType(XNS_NAME, ROUTE_PREFIX, ROUTE, RT0);
+      await routes.connect(owner).updateRouteType(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, RT0);
       const after = (await routes.queryFilter(filter)).length;
       expect(after).to.equal(before);
     });
@@ -654,10 +654,10 @@ describe("XNSRoutes", function () {
       const { routes, owner, other, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
       await expect(
-        routes.connect(other).updateTarget(XNS_NAME, ROUTE_PREFIX, ROUTE, other.address),
+        routes.connect(other).updateTarget(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, other.address),
       ).to.be.revertedWith(XR.notXnsNameOwner);
     });
 
@@ -665,7 +665,7 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
 
       await expect(
-        routes.connect(owner).updateTarget(XNS_NAME, ROUTE_PREFIX, "missing", buildTarget),
+        routes.connect(owner).updateTarget(XNS_NAME, ROUTE_SCOPE, "missing", buildTarget),
       ).to.be.revertedWith(XR.routeNotFound);
     });
 
@@ -673,11 +673,11 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget, other } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
-      await routes.connect(owner).freezeRoute(XNS_NAME, ROUTE_PREFIX, ROUTE);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
+      await routes.connect(owner).freezeRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
 
       await expect(
-        routes.connect(owner).updateTarget(XNS_NAME, ROUTE_PREFIX, ROUTE, other.address),
+        routes.connect(owner).updateTarget(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, other.address),
       ).to.be.revertedWith(XR.cannotUpdateFrozenRoute);
     });
 
@@ -685,11 +685,11 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget, other } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
       await routes.connect(owner).freezeRouteBook(XNS_NAME);
 
       await expect(
-        routes.connect(owner).updateTarget(XNS_NAME, ROUTE_PREFIX, ROUTE, other.address),
+        routes.connect(owner).updateTarget(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, other.address),
       ).to.be.revertedWith(XR.routeBookFrozen);
     });
 
@@ -697,11 +697,11 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
       await routes.connect(owner).freezeRouteBook(XNS_NAME);
 
       await expect(
-        routes.connect(owner).updateRouteType(XNS_NAME, ROUTE_PREFIX, ROUTE, 1),
+        routes.connect(owner).updateRouteType(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, 1),
       ).to.be.revertedWith(XR.routeBookFrozen);
     });
 
@@ -709,11 +709,11 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
-      await routes.connect(owner).freezeRoute(XNS_NAME, ROUTE_PREFIX, ROUTE);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
+      await routes.connect(owner).freezeRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
 
       await expect(
-        routes.connect(owner).updateRouteType(XNS_NAME, ROUTE_PREFIX, ROUTE, 1),
+        routes.connect(owner).updateRouteType(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, 1),
       ).to.be.revertedWith(XR.cannotUpdateFrozenRoute);
     });
   });
@@ -723,26 +723,26 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
-      await expect(routes.connect(owner).freezeRoute(XNS_NAME, ROUTE_PREFIX, ROUTE)).to.emit(
+      await expect(routes.connect(owner).freezeRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).to.emit(
         routes,
         "RouteFrozen",
       );
 
-      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE))[2]).to.equal(true);
+      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))[2]).to.equal(true);
     });
 
     it("Should not emit RouteFrozen on second call", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
-      await routes.connect(owner).freezeRoute(XNS_NAME, ROUTE_PREFIX, ROUTE);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
+      await routes.connect(owner).freezeRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
 
       const filter = routes.filters.RouteFrozen();
       const before = (await routes.queryFilter(filter)).length;
-      await routes.connect(owner).freezeRoute(XNS_NAME, ROUTE_PREFIX, ROUTE);
+      await routes.connect(owner).freezeRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
       const after = (await routes.queryFilter(filter)).length;
       expect(after).to.equal(before);
     });
@@ -751,10 +751,10 @@ describe("XNSRoutes", function () {
       const { routes, owner, other, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
       await expect(
-        routes.connect(other).freezeRoute(XNS_NAME, ROUTE_PREFIX, ROUTE),
+        routes.connect(other).freezeRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
       ).to.be.revertedWith(XR.notXnsNameOwner);
     });
 
@@ -762,7 +762,7 @@ describe("XNSRoutes", function () {
       const { routes, owner } = await loadFixture(deployFixture);
 
       await expect(
-        routes.connect(owner).freezeRoute(XNS_NAME, ROUTE_PREFIX, "nope"),
+        routes.connect(owner).freezeRoute(XNS_NAME, ROUTE_SCOPE, "nope"),
       ).to.be.revertedWith(XR.routeNotFound);
     });
 
@@ -770,11 +770,11 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
       await routes.connect(owner).freezeRouteBook(XNS_NAME);
 
       await expect(
-        routes.connect(owner).freezeRoute(XNS_NAME, ROUTE_PREFIX, ROUTE),
+        routes.connect(owner).freezeRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
       ).to.be.revertedWith(XR.routeBookFrozen);
     });
   });
@@ -796,30 +796,30 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
       await routes.connect(owner).freezeRouteBook(XNS_NAME);
 
       await expect(
         routes
           .connect(owner)
-          .createRoute(XNS_NAME, ROUTE_PREFIX, "new-one", buildTarget, RT0, true, false),
+          .createRoute(XNS_NAME, ROUTE_SCOPE, "new-one", buildTarget, RT0, true, false),
       ).to.be.revertedWith(XR.routeBookFrozen);
 
       await expect(
         routes
           .connect(owner)
-          .updateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, false, false),
+          .updateRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, false, false),
       ).to.be.revertedWith(XR.routeBookFrozen);
 
       await expect(
-        routes.connect(owner).deleteRoute(XNS_NAME, ROUTE_PREFIX, ROUTE),
+        routes.connect(owner).deleteRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
       ).to.be.revertedWith(XR.routeBookFrozen);
 
       await expect(
-        routes.connect(owner).freezeRoute(XNS_NAME, ROUTE_PREFIX, ROUTE),
+        routes.connect(owner).freezeRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
       ).to.be.revertedWith(XR.routeBookFrozen);
 
-      await expect(routes.connect(owner).deactivateRoute(XNS_NAME, ROUTE_PREFIX, ROUTE)).to.emit(
+      await expect(routes.connect(owner).deactivateRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).to.emit(
         routes,
         "RouteActiveStatusUpdated",
       );
@@ -849,32 +849,32 @@ describe("XNSRoutes", function () {
     it("Should revert getRouteInfo with RouteNotFound when missing", async function () {
       const { routes } = await loadFixture(deployFixture);
 
-      expect(await routes.routeExists(XNS_NAME, ROUTE_PREFIX, ROUTE)).to.equal(false);
+      expect(await routes.routeExists(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).to.equal(false);
 
-      await expect(routes.getRouteInfo(XNS_NAME, ROUTE_PREFIX, ROUTE)).to.be.revertedWith(
+      await expect(routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).to.be.revertedWith(
         XR.routeNotFound,
       );
     });
 
     it("Should revert getRouteInfo and routeExists with InvalidRoute for colon in route when prefix is empty", async function () {
       const { routes } = await loadFixture(deployFixture);
-      const aliasRoute = `${ROUTE_PREFIX}:${ROUTE}`;
+      const aliasRoute = `${ROUTE_SCOPE}:${ROUTE_LABEL}`;
       await expect(routes.getRouteInfo(XNS_NAME, "", aliasRoute)).to.be.revertedWith(
-        XR.invalidRoute,
+        XR.invalidRouteLabel,
       );
       await expect(routes.routeExists(XNS_NAME, "", aliasRoute)).to.be.revertedWith(
-        XR.invalidRoute,
+        XR.invalidRouteLabel,
       );
     });
 
-    it("Should return getRouteInfoFromPath for an existing route", async function () {
+    it("Should return getRouteInfoFromXRL for an existing route", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
-      const fullPath = `${XNS_NAME}/${ROUTE_PREFIX}:${ROUTE}`;
-      const [target, isActive, isFrozen, routeType] = await routes.getRouteInfoFromPath(fullPath);
+      const fullPath = `${XNS_NAME}/${ROUTE_SCOPE}:${ROUTE_LABEL}`;
+      const [target, isActive, isFrozen, routeType] = await routes.getRouteInfoFromXRL(fullPath);
 
       expect(target).to.equal(buildTarget);
       expect(isActive).to.equal(true);
@@ -882,17 +882,17 @@ describe("XNSRoutes", function () {
       expect(routeType).to.equal(RT0);
     });
 
-    it("Should revert routeExistsFromPath with InvalidRoutePath when no slash is present", async function () {
+    it("Should revert routeExistsFromXRL with InvalidXRL when no slash is present", async function () {
       const { routes } = await loadFixture(deployFixture);
-      await expect(routes.routeExistsFromPath(`${ROUTE_PREFIX}:${ROUTE}`)).to.be.revertedWith(
-        XR.invalidRoutePath,
+      await expect(routes.routeExistsFromXRL(`${ROUTE_SCOPE}:${ROUTE_LABEL}`)).to.be.revertedWith(
+        XR.invalidXRL,
       );
     });
 
-    it("Should revert getRouteInfoFromPath with RouteNotFound when missing", async function () {
+    it("Should revert getRouteInfoFromXRL with RouteNotFound when missing", async function () {
       const { routes } = await loadFixture(deployFixture);
-      const fullPath = `${XNS_NAME}/${ROUTE_PREFIX}:${ROUTE}`;
-      await expect(routes.getRouteInfoFromPath(fullPath)).to.be.revertedWith(XR.routeNotFound);
+      const fullPath = `${XNS_NAME}/${ROUTE_SCOPE}:${ROUTE_LABEL}`;
+      await expect(routes.getRouteInfoFromXRL(fullPath)).to.be.revertedWith(XR.routeNotFound);
     });
   });
 
@@ -906,11 +906,11 @@ describe("XNSRoutes", function () {
 
     it("Should append one key on createRoute and expose it via slice and getRouteRecordByRouteKey", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
-      const rk = routeStorageKey(XNS_NAME, ROUTE_PREFIX, ROUTE);
+      const rk = routeStorageKey(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
 
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
       expect(await routes.getRouteKeyCount(XNS_NAME)).to.equal(1n);
       const keys = await routes.getRouteKeys(XNS_NAME, 0, 1);
@@ -931,12 +931,12 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
       await expect(
         routes
           .connect(owner)
-          .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false),
+          .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false),
       ).to.be.revertedWith(XR.routeAlreadyExists);
 
       expect(await routes.getRouteKeyCount(XNS_NAME)).to.equal(1n);
@@ -944,12 +944,12 @@ describe("XNSRoutes", function () {
 
     it("Should not shrink log on deleteRoute; getRouteRecordByRouteKey returns zero target", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
-      const rk = routeStorageKey(XNS_NAME, ROUTE_PREFIX, ROUTE);
+      const rk = routeStorageKey(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
 
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
-      await routes.connect(owner).deleteRoute(XNS_NAME, ROUTE_PREFIX, ROUTE);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
+      await routes.connect(owner).deleteRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
 
       expect(await routes.getRouteKeyCount(XNS_NAME)).to.equal(1n);
       const [target, , ,] = await getRouteRecordByRouteKeySingle(routes, rk);
@@ -958,15 +958,15 @@ describe("XNSRoutes", function () {
 
     it("Should append again on recreate after delete (duplicate key in log)", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
-      const rk = routeStorageKey(XNS_NAME, ROUTE_PREFIX, ROUTE);
+      const rk = routeStorageKey(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
 
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
-      await routes.connect(owner).deleteRoute(XNS_NAME, ROUTE_PREFIX, ROUTE);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
+      await routes.connect(owner).deleteRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, false, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, false, false);
 
       expect(await routes.getRouteKeyCount(XNS_NAME)).to.equal(2n);
       const keys = await routes.getRouteKeys(XNS_NAME, 0, 2);
@@ -981,13 +981,13 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, "other-route", buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, "other-route", buildTarget, RT0, true, false);
 
-      const k0 = routeStorageKey(XNS_NAME, ROUTE_PREFIX, ROUTE);
-      const k1 = routeStorageKey(XNS_NAME, ROUTE_PREFIX, "other-route");
+      const k0 = routeStorageKey(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
+      const k1 = routeStorageKey(XNS_NAME, ROUTE_SCOPE, "other-route");
 
       const mid = await routes.getRouteKeys(XNS_NAME, 1, 2);
       expect(mid.length).to.equal(1);
@@ -1005,13 +1005,13 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, "other-route", buildTarget, RT0, false, true);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, "other-route", buildTarget, RT0, false, true);
 
-      const k0 = routeStorageKey(XNS_NAME, ROUTE_PREFIX, ROUTE);
-      const k1 = routeStorageKey(XNS_NAME, ROUTE_PREFIX, "other-route");
+      const k0 = routeStorageKey(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
+      const k1 = routeStorageKey(XNS_NAME, ROUTE_SCOPE, "other-route");
       const kAbsent = ethers.keccak256(ethers.toUtf8Bytes("no-such-route-key"));
 
       const records = await getRouteRecordByRouteKeyBatch(routes, [k0, k1, kAbsent]);
@@ -1033,7 +1033,7 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
       await expect(routes.getRouteKeys(XNS_NAME, 1, 0)).to.be.revertedWith(XR.invalidRouteKeySlice);
 
@@ -1045,9 +1045,9 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
-        .createRoute(XNS_NAME, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
-      const k0 = routeStorageKey(XNS_NAME, ROUTE_PREFIX, ROUTE);
+      const k0 = routeStorageKey(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
       const clamped = await routes.getRouteKeys(XNS_NAME, 0, 999);
       const explicit = await routes.getRouteKeys(XNS_NAME, 0, 1);
       expect(clamped.length).to.equal(1);
@@ -1063,27 +1063,27 @@ describe("XNSRoutes", function () {
   });
 
   describe("route segment validation (pure views)", function () {
-    it("Should expose isValidRoutePrefix consistent with mutators", async function () {
+    it("Should expose isValidRouteScope consistent with mutators", async function () {
       const { routes } = await loadFixture(deployFixture);
-      expect(await routes.isValidRoutePrefix("")).to.equal(true);
-      expect(await routes.isValidRoutePrefix(ROUTE_PREFIX)).to.equal(true);
-      expect(await routes.isValidRoutePrefix("a".repeat(21))).to.equal(false);
-      expect(await routes.isValidRoutePrefix("Bad")).to.equal(false);
+      expect(await routes.isValidRouteScope("")).to.equal(true);
+      expect(await routes.isValidRouteScope(ROUTE_SCOPE)).to.equal(true);
+      expect(await routes.isValidRouteScope("a".repeat(21))).to.equal(false);
+      expect(await routes.isValidRouteScope("Bad")).to.equal(false);
     });
 
-    it("Should expose isValidRoute consistent with mutators", async function () {
+    it("Should expose isValidRouteLabel consistent with mutators", async function () {
       const { routes } = await loadFixture(deployFixture);
-      expect(await routes.isValidRoute("")).to.equal(false);
-      expect(await routes.isValidRoute(ROUTE)).to.equal(true);
-      expect(await routes.isValidRoute("a".repeat(33))).to.equal(false);
+      expect(await routes.isValidRouteLabel("")).to.equal(false);
+      expect(await routes.isValidRouteLabel(ROUTE_LABEL)).to.equal(true);
+      expect(await routes.isValidRouteLabel("a".repeat(33))).to.equal(false);
     });
 
-    it("Should expose isValidRoutePrefixAndRoute as conjunction", async function () {
+    it("Should expose isValidRouteScopeAndLabel as conjunction", async function () {
       const { routes } = await loadFixture(deployFixture);
-      expect(await routes.isValidRoutePrefixAndRoute("", ROUTE)).to.equal(true);
-      expect(await routes.isValidRoutePrefixAndRoute(ROUTE_PREFIX, ROUTE)).to.equal(true);
-      expect(await routes.isValidRoutePrefixAndRoute("bad!", ROUTE)).to.equal(false);
-      expect(await routes.isValidRoutePrefixAndRoute(ROUTE_PREFIX, "")).to.equal(false);
+      expect(await routes.isValidRouteScopeAndLabel("", ROUTE_LABEL)).to.equal(true);
+      expect(await routes.isValidRouteScopeAndLabel(ROUTE_SCOPE, ROUTE_LABEL)).to.equal(true);
+      expect(await routes.isValidRouteScopeAndLabel("bad!", ROUTE_LABEL)).to.equal(false);
+      expect(await routes.isValidRouteScopeAndLabel(ROUTE_SCOPE, "")).to.equal(false);
     });
   });
 
@@ -1120,28 +1120,28 @@ describe("XNSRoutes", function () {
       const { routes, owner, buildTarget } = await loadFixture(deployWithBare);
       await routes
         .connect(owner)
-        .createRoute(BARE_LABEL, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(BARE_LABEL, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
-      await expect(routes.connect(owner).deactivateRoute(BARE_CANON, ROUTE_PREFIX, ROUTE))
+      await expect(routes.connect(owner).deactivateRoute(BARE_CANON, ROUTE_SCOPE, ROUTE_LABEL))
         .to.emit(routes, "RouteActiveStatusUpdated")
         .withArgs(
           xnsNameKey(BARE_LABEL),
-          routeStorageKey(BARE_LABEL, ROUTE_PREFIX, ROUTE),
+          routeStorageKey(BARE_LABEL, ROUTE_SCOPE, ROUTE_LABEL),
           BARE_CANON,
-          ROUTE_PREFIX,
-          ROUTE,
+          ROUTE_SCOPE,
+          ROUTE_LABEL,
           false,
         );
     });
 
-    it("Should resolve getRouteInfoFromPath when the path uses a bare first segment", async function () {
+    it("Should resolve getRouteInfoFromXRL when the path uses a bare first segment", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployWithBare);
       await routes
         .connect(owner)
-        .createRoute(BARE_LABEL, ROUTE_PREFIX, ROUTE, buildTarget, RT0, true, false);
+        .createRoute(BARE_LABEL, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
-      const fullPath = `${BARE_LABEL}/${ROUTE_PREFIX}:${ROUTE}`;
-      const [target] = await routes.getRouteInfoFromPath(fullPath);
+      const fullPath = `${BARE_LABEL}/${ROUTE_SCOPE}:${ROUTE_LABEL}`;
+      const [target] = await routes.getRouteInfoFromXRL(fullPath);
       expect(target).to.equal(buildTarget);
     });
   });

@@ -6,7 +6,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 ## Test setup
 
-- **Unit tests** use [`MockXNS`](../contracts/src/mocks/MockXNS.sol): set `xnsName → owner` via `setResolution`. Route segment validation is local to `XNSRoutes` (not delegated to XNS): `routePrefix` allows 1–20 chars (or empty), while `route` allows 1–32 chars; both share lowercase/number/hyphen and hyphen-placement rules.
+- **Unit tests** use [`MockXNS`](../contracts/src/mocks/MockXNS.sol): set `xnsName → owner` via `setResolution`. Route segment validation is local to `XNSRoutes` (not delegated to XNS): `routeScope` allows 1–20 chars (or empty), while routeLabel allows 1–32 chars; both share lowercase/number/hyphen and hyphen-placement rules.
 - **Canonical on-chain XNS** addresses for deploy/scripts/fork work live in [`constants/addresses.ts`](../constants/addresses.ts) as `XNS_ADDRESS` (they are not used by the default local test suite).
 
 ---
@@ -30,18 +30,18 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
-- Name owner can **create** a route for `(xnsName, routePrefix, route)` with the given `target`, `routeType`, stored `isActive` from `activate`, and stored `isFrozen` from `freeze`.
+- Name owner can **create** a route for `(xnsName, routeScope, route)` with the given `target`, `routeType`, stored `isActive` from `activate`, and stored `isFrozen` from `freeze`.
 - Second `createRoute` for the same key should revert with `"XNSRoutes: route already exists"`.
 - With `freeze == true`, should set `isFrozen` and emit `RouteCreated` with `isFrozen == true` (does **not** emit `RouteFrozen`; use `RouteFrozen` only when an existing route freezes later).
 
 #### Events
 
-- Should emit `RouteCreated` with indexed `nameHash` (`keccak256(bytes(xnsName))`), `routeKey` (same as `_routeKey`), and `target`, then `xnsName`, `routePrefix`, `route`, `isActive`, `isFrozen`, and `routeType` (non-indexed, full values in log data).
+- Should emit `RouteCreated` with indexed `nameHash` (`keccak256(bytes(xnsName))`), `routeKey` (same as `_routeKey`), and `target`, then `xnsName`, `routeScope`, routeLabel, `isActive`, `isFrozen`, and `routeType` (non-indexed, full values in log data).
 - Should **not** emit `RouteFrozen` on create (even when `freeze` is true).
 
 #### Reverts
 
-- Owner, local route-segment rules on non-empty `routePrefix` and on `route` (prefix 1–20; route 1–32), non-zero `target`, `"XNSRoutes: route book frozen"`, plus `"XNSRoutes: route already exists"` if the route key already exists.
+- Owner, local route-segment rules on non-empty `routeScope` and on routeLabel (prefix 1–20; route 1–32), non-zero `target`, `"XNSRoutes: route book frozen"`, plus `"XNSRoutes: route already exists"` if the route key already exists.
 
 ---
 
@@ -62,7 +62,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 - Should revert with `"XNSRoutes: not XNS name owner"` when `msg.sender` is not `XNS.getAddress(xnsName)` (includes unregistered names where XNS returns `address(0)`).
 - Should revert with `"XNSRoutes: invalid XNS name"` when `xnsName` is empty (in `_canonicalizeXNSName`, before the owner check).
-- Should revert with `"XNSRoutes: invalid route prefix"` / `"XNSRoutes: invalid route"` when `routePrefix` or `route` fails local route-segment rules (same as `createRoute`), including empty `routePrefix` with a `route` containing `:` (prevents aliasing the canonical `prefix:route` key).
+- Should revert with `"XNSRoutes: invalid route scope"` / `"XNSRoutes: invalid route label"` when `routeScope` or routeLabel fails local route-segment rules (same as `createRoute`), including empty `routeScope` with a routeLabel containing `:` (prevents aliasing the canonical `prefix:route` key).
 - Should revert with `"XNSRoutes: invalid target"` when `target` is zero.
 - Should revert with `"XNSRoutes: route book frozen"` when `freezeRouteBook` has already been called for that `xnsName`.
 - Should revert with `"XNSRoutes: cannot update frozen route"` when updating a route that is already frozen (including changing only `routeType` or only `target`).
@@ -74,18 +74,18 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
-- Name owner can set `isActive` to true / false for an existing `(xnsName, routePrefix, route)`.
+- Name owner can set `isActive` to true / false for an existing `(xnsName, routeScope, route)`.
 - Should still succeed when the **route** is frozen or the **route book** is frozen (only target updates are blocked).
 - Like `freezeRoute`, should emit `RouteActiveStatusUpdated` **only when `isActive` actually changes** (second `deactivateRoute` or `activateRoute` when already in that state is a no-op for events).
 
 #### Events
 
-- Should emit `RouteActiveStatusUpdated` with indexed `nameHash` / `routeKey`, then `xnsName`, `routePrefix`, `route`, and `isActive` when transitioning.
+- Should emit `RouteActiveStatusUpdated` with indexed `nameHash` / `routeKey`, then `xnsName`, `routeScope`, routeLabel, and `isActive` when transitioning.
 
 #### Reverts
 
 - Should revert with `"XNSRoutes: not XNS name owner"` when the caller is not the resolved owner.
-- Should revert with `"XNSRoutes: route not found"` when no route exists for `(xnsName, routePrefix, route)`.
+- Should revert with `"XNSRoutes: route not found"` when no route exists for `(xnsName, routeScope, route)`.
 
 ---
 
@@ -93,14 +93,14 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
-- Name owner can clear a route slot (`routeExists` false); `createRoute` may register the same `(xnsName, routePrefix, route)` again afterward.
+- Name owner can clear a route slot (`routeExists` false); `createRoute` may register the same `(xnsName, routeScope, route)` again afterward.
 - Reverts with `"XNSRoutes: cannot delete frozen route"` if the route is per-route frozen.
 - Reverts with `"XNSRoutes: route book frozen"` if the route book for `xnsName` is frozen (same as `updateRoute`).
 - Independent of `isActive`; use `deactivateRoute` for a soft disable without removing the record.
 
 #### Events
 
-- Should emit `RouteDeleted` with indexed `nameHash` / `routeKey` and `xnsName`, `routePrefix`, `route`.
+- Should emit `RouteDeleted` with indexed `nameHash` / `routeKey` and `xnsName`, `routeScope`, routeLabel.
 
 #### Reverts
 
@@ -118,13 +118,13 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Events
 
-- `RouteTargetUpdated` with indexed `nameHash` / `routeKey` / `newTarget`, then `xnsName`, `routePrefix`, `route`, and non-indexed `previousTarget`.
+- `RouteTargetUpdated` with indexed `nameHash` / `routeKey` / `newTarget`, then `xnsName`, `routeScope`, routeLabel, and non-indexed `previousTarget`.
 - `RouteTypeUpdated` with indexed `nameHash` / `routeKey`, then strings and non-indexed `previousRouteType` / `newRouteType`.
 
 #### Reverts
 
 - `"XNSRoutes: not XNS name owner"`, `"XNSRoutes: route not found"`, `"XNSRoutes: cannot update frozen route"`, `"XNSRoutes: route book frozen"` as above.
-- `"XNSRoutes: invalid route prefix"` / `"XNSRoutes: invalid route"` when `routePrefix` / `route` fail local route-segment rules (same as `createRoute`).
+- `"XNSRoutes: invalid route scope"` / `"XNSRoutes: invalid route label"` when `routeScope` / routeLabel fail local route-segment rules (same as `createRoute`).
 - `updateTarget`: `"XNSRoutes: invalid target"` when `newTarget` is zero.
 
 ---
@@ -172,20 +172,20 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 - `routeExists` returns `false` before a route is created and `true` after.
 - `getRouteInfo` returns `(target, isActive, isFrozen, routeType)` consistent with `createRoute` / `updateRoute` / `updateTarget` / `updateRouteType` / `activateRoute` / `deactivateRoute` / `freezeRoute` (until `deleteRoute` clears the slot).
-- Both apply the same local `routePrefix` / `route` validation as mutating functions before deriving the key.
+- Both apply the same local `routeScope` / routeLabel validation as mutating functions before deriving the key.
 
 #### Reverts
 
 - `getRouteInfo` should revert with `"XNSRoutes: route not found"` when the route does not exist.
-- Should revert with `"XNSRoutes: invalid route prefix"` / `"XNSRoutes: invalid route"` for malformed `routePrefix` / `route` (e.g. `:` in `route` when `routePrefix` is empty).
+- Should revert with `"XNSRoutes: invalid route scope"` / `"XNSRoutes: invalid route label"` for malformed `routeScope` / routeLabel (e.g. `:` in routeLabel when `routeScope` is empty).
 
 ---
 
-## `isValidRoutePrefix` / `isValidRoute` / `isValidRoutePrefixAndRoute`
+## `isValidRouteScope` / `isValidRouteLabel / `isValidRouteScopeAndRoute`
 
 #### Functionality
 
-- Pure views mirror `_isValidRoutePrefix` / `_isValidRoute` / `_validateRoutePrefixAndRoute`: empty `routePrefix` is allowed; non-empty prefix and route must satisfy slug length and charset rules.
+- Pure views mirror `_isValidRouteScope` / `_isValidRouteLabel / `_validateRoutePrefixAndRoute`: empty `routeScope` is allowed; non-empty prefix and route must satisfy slug length and charset rules.
 
 ---
 
@@ -201,4 +201,4 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
-- Routes under different `xnsName`, `routePrefix`, or `route` are independent: key is `keccak256(abi.encodePacked(xnsName, "/", route))` if `routePrefix` is empty, else `keccak256(abi.encodePacked(xnsName, "/", routePrefix, ":", route))` (empty `routePrefix` is distinct from any non-empty `routePrefix` for the same `route` given XNS label rules).
+- Routes under different `xnsName`, `routeScope`, or routeLabel are independent: key is `keccak256(abi.encodePacked(xnsName, "/", route))` if `routeScope` is empty, else `keccak256(abi.encodePacked(xnsName, "/", routeScope, ":", route))` (empty `routeScope` is distinct from any non-empty `routeScope` for the same routeLabel given XNS label rules).

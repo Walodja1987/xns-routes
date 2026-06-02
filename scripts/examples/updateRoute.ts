@@ -27,8 +27,8 @@ const RED = "\x1b[31m";
 //////////////////////////////////////////////////////////////*/
 
 const xnsName = "xns.action";
-const routePrefix = "eth";
-const route = "register-name";
+const routeScope = "eth";
+const routeLabel = "register-name";
 
 const target = "0x0000000000000000000000000000000000000001";
 const routeType = 0;
@@ -61,8 +61,8 @@ async function main() {
   const balance = await hre.ethers.provider.getBalance(signer.address);
   console.log(`Balance: ${GREEN}${formatEther(balance)} ETH${RESET}`);
   console.log(`xnsName: ${GREEN}${xnsName}${RESET}`);
-  console.log(`routePrefix: ${GREEN}${routePrefix}${RESET}`);
-  console.log(`route: ${GREEN}${route}${RESET}`);
+  console.log(`routeScope: ${GREEN}${routeScope}${RESET}`);
+  console.log(`routeLabel: ${GREEN}${route}${RESET}`);
   console.log(`target: ${GREEN}${target}${RESET}`);
   console.log(`routeType: ${GREEN}${routeType}${RESET}`);
   console.log(`activate: ${GREEN}${activate}${RESET}`);
@@ -70,12 +70,12 @@ async function main() {
 
   const tx = await routes
     .connect(signer)
-    .updateRoute(xnsName, routePrefix, route, target, routeType, activate, freeze);
+    .updateRoute(xnsName, routeScope, routeLabel, target, routeType, activate, freeze);
   console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
-  const [t, active, frozen, rt] = await routes.getRouteInfo(xnsName, routePrefix, route);
+  const [t, active, frozen, rt] = await routes.getRouteInfo(xnsName, routeScope, routeLabel);
   console.log(
     `${GREEN}✓ Confirmed. getRouteInfo → target=${t} routeType=${rt} isActive=${active} isFrozen=${frozen}${RESET}\n`,
   );

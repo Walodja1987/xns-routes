@@ -27,8 +27,8 @@ const RED = "\x1b[31m";
 //////////////////////////////////////////////////////////////*/
 
 const xnsName = "xns.action";
-const routePrefix = "eth";
-const route = "register-name";
+const routeScope = "eth";
+const routeLabel = "register-name";
 /** Opaque parser hint; semantics are offchain */
 const newRouteType = 1;
 const signerIndex = 0;
@@ -52,18 +52,18 @@ async function main() {
   const balance = await hre.ethers.provider.getBalance(signer.address);
   console.log(`Balance: ${GREEN}${formatEther(balance)} ETH${RESET}`);
   console.log(`xnsName: ${GREEN}${xnsName}${RESET}`);
-  console.log(`routePrefix: ${GREEN}${routePrefix}${RESET}`);
-  console.log(`route: ${GREEN}${route}${RESET}`);
+  console.log(`routeScope: ${GREEN}${routeScope}${RESET}`);
+  console.log(`routeLabel: ${GREEN}${route}${RESET}`);
   console.log(`newRouteType: ${GREEN}${newRouteType}${RESET}\n`);
 
   const tx = await routes
     .connect(signer)
-    .updateRouteType(xnsName, routePrefix, route, newRouteType);
+    .updateRouteType(xnsName, routeScope, routeLabel, newRouteType);
   console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
-  const [, , , rt] = await routes.getRouteInfo(xnsName, routePrefix, route);
+  const [, , , rt] = await routes.getRouteInfo(xnsName, routeScope, routeLabel);
   console.log(`${GREEN}✓ Confirmed. getRouteInfo → routeType=${rt}${RESET}\n`);
 }
 

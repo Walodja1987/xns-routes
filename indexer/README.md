@@ -5,7 +5,7 @@ Compact SQLite-based indexer for `XNSRoutes` events. No TheGraph, no extra servi
 ## What it does
 
 - Reads logs from an RPC endpoint
-- Reconstructs latest route state per `(xnsName, routePrefix, route)`
+- Reconstructs latest route state per `(xnsName, routeScope, route)`
 - Stores state + checkpoint in a local SQLite file
 - Lets you list or export routes
 
@@ -113,4 +113,4 @@ Override with:
 
 - Run `sync` first before `list` or `export`.
 - If you re-deploy to a new contract address, use the new address and deployment block.
-- Indexed rows are keyed by `(chainId, contract, xnsName, routePrefix, route)`.
+- Indexed rows are keyed by `(chainId, contract, xnsName, routeScope, route)`.
