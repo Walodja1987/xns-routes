@@ -380,7 +380,8 @@ contract XNSRoutes {
     /// - Non-empty `routeScope` and `routeLabel` must satisfy character rules.
     /// - The route must exist.
     ///
-    /// Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after routeLabel or route book freeze.
+    /// Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after routeLabel
+    /// or route book freeze.
     ///
     /// @param xnsName The XNS name that owns the route space.
     /// @param routeScope Route scope of the route path to be deactivated (may be empty).
@@ -436,6 +437,8 @@ contract XNSRoutes {
     /// - The route must exist and must not already be frozen.
     ///
     /// Does not check `isActive`; use `deactivateRoute` for a soft disable without deleting.
+    /// 
+    /// Emits `RouteDeleted` only when the route is deleted.
     ///
     /// @param xnsName The XNS name that owns the route space.
     /// @param routeScope Route scope of the route path to be deleted (may be empty).
@@ -587,6 +590,8 @@ contract XNSRoutes {
     /// After freezing, `target` and `routeType` can never be changed again; active/inactive can
     /// still be toggled.
     ///
+    /// Emits `RouteFrozen` only if the route was not already frozen.
+    ///
     /// @param xnsName The XNS name that owns the route space.
     /// @param routeScope Route scope of the route path to be frozen (may be empty).
     /// @param routeLabel Route label of the route path to be frozen.
@@ -608,7 +613,8 @@ contract XNSRoutes {
         RouteRecord storage record = _routes[routeKey];
         require(record.target != address(0), "XNSRoutes: route not found");
 
-        // Update the routeLabel freeze status and emit the `RouteFrozen` event, if the route is not frozen
+        // Update the routeLabel freeze status and emit the `RouteFrozen` event, if the
+        // route is not frozen
         if (!record.isFrozen) {
             record.isFrozen = true;
             emit RouteFrozen(nameKey, routeKey, canonicalXNSName, routeScope, routeLabel);
@@ -626,6 +632,8 @@ contract XNSRoutes {
     ///
     /// **Requirements:**
     /// - `msg.sender` must be the XNS name owner of `xnsName`.
+    ///
+    /// Emits `RouteBookFrozenForName` only if the route book was not already frozen.
     ///
     /// @param xnsName The XNS name whose route book to freeze.
     function freezeRouteBook(string calldata xnsName) external {
