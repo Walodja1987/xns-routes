@@ -59,7 +59,7 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 ///   many routes may point to the same `target`.
 /// - `routeKey` is `keccak256` of canonical registry XRL (`xnsName/route`; params excluded).
 /// - For one known `xnsName`, on-chain enumeration is available without an indexer via the append-only
-///   route-key log (`getRouteKeyCount`, `getRouteKeys`, `getRouteRecordByRouteKey` / batch overload).
+///   route-key log (`getRouteKeyCount`, `getRouteKeys`, `getRouteRecord`, `getRouteRecords`).
 /// - Bare names like `bob` are normalized/canonicalized to `bob.x` for storage.
 contract XNSRoutes {
     // -------------------------------------------------------------------------
@@ -630,8 +630,7 @@ contract XNSRoutes {
     /// - `freezeRoute` may not be called for routes under `xnsName`.
     /// - Route activation can still be toggled.
     ///
-    /// **Requirements:**
-    /// - `msg.sender` must be the XNS name owner of `xnsName`.
+    /// Requires `msg.sender` to be the XNS name owner of `xnsName`.
     ///
     /// Emits `RouteBookFrozenForName` only if the route book was not already frozen.
     ///
@@ -801,10 +800,8 @@ contract XNSRoutes {
     /// `record.target == address(0)` means no record (never created or deleted).
     ///
     /// @param routeKey The route key to read.
-    /// @return record The route record (same shape as each element of the batch overload).
-    function getRouteRecordByRouteKey(
-        bytes32 routeKey
-    ) external view returns (RouteRecord memory record) {
+    /// @return record The route record (same shape as each element of `getRouteRecords`).
+    function getRouteRecord(bytes32 routeKey) external view returns (RouteRecord memory record) {
         RouteRecord storage s = _routes[routeKey];
         record = RouteRecord({
             target: s.target,
@@ -815,11 +812,11 @@ contract XNSRoutes {
     }
 
     /// @notice Batch read of `RouteRecord` for each `routeKey`. Same semantics as
-    /// `getRouteRecordByRouteKey(bytes32)` per element.
+    /// `getRouteRecord` per element.
     ///
     /// @param routeKeys The route keys to read.
     /// @return records The route records.
-    function getRouteRecordByRouteKey(
+    function getRouteRecords(
         bytes32[] calldata routeKeys
     ) external view returns (RouteRecord[] memory records) {
         uint256 n = routeKeys.length;

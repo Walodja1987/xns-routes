@@ -57,13 +57,10 @@ describe("XNSRoutes", function () {
     );
   }
 
-  /** Disambiguate `getRouteRecordByRouteKey` overload for ethers v6. */
-  function getRouteRecordByRouteKeySingle(routes: XNSRoutes, routeKey: string) {
-    return routes.getFunction("getRouteRecordByRouteKey(bytes32)")(routeKey);
-  }
-
-  function getRouteRecordByRouteKeyBatch(routes: XNSRoutes, routeKeys: string[]) {
-    return routes.getFunction("getRouteRecordByRouteKey(bytes32[])")(routeKeys);
+  /** `getRouteRecord` returns a struct; destructure as tuple in tests. */
+  async function getRouteRecordSingle(routes: XNSRoutes, routeKey: string) {
+    const r = await routes.getRouteRecord(routeKey);
+    return [r.target, r.routeType, r.isActive, r.isFrozen] as const;
   }
 
   interface Fixture {
@@ -904,7 +901,7 @@ describe("XNSRoutes", function () {
       expect(keys.length).to.equal(0);
     });
 
-    it("Should append one key on createRoute and expose it via slice and getRouteRecordByRouteKey", async function () {
+    it("Should append one key on createRoute and expose it via slice and getRouteRecord", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       const rk = routeStorageKey(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
 
@@ -917,7 +914,7 @@ describe("XNSRoutes", function () {
       expect(keys.length).to.equal(1);
       expect(keys[0]).to.equal(rk);
 
-      const [target, routeType, isActive, isFrozen] = await getRouteRecordByRouteKeySingle(
+      const [target, routeType, isActive, isFrozen] = await getRouteRecordSingle(
         routes,
         rk,
       );
@@ -942,7 +939,7 @@ describe("XNSRoutes", function () {
       expect(await routes.getRouteKeyCount(XNS_NAME)).to.equal(1n);
     });
 
-    it("Should not shrink log on deleteRoute; getRouteRecordByRouteKey returns zero target", async function () {
+    it("Should not shrink log on deleteRoute; getRouteRecord returns zero target", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       const rk = routeStorageKey(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
 
@@ -952,7 +949,7 @@ describe("XNSRoutes", function () {
       await routes.connect(owner).deleteRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
 
       expect(await routes.getRouteKeyCount(XNS_NAME)).to.equal(1n);
-      const [target, , ,] = await getRouteRecordByRouteKeySingle(routes, rk);
+      const [target, , ,] = await getRouteRecordSingle(routes, rk);
       expect(target).to.equal(ethers.ZeroAddress);
     });
 
@@ -973,7 +970,7 @@ describe("XNSRoutes", function () {
       expect(keys[0]).to.equal(rk);
       expect(keys[1]).to.equal(rk);
 
-      const [target] = await getRouteRecordByRouteKeySingle(routes, rk);
+      const [target] = await getRouteRecordSingle(routes, rk);
       expect(target).to.equal(buildTarget);
     });
 
@@ -1001,7 +998,7 @@ describe("XNSRoutes", function () {
       expect(all[1]).to.equal(k1);
     });
 
-    it("Should batch getRouteRecordByRouteKey(bytes32[]) returning RouteRecord[]", async function () {
+    it("Should batch getRouteRecords returning RouteRecord[]", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
@@ -1014,7 +1011,7 @@ describe("XNSRoutes", function () {
       const k1 = routeStorageKey(XNS_NAME, ROUTE_SCOPE, "other-route");
       const kAbsent = ethers.keccak256(ethers.toUtf8Bytes("no-such-route-key"));
 
-      const records = await getRouteRecordByRouteKeyBatch(routes, [k0, k1, kAbsent]);
+      const records = await routes.getRouteRecords([k0, k1, kAbsent]);
       expect(records.length).to.equal(3);
       expect(records[0].target).to.equal(buildTarget);
       expect(records[0].routeType).to.equal(RT0);
@@ -1025,7 +1022,7 @@ describe("XNSRoutes", function () {
       expect(records[1].isFrozen).to.equal(true);
       expect(records[2].target).to.equal(ethers.ZeroAddress);
 
-      const empty = await getRouteRecordByRouteKeyBatch(routes, []);
+      const empty = await routes.getRouteRecords([]);
       expect(empty.length).to.equal(0);
     });
 

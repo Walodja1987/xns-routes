@@ -5,17 +5,6 @@ This is an automatically generated documentation (using `solidity-docgen` packag
 ## XNSRoutes
 
 
-Route registry for XNS names which enables XNS name owners to map URL-style
-identifiers to any Ethereum address. Mappings are free and may point to EOAs and smart
-contracts including helper/view contracts returning arbitrary data, such as Bitcoin or
-Solana addresses, calldata, or other information.
-
-XRL (XNS Route Locator) grammar: `xnsName "/" route [ "/" params… ]`.
-**Registry XRL** is the on-chain subset `xnsName "/" route` (no param path). Full XRLs with
-trailing params are valid off-chain; `splitXRL` and registry functions accept registry XRL only.
-
-`route` is either `routeLabel` or `routeScope ":" routeLabel` (e.g. `eth:123` or `my-wallet`).
-
 Examples (registry XRL):
 - `alice.og/my-sub-wallet`
 - `contracts.aave/eth:v3-pool-contract`
@@ -26,13 +15,10 @@ Examples (registry XRL):
 - Cannot start or end with '-'
 - Cannot contain consecutive hyphens ('--')
 
-`routeScope` is optional; if provided, it must be 1-20 characters long.
-`routeLabel` is required and must be 1-32 characters long.
-
 Key points:
 - Routes are owned and managed by the XNS name owner.
 - An XNS name owner can register unlimited routes for free.
-- A route stores `target`, `routeType`, `isActive`, and `isFrozen`.
+- A route record stores `target`, `routeType`, `isActive`, and `isFrozen`.
 - Route freeze and route book freeze are irreversible.
 - Active status can still be toggled after freeze.
 - `routeType` is a `uint32` tag whose meaning and interpretation are defined off-chain by route parsers.
@@ -40,11 +26,11 @@ Key points:
   `routeType = 1` may suggest that the `target` is a smart contract.
   `routeType = 2` may suggest that the `target` is a special contract that returns parametrized calldata.
   `routeType = 3` may suggest that the `target` returns a Bitcoin address.
-- Forward resolution is direct: registry XRL → `target`. Reverse lookup is not supported because
+- Forward resolution is direct: registry XRL -> `target`. Reverse lookup is not supported because
   many routes may point to the same `target`.
-- `routeKey` is `keccak256` of canonical registry XRL (`xnsName "/" route`; params excluded).
+- `routeKey` is `keccak256` of canonical registry XRL (`xnsName/route`; params excluded).
 - For one known `xnsName`, on-chain enumeration is available without an indexer via the append-only
-  route-key log (`getRouteKeyCount`, `getRouteKeys`, `getRouteRecordByRouteKey` / batch overload).
+  route-key log (`getRouteKeyCount`, `getRouteKeys`, `getRouteRecord`, `getRouteRecords`).
 - Bare names like `bob` are normalized/canonicalized to `bob.x` for storage.
 
 
@@ -155,7 +141,8 @@ Mark an existing route as inactive.
 - Non-empty `routeScope` and `routeLabel` must satisfy character rules.
 - The route must exist.
 
-Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after routeLabel or route book freeze.
+Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after routeLabel
+or route book freeze.
 
 ```solidity
 function deactivateRoute(string xnsName, string routeScope, string routeLabel) external
@@ -183,6 +170,8 @@ Remove a routeLabel so `createRoute` may register the same key again.
 - The route must exist and must not already be frozen.
 
 Does not check `isActive`; use `deactivateRoute` for a soft disable without deleting.
+
+Emits `RouteDeleted` only when the route is deleted.
 
 ```solidity
 function deleteRoute(string xnsName, string routeScope, string routeLabel) external
@@ -269,6 +258,8 @@ Freeze a single routeLabel forever.
 After freezing, `target` and `routeType` can never be changed again; active/inactive can
 still be toggled.
 
+Emits `RouteFrozen` only if the route was not already frozen.
+
 ```solidity
 function freezeRoute(string xnsName, string routeScope, string routeLabel) external
 ```
@@ -295,8 +286,9 @@ Freeze the entire route book under an XNS name forever.
 - `freezeRoute` may not be called for routes under `xnsName`.
 - Route activation can still be toggled.
 
-**Requirements:**
-- `msg.sender` must be the XNS name owner of `xnsName`.
+Requires `msg.sender` to be the XNS name owner of `xnsName`.
+
+Emits `RouteBookFrozenForName` only if the route book was not already frozen.
 
 ```solidity
 function freezeRouteBook(string xnsName) external
@@ -489,14 +481,14 @@ function getRouteKeys(string xnsName, uint256 start, uint256 end) external view 
 | ---- | ---- | ----------- |
 | keys | bytes32[] | The route keys. |
 
-### getRouteRecordByRouteKey
+### getRouteRecord
 
 
 Read stored metadata by canonical routeLabel storage key. Does not validate strings;
 `record.target == address(0)` means no record (never created or deleted).
 
 ```solidity
-function getRouteRecordByRouteKey(bytes32 routeKey) external view returns (struct XNSRoutes.RouteRecord record)
+function getRouteRecord(bytes32 routeKey) external view returns (struct XNSRoutes.RouteRecord record)
 ```
 
 
@@ -510,16 +502,16 @@ function getRouteRecordByRouteKey(bytes32 routeKey) external view returns (struc
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| record | struct XNSRoutes.RouteRecord | The route record (same shape as each element of the batch overload). |
+| record | struct XNSRoutes.RouteRecord | The route record (same shape as each element of `getRouteRecords`). |
 
-### getRouteRecordByRouteKey
+### getRouteRecords
 
 
 Batch read of `RouteRecord` for each `routeKey`. Same semantics as
-`getRouteRecordByRouteKey(bytes32)` per element.
+`getRouteRecord` per element.
 
 ```solidity
-function getRouteRecordByRouteKey(bytes32[] routeKeys) external view returns (struct XNSRoutes.RouteRecord[] records)
+function getRouteRecords(bytes32[] routeKeys) external view returns (struct XNSRoutes.RouteRecord[] records)
 ```
 
 

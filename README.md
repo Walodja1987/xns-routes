@@ -285,14 +285,14 @@ The registry keeps an **append-only log** of **route storage keys** (`bytes32`) 
 
 - `getRouteKeyCount(xnsName)` — length of the log for that name
 - `getRouteKeys(xnsName, start, end)` — page through keys (`end` **exclusive**; if `end` &gt; log length, it is clamped to the log length; if `start` is past that range, returns an empty array)
-- `getRouteRecordByRouteKey(bytes32)` — read one `RouteRecord` by key (no string tuple needed)
-- `getRouteRecordByRouteKey(bytes32[])` — same, batch; returns `RouteRecord[]` (ABI overload—some clients must pick the function by full signature, e.g. ethers: `getFunction("getRouteRecordByRouteKey(bytes32[])")`)
+- `getRouteRecord(routeKey)` — read one `RouteRecord` by key (no string tuple needed)
+- `getRouteRecords(routeKeys)` — batch; returns `RouteRecord[]`
 - `splitXRL`, `getRouteInfoFromXRL`, `routeExistsFromXRL` — accept **registry XRL** only (not full XRL with params)
 
 **Important semantics (don’t skip this)**
 
 1. **Log length ≠ number of live routes**  
-   `getRouteKeyCount` counts **append-only log entries**, not routes that still exist. After `deleteRoute`, the key **stays in the log**; storage for that key is cleared, so `getRouteRecordByRouteKey` returns **`target == address(0)`** for that slot. Treat **zero `target` as deleted / empty** and filter those out off-chain (or in your UI) when you only want **live** routes.
+   `getRouteKeyCount` counts **append-only log entries**, not routes that still exist. After `deleteRoute`, the key **stays in the log**; storage for that key is cleared, so `getRouteRecord` returns **`target == address(0)`** for that slot. Treat **zero `target` as deleted / empty** and filter those out off-chain (or in your UI) when you only want **live** routes.
 
 2. **Duplicate keys in the log**  
    If a route is **deleted and later recreated** with the same `(xnsName, routeScope, routeLabel)`, **`createRoute` appends the same `bytes32` again**. That is **intentional**: duplicates hint at **churn** (tear-down and re-registration). If you only care about unique keys, **dedupe by hash** off-chain.

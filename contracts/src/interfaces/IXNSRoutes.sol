@@ -175,11 +175,9 @@ interface IXNSRoutes {
         uint256 end
     ) external view returns (bytes32[] memory keys);
 
-    function getRouteRecordByRouteKey(
-        bytes32 routeKey
-    ) external view returns (RouteRecord memory record);
+    function getRouteRecord(bytes32 routeKey) external view returns (RouteRecord memory record);
 
-    function getRouteRecordByRouteKey(
+    function getRouteRecords(
         bytes32[] calldata routeKeys
     ) external view returns (RouteRecord[] memory records);
 }
