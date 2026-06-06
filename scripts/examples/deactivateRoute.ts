@@ -58,8 +58,8 @@ async function main() {
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
-  const [, active] = await routes.getRouteInfo(xnsName, routeScope, routeLabel);
-  console.log(`${GREEN}✓ Confirmed. isActive=${active}${RESET}\n`);
+  const record = await routes.getRouteRecord(xnsName, routeScope, routeLabel);
+  console.log(`${GREEN}✓ Confirmed. isActive=${record.isActive}${RESET}\n`);
 }
 
 main().catch((error: unknown) => {

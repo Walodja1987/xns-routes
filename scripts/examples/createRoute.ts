@@ -83,9 +83,9 @@ async function main() {
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
-  const [t, active, frozen, rt] = await routes.getRouteInfo(xnsName, routeScope, routeLabel);
+  const record = await routes.getRouteRecord(xnsName, routeScope, routeLabel);
   console.log(
-    `${GREEN}✓ Confirmed. getRouteInfo → target=${t} routeType=${rt} isActive=${active} isFrozen=${frozen}${RESET}\n`,
+    `${GREEN}✓ Confirmed. getRouteRecord → target=${record.target} routeType=${record.routeType} isActive=${record.isActive} isFrozen=${record.isFrozen}${RESET}\n`,
   );
 }
 

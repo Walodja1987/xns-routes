@@ -57,9 +57,33 @@ describe("XNSRoutes", function () {
     );
   }
 
-  /** `getRouteRecord` returns a struct; destructure as tuple in tests. */
+  /** Disambiguate ethers overload: `getRouteRecord(bytes32)`. */
+  async function getRouteRecordByKey(routes: XNSRoutes, routeKey: string) {
+    return routes["getRouteRecord(bytes32)"](routeKey);
+  }
+
+  /** Disambiguate ethers overload: `getRouteRecord(string)` (registry XRL). */
+  async function getRouteRecordByXRL(routes: XNSRoutes, xrl: string) {
+    return routes["getRouteRecord(string)"](xrl);
+  }
+
+  /** `getRouteRecord(routeKey)` returns a struct; destructure as tuple in tests. */
   async function getRouteRecordSingle(routes: XNSRoutes, routeKey: string) {
-    const r = await routes.getRouteRecord(routeKey);
+    const r = await getRouteRecordByKey(routes, routeKey);
+    return [r.target, r.routeType, r.isActive, r.isFrozen] as const;
+  }
+
+  function isLiveTarget(target: string): boolean {
+    return target !== ethers.ZeroAddress;
+  }
+
+  async function getRouteRecordTuple(
+    routes: XNSRoutes,
+    xnsName: string,
+    routeScope: string,
+    routeLabel: string,
+  ) {
+    const r = await routes.getRouteRecord(xnsName, routeScope, routeLabel);
     return [r.target, r.routeType, r.isActive, r.isFrozen] as const;
   }
 
@@ -127,16 +151,12 @@ describe("XNSRoutes", function () {
         .to.emit(routes, "RouteCreated")
         .and.to.not.emit(routes, "RouteFrozen");
 
-      expect(await routes.routeExists(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).to.equal(true);
-      const [target, isActive, isFrozen, routeType] = await routes.getRouteInfo(
-        XNS_NAME,
-        ROUTE_SCOPE,
-        ROUTE_LABEL,
-      );
-      expect(target).to.equal(buildTarget);
-      expect(isActive).to.equal(true);
-      expect(isFrozen).to.equal(false);
-      expect(routeType).to.equal(RT0);
+      expect(isLiveTarget((await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).target)).to.equal(true);
+      const record = await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
+      expect(record.target).to.equal(buildTarget);
+      expect(record.isActive).to.equal(true);
+      expect(record.isFrozen).to.equal(false);
+      expect(record.routeType).to.equal(RT0);
     });
 
     it("Should set isFrozen from RouteCreated when freeze is true on create (no RouteFrozen)", async function () {
@@ -150,7 +170,7 @@ describe("XNSRoutes", function () {
         .to.emit(routes, "RouteCreated")
         .and.to.not.emit(routes, "RouteFrozen");
 
-      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))[2]).to.equal(true);
+      expect((await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).isFrozen).to.equal(true);
     });
 
     it("Should let the name owner update target and isActive when not frozen", async function () {
@@ -168,10 +188,10 @@ describe("XNSRoutes", function () {
         .to.emit(routes, "RouteTargetUpdated")
         .and.to.emit(routes, "RouteActiveStatusUpdated");
 
-      const [target, isActive, isFrozen] = await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
-      expect(target).to.equal(newTarget);
-      expect(isActive).to.equal(false);
-      expect(isFrozen).to.equal(false);
+      const record = await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
+      expect(record.target).to.equal(newTarget);
+      expect(record.isActive).to.equal(false);
+      expect(record.isFrozen).to.equal(false);
     });
 
     it("Should let the name owner update routeType when not frozen", async function () {
@@ -186,8 +206,7 @@ describe("XNSRoutes", function () {
           .updateRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, 1, true, false),
       ).to.emit(routes, "RouteTypeUpdated");
 
-      const [, , , routeType] = await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
-      expect(routeType).to.equal(1);
+      expect((await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).routeType).to.equal(1);
     });
 
     it("Should emit RouteFrozen when freeze is true on update", async function () {
@@ -202,7 +221,7 @@ describe("XNSRoutes", function () {
           .updateRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, true),
       ).to.emit(routes, "RouteFrozen");
 
-      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))[2]).to.equal(true);
+      expect((await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).isFrozen).to.equal(true);
     });
 
     it("Should revert with NotXnsNameOwner when caller is not XNS owner", async function () {
@@ -253,18 +272,18 @@ describe("XNSRoutes", function () {
         routes.connect(owner).createRoute(XNS_NAME, "", globalRoute, buildTarget, RT0, true, false),
       ).to.emit(routes, "RouteCreated");
 
-      expect(await routes.routeExists(XNS_NAME, "", globalRoute)).to.equal(true);
-      expect((await routes.getRouteInfo(XNS_NAME, "", globalRoute))[0]).to.equal(buildTarget);
-      expect(await routes.routeExists(XNS_NAME, ROUTE_SCOPE, globalRoute)).to.equal(false);
-      await expect(routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, globalRoute)).to.be.revertedWith(
-        XR.routeNotFound,
+      expect(isLiveTarget((await routes.getRouteRecord(XNS_NAME, "", globalRoute)).target)).to.equal(true);
+      expect((await routes.getRouteRecord(XNS_NAME, "", globalRoute)).target).to.equal(buildTarget);
+      expect(isLiveTarget((await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, globalRoute)).target)).to.equal(false);
+      expect((await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, globalRoute)).target).to.equal(
+        ethers.ZeroAddress,
       );
 
       await routes
         .connect(owner)
         .createRoute(XNS_NAME, ROUTE_SCOPE, globalRoute, other.address, RT0, true, false);
-      expect((await routes.getRouteInfo(XNS_NAME, "", globalRoute))[0]).to.equal(buildTarget);
-      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, globalRoute))[0]).to.equal(
+      expect((await routes.getRouteRecord(XNS_NAME, "", globalRoute)).target).to.equal(buildTarget);
+      expect((await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, globalRoute)).target).to.equal(
         other.address,
       );
     });
@@ -335,10 +354,10 @@ describe("XNSRoutes", function () {
         .connect(other)
         .createRoute(OTHER_BASE, ROUTE_SCOPE, ROUTE_LABEL, t2, RT0, false, false);
 
-      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))[0]).to.equal(t1);
-      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, "other-route"))[0]).to.equal(t2);
-      expect((await routes.getRouteInfo(XNS_NAME, "base", ROUTE_LABEL))[0]).to.equal(t2);
-      expect((await routes.getRouteInfo(OTHER_BASE, ROUTE_SCOPE, ROUTE_LABEL))[0]).to.equal(t2);
+      expect((await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).target).to.equal(t1);
+      expect((await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, "other-route")).target).to.equal(t2);
+      expect((await routes.getRouteRecord(XNS_NAME, "base", ROUTE_LABEL)).target).to.equal(t2);
+      expect((await routes.getRouteRecord(OTHER_BASE, ROUTE_SCOPE, ROUTE_LABEL)).target).to.equal(t2);
     });
 
     it("Should revert with RouteAlreadyExists when createRoute is called twice for same key", async function () {
@@ -395,7 +414,7 @@ describe("XNSRoutes", function () {
           false,
         );
 
-      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))[1]).to.equal(false);
+      expect((await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).isActive).to.equal(false);
     });
 
     it("Should activate after deactivate and emit RouteActiveStatusUpdated", async function () {
@@ -416,7 +435,7 @@ describe("XNSRoutes", function () {
           true,
         );
 
-      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))[1]).to.equal(true);
+      expect((await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).isActive).to.equal(true);
     });
 
     it("Should not emit RouteActiveStatusUpdated when deactivate called twice", async function () {
@@ -456,7 +475,7 @@ describe("XNSRoutes", function () {
         routes,
         "RouteActiveStatusUpdated",
       );
-      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))[1]).to.equal(false);
+      expect((await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).isActive).to.equal(false);
     });
 
     it("Should succeed after route book freeze", async function () {
@@ -509,9 +528,9 @@ describe("XNSRoutes", function () {
           ROUTE_LABEL,
         );
 
-      expect(await routes.routeExists(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).to.equal(false);
-      await expect(routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).to.be.revertedWith(
-        XR.routeNotFound,
+      expect(isLiveTarget((await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).target)).to.equal(false);
+      expect((await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).target).to.equal(
+        ethers.ZeroAddress,
       );
 
       await expect(
@@ -520,7 +539,7 @@ describe("XNSRoutes", function () {
           .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, other.address, RT0, false, false),
       ).to.emit(routes, "RouteCreated");
 
-      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))[0]).to.equal(other.address);
+      expect((await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).target).to.equal(other.address);
     });
 
     it("Should revert with CannotDeleteFrozenRoute after freezeRoute", async function () {
@@ -586,7 +605,7 @@ describe("XNSRoutes", function () {
           other.address,
         );
 
-      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))[0]).to.equal(other.address);
+      expect((await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).target).to.equal(other.address);
     });
 
     it("Should not emit RouteTargetUpdated when updateTarget is no-op", async function () {
@@ -631,7 +650,7 @@ describe("XNSRoutes", function () {
           7,
         );
 
-      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))[3]).to.equal(7);
+      expect((await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).routeType).to.equal(7);
     });
 
     it("Should not emit RouteTypeUpdated when updateRouteType is no-op", async function () {
@@ -727,7 +746,7 @@ describe("XNSRoutes", function () {
         "RouteFrozen",
       );
 
-      expect((await routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))[2]).to.equal(true);
+      expect((await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).isFrozen).to.equal(true);
     });
 
     it("Should not emit RouteFrozen on second call", async function () {
@@ -842,54 +861,50 @@ describe("XNSRoutes", function () {
     });
   });
 
-  describe("getRouteInfo / routeExists", function () {
-    it("Should revert getRouteInfo with RouteNotFound when missing", async function () {
+  describe("getRouteRecord", function () {
+    it("Should return empty record when route is missing", async function () {
       const { routes } = await loadFixture(deployFixture);
 
-      expect(await routes.routeExists(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).to.equal(false);
-
-      await expect(routes.getRouteInfo(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).to.be.revertedWith(
-        XR.routeNotFound,
-      );
+      const record = await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
+      expect(isLiveTarget(record.target)).to.equal(false);
+      expect(record.target).to.equal(ethers.ZeroAddress);
     });
 
-    it("Should revert getRouteInfo and routeExists with InvalidRoute for colon in route when prefix is empty", async function () {
+    it("Should revert getRouteRecord with InvalidRouteLabel for colon in label when scope is empty", async function () {
       const { routes } = await loadFixture(deployFixture);
       const aliasRoute = `${ROUTE_SCOPE}:${ROUTE_LABEL}`;
-      await expect(routes.getRouteInfo(XNS_NAME, "", aliasRoute)).to.be.revertedWith(
-        XR.invalidRouteLabel,
-      );
-      await expect(routes.routeExists(XNS_NAME, "", aliasRoute)).to.be.revertedWith(
+      await expect(routes.getRouteRecord(XNS_NAME, "", aliasRoute)).to.be.revertedWith(
         XR.invalidRouteLabel,
       );
     });
 
-    it("Should return getRouteInfoFromXRL for an existing route", async function () {
+    it("Should return getRouteRecord for an existing registry XRL", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
         .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
       const fullPath = `${XNS_NAME}/${ROUTE_SCOPE}:${ROUTE_LABEL}`;
-      const [target, isActive, isFrozen, routeType] = await routes.getRouteInfoFromXRL(fullPath);
+      const record = await getRouteRecordByXRL(routes, fullPath);
 
-      expect(target).to.equal(buildTarget);
-      expect(isActive).to.equal(true);
-      expect(isFrozen).to.equal(false);
-      expect(routeType).to.equal(RT0);
+      expect(record.target).to.equal(buildTarget);
+      expect(record.isActive).to.equal(true);
+      expect(record.isFrozen).to.equal(false);
+      expect(record.routeType).to.equal(RT0);
     });
 
-    it("Should revert routeExistsFromXRL with InvalidXRL when no slash is present", async function () {
+    it("Should revert getRouteRecord with InvalidXRL when no slash is present", async function () {
       const { routes } = await loadFixture(deployFixture);
-      await expect(routes.routeExistsFromXRL(`${ROUTE_SCOPE}:${ROUTE_LABEL}`)).to.be.revertedWith(
+      await expect(getRouteRecordByXRL(routes, `${ROUTE_SCOPE}:${ROUTE_LABEL}`)).to.be.revertedWith(
         XR.invalidXRL,
       );
     });
 
-    it("Should revert getRouteInfoFromXRL with RouteNotFound when missing", async function () {
+    it("Should return empty record for missing registry XRL", async function () {
       const { routes } = await loadFixture(deployFixture);
       const fullPath = `${XNS_NAME}/${ROUTE_SCOPE}:${ROUTE_LABEL}`;
-      await expect(routes.getRouteInfoFromXRL(fullPath)).to.be.revertedWith(XR.routeNotFound);
+      const record = await getRouteRecordByXRL(routes, fullPath);
+      expect(record.target).to.equal(ethers.ZeroAddress);
     });
   });
 
@@ -998,7 +1013,7 @@ describe("XNSRoutes", function () {
       expect(all[1]).to.equal(k1);
     });
 
-    it("Should batch getRouteRecords returning RouteRecord[]", async function () {
+    it("Should read multiple keys via getRouteRecord in a loop", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes
         .connect(owner)
@@ -1011,19 +1026,18 @@ describe("XNSRoutes", function () {
       const k1 = routeStorageKey(XNS_NAME, ROUTE_SCOPE, "other-route");
       const kAbsent = ethers.keccak256(ethers.toUtf8Bytes("no-such-route-key"));
 
-      const records = await routes.getRouteRecords([k0, k1, kAbsent]);
-      expect(records.length).to.equal(3);
-      expect(records[0].target).to.equal(buildTarget);
-      expect(records[0].routeType).to.equal(RT0);
-      expect(records[0].isActive).to.equal(true);
-      expect(records[0].isFrozen).to.equal(false);
-      expect(records[1].target).to.equal(buildTarget);
-      expect(records[1].isActive).to.equal(false);
-      expect(records[1].isFrozen).to.equal(true);
-      expect(records[2].target).to.equal(ethers.ZeroAddress);
+      const r0 = await getRouteRecordByKey(routes, k0);
+      const r1 = await getRouteRecordByKey(routes, k1);
+      const rAbsent = await getRouteRecordByKey(routes, kAbsent);
 
-      const empty = await routes.getRouteRecords([]);
-      expect(empty.length).to.equal(0);
+      expect(r0.target).to.equal(buildTarget);
+      expect(r0.routeType).to.equal(RT0);
+      expect(r0.isActive).to.equal(true);
+      expect(r0.isFrozen).to.equal(false);
+      expect(r1.target).to.equal(buildTarget);
+      expect(r1.isActive).to.equal(false);
+      expect(r1.isFrozen).to.equal(true);
+      expect(rAbsent.target).to.equal(ethers.ZeroAddress);
     });
 
     it("Should revert getRouteKeys only when start > end; past-range start returns empty", async function () {
@@ -1099,8 +1113,8 @@ describe("XNSRoutes", function () {
       const r = "my-route";
       await routes.connect(owner).createRoute(BARE_LABEL, "", r, buildTarget, RT0, true, false);
 
-      expect(await routes.routeExists(BARE_CANON, "", r)).to.equal(true);
-      expect((await routes.getRouteInfo(BARE_CANON, "", r))[0]).to.equal(buildTarget);
+      expect(isLiveTarget((await routes.getRouteRecord(BARE_CANON, "", r)).target)).to.equal(true);
+      expect((await routes.getRouteRecord(BARE_CANON, "", r)).target).to.equal(buildTarget);
     });
 
     it("Should treat bare and canonical name as the same route book (second create reverts)", async function () {
@@ -1131,15 +1145,15 @@ describe("XNSRoutes", function () {
         );
     });
 
-    it("Should resolve getRouteInfoFromXRL when the path uses a bare first segment", async function () {
+    it("Should resolve getRouteRecord when the path uses a bare first segment", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployWithBare);
       await routes
         .connect(owner)
         .createRoute(BARE_LABEL, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
 
       const fullPath = `${BARE_LABEL}/${ROUTE_SCOPE}:${ROUTE_LABEL}`;
-      const [target] = await routes.getRouteInfoFromXRL(fullPath);
-      expect(target).to.equal(buildTarget);
+      const record = await getRouteRecordByXRL(routes, fullPath);
+      expect(record.target).to.equal(buildTarget);
     });
   });
 });

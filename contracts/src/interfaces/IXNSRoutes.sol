@@ -136,23 +136,15 @@ interface IXNSRoutes {
 
     function freezeRouteBook(string calldata xnsName) external;
 
-    function getRouteInfo(
+    function getRouteRecord(bytes32 routeKey) external view returns (RouteRecord memory record);
+
+    function getRouteRecord(
         string calldata xnsName,
         string calldata routeScope,
         string calldata routeLabel
-    ) external view returns (address target, bool isActive, bool isFrozen, uint32 routeType);
+    ) external view returns (RouteRecord memory record);
 
-    function routeExists(
-        string calldata xnsName,
-        string calldata routeScope,
-        string calldata routeLabel
-    ) external view returns (bool);
-
-    function getRouteInfoFromXRL(
-        string calldata xrl
-    ) external view returns (address target, bool isActive, bool isFrozen, uint32 routeType);
-
-    function routeExistsFromXRL(string calldata xrl) external view returns (bool exists);
+    function getRouteRecord(string calldata xrl) external view returns (RouteRecord memory record);
 
     function splitXRL(
         string calldata xrl
@@ -174,10 +166,4 @@ interface IXNSRoutes {
         uint256 start,
         uint256 end
     ) external view returns (bytes32[] memory keys);
-
-    function getRouteRecord(bytes32 routeKey) external view returns (RouteRecord memory record);
-
-    function getRouteRecords(
-        bytes32[] calldata routeKeys
-    ) external view returns (RouteRecord[] memory records);
 }

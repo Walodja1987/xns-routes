@@ -58,8 +58,8 @@ async function main() {
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
-  const exists = await routes.routeExists(xnsName, routeScope, routeLabel);
-  console.log(`${GREEN}✓ Confirmed. routeExists=${exists}${RESET}\n`);
+  const record = await routes.getRouteRecord(xnsName, routeScope, routeLabel);
+  console.log(`${GREEN}✓ Confirmed. route exists=${record.target !== hre.ethers.ZeroAddress}${RESET}\n`);
 }
 
 main().catch((error: unknown) => {

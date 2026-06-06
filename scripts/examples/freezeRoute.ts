@@ -57,8 +57,8 @@ async function main() {
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
-  const [, , frozen] = await routes.getRouteInfo(xnsName, routeScope, routeLabel);
-  console.log(`${GREEN}✓ Confirmed. isFrozen=${frozen}${RESET}\n`);
+  const record = await routes.getRouteRecord(xnsName, routeScope, routeLabel);
+  console.log(`${GREEN}✓ Confirmed. isFrozen=${record.isFrozen}${RESET}\n`);
 }
 
 main().catch((error: unknown) => {

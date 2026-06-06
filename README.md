@@ -53,7 +53,7 @@ Validation rules:
 | **route label** | `123` | Required slug |
 | **route key** | `bytes32` | `keccak256(canonical registry XRL)`; params never included |
 
-Contract tuple APIs use `(xnsName, routeScope, routeLabel)` — equivalent to parsing a registry XRL. Path helpers: `splitXRL`, `getRouteInfoFromXRL`, `routeExistsFromXRL` (input must be a registry XRL).
+Contract tuple APIs use `(xnsName, routeScope, routeLabel)` — equivalent to parsing a registry XRL. Path helpers: `splitXRL`, `getRouteRecord(string xrl)` (input must be a registry XRL).
 
 ---
 
@@ -286,8 +286,11 @@ The registry keeps an **append-only log** of **route storage keys** (`bytes32`) 
 - `getRouteKeyCount(xnsName)` — length of the log for that name
 - `getRouteKeys(xnsName, start, end)` — page through keys (`end` **exclusive**; if `end` &gt; log length, it is clamped to the log length; if `start` is past that range, returns an empty array)
 - `getRouteRecord(routeKey)` — read one `RouteRecord` by key (no string tuple needed)
-- `getRouteRecords(routeKeys)` — batch; returns `RouteRecord[]`
-- `splitXRL`, `getRouteInfoFromXRL`, `routeExistsFromXRL` — accept **registry XRL** only (not full XRL with params)
+- `getRouteRecord(xnsName, routeScope, routeLabel)` — read by components
+- `getRouteRecord(xrl)` — read by **registry XRL** (parsed by `splitXRL`)
+- `splitXRL` — parse a registry XRL into `(xnsName, routeScope, routeLabel)` (not full XRL with params)
+
+All `getRouteRecord` overloads return an **empty record** (`target == address(0)`) when the route is missing; invalid scope/label/XRL still revert. Existence: `getRouteRecord(...).target != address(0)`.
 
 **Important semantics (don’t skip this)**
 
@@ -330,8 +333,8 @@ npx hardhat run scripts/examples/<script_name>.ts --network <network_name>
 
 **Read-only**
 
-- [scripts/examples/routeExists.ts](scripts/examples/routeExists.ts) — check if a route is registered
-- [scripts/examples/getRouteInfo.ts](scripts/examples/getRouteInfo.ts) — read target, `isActive`, `isFrozen`, `routeType`
+- [scripts/examples/routeExists.ts](scripts/examples/routeExists.ts) — check if a route is registered (`getRouteRecord(...).target != 0`)
+- [scripts/examples/getRouteRecord.ts](scripts/examples/getRouteRecord.ts) — read target, `isActive`, `isFrozen`, `routeType`
 - [scripts/examples/isRouteBookFrozen.ts](scripts/examples/isRouteBookFrozen.ts) — route book freeze flag for a name
 
 **Write** (signer must be the address XNS currently resolves for the script’s `xnsName`)

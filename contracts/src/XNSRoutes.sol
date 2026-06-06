@@ -59,7 +59,7 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 ///   many routes may point to the same `target`.
 /// - `routeKey` is `keccak256` of canonical registry XRL (`xnsName/route`; params excluded).
 /// - For one known `xnsName`, on-chain enumeration is available without an indexer via the append-only
-///   route-key log (`getRouteKeyCount`, `getRouteKeys`, `getRouteRecord`, `getRouteRecords`).
+///   route-key log (`getRouteKeyCount`, `getRouteKeys`, `getRouteRecord`).
 /// - Bare names like `bob` are normalized/canonicalized to `bob.x` for storage.
 contract XNSRoutes {
     // -------------------------------------------------------------------------
@@ -650,102 +650,60 @@ contract XNSRoutes {
     // View functions
     // -------------------------------------------------------------------------
 
-    /// @notice Return full routeLabel metadata. Applies the same `routeScope`/`route` validation as
-    /// mutating functions, then reads storage.
+    /// @notice Reads stored route record data by `routeKey`. Does not validate strings.
+    /// `record.target == address(0)` means that record does not exist.
+    ///
+    /// @param routeKey Canonical route storage key.
+    /// @return record The route record.
+    function getRouteRecord(bytes32 routeKey) external view returns (RouteRecord memory record) {
+        RouteRecord storage s = _routes[routeKey];
+        record = RouteRecord({
+            target: s.target,
+            routeType: s.routeType,
+            isActive: s.isActive,
+            isFrozen: s.isFrozen
+        });
+    }
+
+    /// @notice Reads stored route record data by `(xnsName, routeScope, routeLabel)`.
+    /// Validates scope/label; `record.target == address(0)` means that record does not exist.
     ///
     /// @param xnsName The XNS name that owns the route space.
-    /// @param routeScope Route scope of the route path to be queried (may be empty).
-    /// @param routeLabel Route label of the route path to be queried.
-    /// @return target Stored target address for the route.
-    /// @return isActive Whether the route is active.
-    /// @return isFrozen Whether the route is frozen.
-    /// @return routeType Route type integer.
-    function getRouteInfo(
+    /// @param routeScope Route scope (may be empty).
+    /// @param routeLabel Route label.
+    /// @return record The route record.
+    function getRouteRecord(
         string calldata xnsName,
         string calldata routeScope,
         string calldata routeLabel
-    ) external view returns (address target, bool isActive, bool isFrozen, uint32 routeType) {
-        return _getRouteInfo(xnsName, routeScope, routeLabel);
+    ) external view returns (RouteRecord memory record) {
+        return _getRouteRecord(xnsName, routeScope, routeLabel);
     }
 
-    /// @notice Same as `getRouteInfo` with a **registry XRL** parsed by `splitXRL`.
+    /// @notice Reads stored route record data by registry XRL (`splitXRL`).
+    /// `record.target == address(0)` means that record does not exist.
     ///
-    /// **Requirements:**
-    /// - `xrl` must be a registry XRL (at least one `/`; no param tail).
-    /// - Further requirements match `getRouteInfo` for the parsed components.
-    ///
-    /// @param xrl Registry XRL, e.g. `bob.xns/eth:transfer-usdt`.
-    /// @return target Stored target address for the route.
-    /// @return isActive Whether the route is active.
-    /// @return isFrozen Whether the route is frozen.
-    /// @return routeType Route type integer.
-    function getRouteInfoFromXRL(
-        string calldata xrl
-    ) external view returns (address target, bool isActive, bool isFrozen, uint32 routeType) {
-        (string memory xnsName, string memory routeScope, string memory routeLabel) = _splitXRL(
-            xrl
-        );
-        return _getRouteInfo(xnsName, routeScope, routeLabel);
+    /// @param xrl Registry XRL, e.g. `bob.xns/eth:my-wallet`, without trailing parameters (if any).
+    /// @return record The route record.
+    function getRouteRecord(string calldata xrl) external view returns (RouteRecord memory record) {
+        (string memory xnsName, string memory routeScope, string memory routeLabel) = _splitXRL(xrl);
+        return _getRouteRecord(xnsName, routeScope, routeLabel);
     }
 
-    /// @dev Loads `(target, isActive, isFrozen, routeType)` after `_validateRouteScopeAndLabel`.
-    /// Tuple semantics and revert behavior match `getRouteInfo` / `getRouteInfoFromXRL`.
-    function _getRouteInfo(
+    /// @dev Validates scope/label, derives key, loads record.
+    function _getRouteRecord(
         string memory xnsName,
         string memory routeScope,
         string memory routeLabel
-    ) private view returns (address target, bool isActive, bool isFrozen, uint32 routeType) {
-        // Validate route scope and route label
+    ) private view returns (RouteRecord memory record) {
         _validateRouteScopeAndLabel(routeScope, routeLabel);
-
-        // Derive the route key and check if the routeLabel exists
-        RouteRecord storage record = _routes[_routeKey(xnsName, routeScope, routeLabel)];
-        require(record.target != address(0), "XNSRoutes: route not found");
-
-        return (record.target, record.isActive, record.isFrozen, record.routeType);
-    }
-
-    /// @notice Returns whether a routeLabel exists (`target` was ever set via `createRoute`; zero
-    /// `target` is never stored). Applies the same `routeScope`/`route` validation as mutating
-    /// functions before reading storage.
-    ///
-    /// @param xnsName The XNS name that owns the route space.
-    /// @param routeScope Route scope of the route path to be queried (may be empty).
-    /// @param routeLabel Route label of the route path to be queried.
-    /// @return exists True if a route record exists for the key.
-    function routeExists(
-        string calldata xnsName,
-        string calldata routeScope,
-        string calldata routeLabel
-    ) external view returns (bool exists) {
-        return _routeExists(xnsName, routeScope, routeLabel);
-    }
-
-    /// @notice Same as `routeExists` with a **registry XRL** parsed by `splitXRL`.
-    ///
-    /// **Requirements:**
-    /// - `xrl` must be a registry XRL (at least one `/`; no param tail).
-    /// - Further requirements match `routeExists` for the parsed components.
-    ///
-    /// @param xrl Registry XRL, e.g. `bob.xns/eth:transfer-usdt`.
-    function routeExistsFromXRL(
-        string calldata xrl
-    ) external view returns (bool exists) {
-        (string memory xnsName, string memory routeScope, string memory routeLabel) = _splitXRL(
-            xrl
-        );
-        return _routeExists(xnsName, routeScope, routeLabel);
-    }
-
-    /// @dev Used by `routeExists` / `routeExistsFromXRL`; validation and keying match `routeExists`.
-    function _routeExists(
-        string memory xnsName,
-        string memory routeScope,
-        string memory routeLabel
-    ) private view returns (bool exists) {
-        // Validate route scope and route label
-        _validateRouteScopeAndLabel(routeScope, routeLabel);
-        return _routes[_routeKey(xnsName, routeScope, routeLabel)].target != address(0);
+        RouteRecord storage s = _routes[_routeKey(xnsName, routeScope, routeLabel)];
+        record = RouteRecord({
+            target: s.target,
+            routeType: s.routeType,
+            isActive: s.isActive,
+            isFrozen: s.isFrozen
+        });
     }
 
     /// @notice Returns whether the entire route book under `xnsName` is frozen.
@@ -796,44 +754,9 @@ contract XNSRoutes {
         }
     }
 
-    /// @notice Read stored metadata by canonical routeLabel storage key. Does not validate strings;
-    /// `record.target == address(0)` means no record (never created or deleted).
-    ///
-    /// @param routeKey The route key to read.
-    /// @return record The route record (same shape as each element of `getRouteRecords`).
-    function getRouteRecord(bytes32 routeKey) external view returns (RouteRecord memory record) {
-        RouteRecord storage s = _routes[routeKey];
-        record = RouteRecord({
-            target: s.target,
-            routeType: s.routeType,
-            isActive: s.isActive,
-            isFrozen: s.isFrozen
-        });
-    }
-
-    /// @notice Batch read of `RouteRecord` for each `routeKey`. Same semantics as
-    /// `getRouteRecord` per element.
-    ///
-    /// @param routeKeys The route keys to read.
-    /// @return records The route records.
-    function getRouteRecords(
-        bytes32[] calldata routeKeys
-    ) external view returns (RouteRecord[] memory records) {
-        uint256 n = routeKeys.length;
-        records = new RouteRecord[](n);
-        for (uint256 i = 0; i < n; ++i) {
-            RouteRecord storage r = _routes[routeKeys[i]];
-            records[i] = RouteRecord({
-                target: r.target,
-                routeType: r.routeType,
-                isActive: r.isActive,
-                isFrozen: r.isFrozen
-            });
-        }
-    }
-
-    /// @notice Parses a **registry XRL** (e.g. `bro.xns/eth:my-wallet`) into `(xnsName, routeScope, routeLabel)`.
-    /// Useful when calling tuple-based functions (`updateRoute`, `routeExists`, `getRouteInfo`, etc.).
+    /// @notice Parses a registry XRL into `(xnsName, routeScope, routeLabel)`.
+    /// Example: `bro.xns/eth:my-wallet` -> `(bro.xns, eth, my-wallet)`.
+    /// Useful when calling tuple-based mutating functions (`updateRoute`, `createRoute`, etc.).
     ///
     /// A registry XRL is `xnsName "/" route` — the on-chain subset of a full XRL (no `/params…` tail).
     /// Does not validate segments; malformed input may still parse but fail downstream.

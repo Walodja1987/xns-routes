@@ -93,7 +93,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
-- Name owner can clear a route slot (`routeExists` false); `createRoute` may register the same `(xnsName, routeScope, route)` again afterward.
+- Name owner can clear a route slot (`getRouteRecord(...).target == address(0)`); `createRoute` may register the same `(xnsName, routeScope, route)` again afterward.
 - Reverts with `"XNSRoutes: cannot delete frozen route"` if the route is per-route frozen.
 - Reverts with `"XNSRoutes: route book frozen"` if the route book for `xnsName` is frozen (same as `updateRoute`).
 - Independent of `isActive`; use `deactivateRoute` for a soft disable without removing the record.
@@ -166,18 +166,21 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 ---
 
-## `getRouteInfo` / `routeExists`
+## `getRouteRecord`
 
 #### Functionality
 
-- `routeExists` returns `false` before a route is created and `true` after.
-- `getRouteInfo` returns `(target, isActive, isFrozen, routeType)` consistent with `createRoute` / `updateRoute` / `updateTarget` / `updateRouteType` / `activateRoute` / `deactivateRoute` / `freezeRoute` (until `deleteRoute` clears the slot).
-- Both apply the same local `routeScope` / routeLabel validation as mutating functions before deriving the key.
+- All overloads return an empty `RouteRecord` (`target == address(0)`) when the route does not exist (soft read).
+- `getRouteRecord(xnsName, routeScope, routeLabel)` returns fields consistent with `createRoute` / `updateRoute` / `updateTarget` / `updateRouteType` / `activateRoute` / `deactivateRoute` / `freezeRoute` (until `deleteRoute` clears the slot).
+- `getRouteRecord(string xrl)` parses a **registry XRL** via `splitXRL` then reads the same record.
+- `getRouteRecord(bytes32 routeKey)` reads storage directly by key.
+- Existence: `getRouteRecord(...).target != address(0)`.
+- Tuple overload applies the same local `routeScope` / routeLabel validation as mutating functions before deriving the key.
 
 #### Reverts
 
-- `getRouteInfo` should revert with `"XNSRoutes: route not found"` when the route does not exist.
 - Should revert with `"XNSRoutes: invalid route scope"` / `"XNSRoutes: invalid route label"` for malformed `routeScope` / routeLabel (e.g. `:` in routeLabel when `routeScope` is empty).
+- `getRouteRecord(string)` should revert with `"XNSRoutes: invalid XRL"` when no `/` is present.
 
 ---
 

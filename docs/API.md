@@ -30,7 +30,7 @@ Key points:
   many routes may point to the same `target`.
 - `routeKey` is `keccak256` of canonical registry XRL (`xnsName/route`; params excluded).
 - For one known `xnsName`, on-chain enumeration is available without an indexer via the append-only
-  route-key log (`getRouteKeyCount`, `getRouteKeys`, `getRouteRecord`, `getRouteRecords`).
+  route-key log (`getRouteKeyCount`, `getRouteKeys`, `getRouteRecord`).
 - Bare names like `bob` are normalized/canonicalized to `bob.x` for storage.
 
 
@@ -302,14 +302,37 @@ function freezeRouteBook(string xnsName) external
 | xnsName | string | The XNS name whose route book to freeze. |
 
 
-### getRouteInfo
+### getRouteRecord
 
 
-Return full routeLabel metadata. Applies the same `routeScope`/`route` validation as
-mutating functions, then reads storage.
+Read stored route record data by `routeKey`. Does not validate strings.
+`record.target == address(0)` means that record does not exist.
 
 ```solidity
-function getRouteInfo(string xnsName, string routeScope, string routeLabel) external view returns (address target, bool isActive, bool isFrozen, uint32 routeType)
+function getRouteRecord(bytes32 routeKey) external view returns (struct XNSRoutes.RouteRecord record)
+```
+
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| routeKey | bytes32 | Canonical route storage key. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| record | struct XNSRoutes.RouteRecord | The route record. |
+
+### getRouteRecord
+
+
+Read stored route record data by `(xnsName, routeScope, routeLabel)`.
+Validates scope/label; `record.target == address(0)` means that record does not exist.
+
+```solidity
+function getRouteRecord(string xnsName, string routeScope, string routeLabel) external view returns (struct XNSRoutes.RouteRecord record)
 ```
 
 
@@ -318,29 +341,23 @@ function getRouteInfo(string xnsName, string routeScope, string routeLabel) exte
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | xnsName | string | The XNS name that owns the route space. |
-| routeScope | string | Route scope of the route path to be queried (may be empty). |
-| routeLabel | string | Route label of the route path to be queried. |
+| routeScope | string | Route scope (may be empty). |
+| routeLabel | string | Route label. |
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| target | address | Stored target address for the route. |
-| isActive | bool | Whether the route is active. |
-| isFrozen | bool | Whether the route is frozen. |
-| routeType | uint32 | Route type integer. |
+| record | struct XNSRoutes.RouteRecord | The route record. |
 
-### getRouteInfoFromXRL
+### getRouteRecord
 
 
-Same as `getRouteInfo` with a **registry XRL** parsed by `splitXRL`.
-
-**Requirements:**
-- `xrl` must be a registry XRL (at least one `/`; no param tail).
-- Further requirements match `getRouteInfo` for the parsed components.
+Read stored route record data by **registry XRL** (`splitXRL`).
+`record.target == address(0)` means that record does not exist.
 
 ```solidity
-function getRouteInfoFromXRL(string xrl) external view returns (address target, bool isActive, bool isFrozen, uint32 routeType)
+function getRouteRecord(string xrl) external view returns (struct XNSRoutes.RouteRecord record)
 ```
 
 
@@ -348,63 +365,13 @@ function getRouteInfoFromXRL(string xrl) external view returns (address target, 
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| xrl | string | Registry XRL, e.g. `bob.xns/eth:transfer-usdt`. |
+| xrl | string | Registry XRL, e.g. `bob.xns/eth:my-wallet`, without trailing parameters (if any). |
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| target | address | Stored target address for the route. |
-| isActive | bool | Whether the route is active. |
-| isFrozen | bool | Whether the route is frozen. |
-| routeType | uint32 | Route type integer. |
-
-### routeExists
-
-
-Returns whether a routeLabel exists (`target` was ever set via `createRoute`; zero
-`target` is never stored). Applies the same `routeScope`/`route` validation as mutating
-functions before reading storage.
-
-```solidity
-function routeExists(string xnsName, string routeScope, string routeLabel) external view returns (bool exists)
-```
-
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| xnsName | string | The XNS name that owns the route space. |
-| routeScope | string | Route scope of the route path to be queried (may be empty). |
-| routeLabel | string | Route label of the route path to be queried. |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| exists | bool | True if a route record exists for the key. |
-
-### routeExistsFromXRL
-
-
-Same as `routeExists` with a **registry XRL** parsed by `splitXRL`.
-
-**Requirements:**
-- `xrl` must be a registry XRL (at least one `/`; no param tail).
-- Further requirements match `routeExists` for the parsed components.
-
-```solidity
-function routeExistsFromXRL(string xrl) external view returns (bool exists)
-```
-
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| xrl | string | Registry XRL, e.g. `bob.xns/eth:transfer-usdt`. |
-
+| record | struct XNSRoutes.RouteRecord | The route record. |
 
 ### isRouteBookFrozen
 
@@ -481,57 +448,11 @@ function getRouteKeys(string xnsName, uint256 start, uint256 end) external view 
 | ---- | ---- | ----------- |
 | keys | bytes32[] | The route keys. |
 
-### getRouteRecord
-
-
-Read stored metadata by canonical routeLabel storage key. Does not validate strings;
-`record.target == address(0)` means no record (never created or deleted).
-
-```solidity
-function getRouteRecord(bytes32 routeKey) external view returns (struct XNSRoutes.RouteRecord record)
-```
-
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| routeKey | bytes32 | The route key to read. |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| record | struct XNSRoutes.RouteRecord | The route record (same shape as each element of `getRouteRecords`). |
-
-### getRouteRecords
-
-
-Batch read of `RouteRecord` for each `routeKey`. Same semantics as
-`getRouteRecord` per element.
-
-```solidity
-function getRouteRecords(bytes32[] routeKeys) external view returns (struct XNSRoutes.RouteRecord[] records)
-```
-
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| routeKeys | bytes32[] | The route keys to read. |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| records | struct XNSRoutes.RouteRecord[] | The route records. |
-
 ### splitXRL
 
 
 Parses a **registry XRL** (e.g. `bro.xns/eth:my-wallet`) into `(xnsName, routeScope, routeLabel)`.
-Useful when calling tuple-based functions (`updateRoute`, `routeExists`, `getRouteInfo`, etc.).
+Useful when calling tuple-based mutating functions (`updateRoute`, `createRoute`, etc.).
 
 A registry XRL is `xnsName "/" route` — the on-chain subset of a full XRL (no `/params…` tail).
 Does not validate segments; malformed input may still parse but fail downstream.

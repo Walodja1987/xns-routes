@@ -2,10 +2,10 @@
  * Read route metadata (target, isActive, isFrozen, routeType) from XNSRoutes.
  *
  * USAGE:
- * `npx hardhat run scripts/examples/getRouteInfo.ts --network <network_name>`
+ * `npx hardhat run scripts/examples/getRouteRecord.ts --network <network_name>`
  *
  * EXAMPLE:
- * `npx hardhat run scripts/examples/getRouteInfo.ts --network sepolia`
+ * `npx hardhat run scripts/examples/getRouteRecord.ts --network sepolia`
  *
  * REQUIRED SETUP:
  * - MNEMONIC, network RPC (see docs/DEV_NOTES.md)
@@ -27,7 +27,7 @@ const RED = "\x1b[31m";
 /** XNS name that owns the route space (e.g. "xns.action") */
 const xnsName = "xns.action";
 
-/** Route prefix (e.g. "eth" in `base/eth:route/...`) */
+/** Route scope (e.g. "eth" in `base/eth:route/...`) */
 const routeScope = "eth";
 
 /** Route label (e.g. "register-name") */
@@ -48,24 +48,18 @@ async function main() {
   console.log(`XNSRoutes: ${GREEN}${contractAddress}${RESET}`);
   console.log(`xnsName: ${GREEN}${xnsName}${RESET}`);
   console.log(`routeScope: ${GREEN}${routeScope}${RESET}`);
-  console.log(`routeLabel: ${GREEN}${route}${RESET}\n`);
+  console.log(`routeLabel: ${GREEN}${routeLabel}${RESET}\n`);
 
-  const exists = await routes.routeExists(xnsName, routeScope, routeLabel);
-  if (!exists) {
-    console.log(`${YELLOW}⚠${RESET} Route not found (no record).\n`);
+  const record = await routes.getRouteRecord(xnsName, routeScope, routeLabel);
+  if (record.target === hre.ethers.ZeroAddress) {
+    console.log(`${YELLOW}⚠${RESET} Route not found (empty record).\n`);
     return;
   }
 
-  const [target, isActive, isFrozen, routeType] = await routes.getRouteInfo(
-    xnsName,
-    routeScope,
-    route,
-  );
-
-  console.log(`target:    ${GREEN}${target}${RESET}`);
-  console.log(`isActive:  ${GREEN}${isActive}${RESET}`);
-  console.log(`isFrozen:  ${GREEN}${isFrozen}${RESET}`);
-  console.log(`routeType: ${GREEN}${routeType}${RESET}\n`);
+  console.log(`target:    ${GREEN}${record.target}${RESET}`);
+  console.log(`isActive:  ${GREEN}${record.isActive}${RESET}`);
+  console.log(`isFrozen:  ${GREEN}${record.isFrozen}${RESET}`);
+  console.log(`routeType: ${GREEN}${record.routeType}${RESET}\n`);
 }
 
 main().catch((error: unknown) => {
