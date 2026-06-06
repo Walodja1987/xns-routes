@@ -650,11 +650,11 @@ contract XNSRoutes {
     // View functions
     // -------------------------------------------------------------------------
 
-    /// @notice Reads stored route record data by `routeKey`. Does not validate strings.
+    /// @notice Reads stored route record data by `routeKey`.
     /// `record.target == address(0)` means that record does not exist.
     ///
     /// @param routeKey Canonical route storage key.
-    /// @return record The route record.
+    /// @return record The route record (target, routeType, isActive, isFrozen).
     function getRouteRecord(bytes32 routeKey) external view returns (RouteRecord memory record) {
         RouteRecord storage s = _routes[routeKey];
         record = RouteRecord({
@@ -666,12 +666,14 @@ contract XNSRoutes {
     }
 
     /// @notice Reads stored route record data by `(xnsName, routeScope, routeLabel)`.
-    /// Validates scope/label; `record.target == address(0)` means that record does not exist.
+    /// `record.target == address(0)` means that record does not exist.
+    ///
+    /// Requires that `routeScope` and `routeLabel` are valid strings.
     ///
     /// @param xnsName The XNS name that owns the route space.
     /// @param routeScope Route scope (may be empty).
     /// @param routeLabel Route label.
-    /// @return record The route record.
+    /// @return record The route record (target, routeType, isActive, isFrozen).
     function getRouteRecord(
         string calldata xnsName,
         string calldata routeScope,
@@ -684,13 +686,13 @@ contract XNSRoutes {
     /// `record.target == address(0)` means that record does not exist.
     ///
     /// @param xrl Registry XRL, e.g. `bob.xns/eth:my-wallet`, without trailing parameters (if any).
-    /// @return record The route record.
+    /// @return record The route record (target, routeType, isActive, isFrozen).
     function getRouteRecord(string calldata xrl) external view returns (RouteRecord memory record) {
         (string memory xnsName, string memory routeScope, string memory routeLabel) = _splitXRL(xrl);
         return _getRouteRecord(xnsName, routeScope, routeLabel);
     }
 
-    /// @dev Validates scope/label, derives key, loads record.
+    /// @dev Validates scope/label, derives key and returns the route record.
     function _getRouteRecord(
         string memory xnsName,
         string memory routeScope,
