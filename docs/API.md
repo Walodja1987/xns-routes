@@ -305,7 +305,7 @@ function freezeRouteBook(string xnsName) external
 ### getRouteRecord
 
 
-Read stored route record data by `routeKey`. Does not validate strings.
+Reads stored route record data by `routeKey`.
 `record.target == address(0)` means that record does not exist.
 
 ```solidity
@@ -323,13 +323,15 @@ function getRouteRecord(bytes32 routeKey) external view returns (struct XNSRoute
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| record | struct XNSRoutes.RouteRecord | The route record. |
+| record | struct XNSRoutes.RouteRecord | The route record (target, routeType, isActive, isFrozen). |
 
 ### getRouteRecord
 
 
-Read stored route record data by `(xnsName, routeScope, routeLabel)`.
-Validates scope/label; `record.target == address(0)` means that record does not exist.
+Reads stored route record data by `(xnsName, routeScope, routeLabel)`.
+`record.target == address(0)` means that record does not exist.
+
+Requires that `routeScope` and `routeLabel` are valid strings.
 
 ```solidity
 function getRouteRecord(string xnsName, string routeScope, string routeLabel) external view returns (struct XNSRoutes.RouteRecord record)
@@ -348,16 +350,16 @@ function getRouteRecord(string xnsName, string routeScope, string routeLabel) ex
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| record | struct XNSRoutes.RouteRecord | The route record. |
+| record | struct XNSRoutes.RouteRecord | The route record (target, routeType, isActive, isFrozen). |
 
 ### getRouteRecord
 
 
-Read stored route record data by **registry XRL** (`splitXRL`).
+Reads stored route record data by registry XRL (`splitRegistryXRL`).
 `record.target == address(0)` means that record does not exist.
 
 ```solidity
-function getRouteRecord(string xrl) external view returns (struct XNSRoutes.RouteRecord record)
+function getRouteRecord(string registryXRL) external view returns (struct XNSRoutes.RouteRecord record)
 ```
 
 
@@ -365,13 +367,13 @@ function getRouteRecord(string xrl) external view returns (struct XNSRoutes.Rout
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| xrl | string | Registry XRL, e.g. `bob.xns/eth:my-wallet`, without trailing parameters (if any). |
+| registryXRL | string | Registry XRL, e.g. `bob.xns/eth:my-wallet`, without trailing parameters (if any). |
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| record | struct XNSRoutes.RouteRecord | The route record. |
+| record | struct XNSRoutes.RouteRecord | The route record (target, routeType, isActive, isFrozen). |
 
 ### isRouteBookFrozen
 
@@ -448,19 +450,20 @@ function getRouteKeys(string xnsName, uint256 start, uint256 end) external view 
 | ---- | ---- | ----------- |
 | keys | bytes32[] | The route keys. |
 
-### splitXRL
+### splitRegistryXRL
 
 
-Parses a **registry XRL** (e.g. `bro.xns/eth:my-wallet`) into `(xnsName, routeScope, routeLabel)`.
+Parses a registry XRL into `(xnsName, routeScope, routeLabel)`.
+Example: `bro.xns/eth:my-wallet` -> `(bro.xns, eth, my-wallet)`.
 Useful when calling tuple-based mutating functions (`updateRoute`, `createRoute`, etc.).
 
 A registry XRL is `xnsName "/" route` — the on-chain subset of a full XRL (no `/params…` tail).
 Does not validate segments; malformed input may still parse but fail downstream.
 
-Requires `xrl` to contain at least one `/`.
+Requires `registryXRL` to contain at least one `/`.
 
 ```solidity
-function splitXRL(string xrl) external pure returns (string xnsName, string routeScope, string routeLabel)
+function splitRegistryXRL(string registryXRL) external pure returns (string xnsName, string routeScope, string routeLabel)
 ```
 
 
@@ -468,7 +471,7 @@ function splitXRL(string xrl) external pure returns (string xnsName, string rout
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| xrl | string | Registry XRL (not a full XRL with params), e.g. `bob.xns/eth:transfer-usdt`. |
+| registryXRL | string | Registry XRL (not a full XRL with params), e.g. `bob.xns/eth:transfer-usdt`. |
 
 #### Return Values
 

@@ -46,14 +46,14 @@ Validation rules:
 | Term | Example | Notes |
 |------|---------|--------|
 | **XRL** | `ai.xns/eth:123/label=bro` | Full locator; optional param path after the route |
-| **Registry XRL** | `ai.xns/eth:123` | On-chain subset of XRL: `xnsName "/" route` only (no params). Used by `splitXRL`, `routeKey`, and registry lookups |
+| **Registry XRL** | `ai.xns/eth:123` | On-chain subset of XRL: `xnsName "/" route` only (no params). Used by `splitRegistryXRL`, `routeKey`, and registry lookups |
 | **xnsName** | `ai.xns` | Host / owner scope |
 | **route** | `eth:123` | Part after `/` in a registry XRL |
 | **route scope** | `eth` | Optional; before `:` |
 | **route label** | `123` | Required slug |
 | **route key** | `bytes32` | `keccak256(canonical registry XRL)`; params never included |
 
-Contract tuple APIs use `(xnsName, routeScope, routeLabel)` — equivalent to parsing a registry XRL. Path helpers: `splitXRL`, `getRouteRecord(string xrl)` (input must be a registry XRL).
+Contract tuple APIs use `(xnsName, routeScope, routeLabel)` — equivalent to parsing a registry XRL. Path helpers: `splitRegistryXRL`, `getRouteRecord(string registryXRL)` (input must be a registry XRL).
 
 ---
 
@@ -287,8 +287,8 @@ The registry keeps an **append-only log** of **route storage keys** (`bytes32`) 
 - `getRouteKeys(xnsName, start, end)` — page through keys (`end` **exclusive**; if `end` &gt; log length, it is clamped to the log length; if `start` is past that range, returns an empty array)
 - `getRouteRecord(routeKey)` — read one `RouteRecord` by key (no string tuple needed)
 - `getRouteRecord(xnsName, routeScope, routeLabel)` — read by components
-- `getRouteRecord(xrl)` — read by **registry XRL** (parsed by `splitXRL`)
-- `splitXRL` — parse a registry XRL into `(xnsName, routeScope, routeLabel)` (not full XRL with params)
+- `getRouteRecord(registryXRL)` — read by **registry XRL** (parsed by `splitRegistryXRL`)
+- `splitRegistryXRL` — parse a registry XRL into `(xnsName, routeScope, routeLabel)` (not full XRL with params)
 
 All `getRouteRecord` overloads return an **empty record** (`target == address(0)`) when the route is missing; invalid scope/label/XRL still revert. Existence: `getRouteRecord(...).target != address(0)`.
 

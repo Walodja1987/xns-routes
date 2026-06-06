@@ -63,8 +63,8 @@ describe("XNSRoutes", function () {
   }
 
   /** Disambiguate ethers overload: `getRouteRecord(string)` (registry XRL). */
-  async function getRouteRecordByXRL(routes: XNSRoutes, xrl: string) {
-    return routes["getRouteRecord(string)"](xrl);
+  async function getRouteRecordByXRL(routes: XNSRoutes, registryXRL: string) {
+    return routes["getRouteRecord(string)"](registryXRL);
   }
 
   /** `getRouteRecord(routeKey)` returns a struct; destructure as tuple in tests. */

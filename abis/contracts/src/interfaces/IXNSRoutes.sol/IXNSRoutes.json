@@ -22,7 +22,7 @@
   "function isValidRouteLabel(string) pure returns (bool)",
   "function isValidRouteScope(string) pure returns (bool)",
   "function isValidRouteScopeAndLabel(string,string) pure returns (bool)",
-  "function splitXRL(string) pure returns (string, string, string)",
+  "function splitRegistryXRL(string) pure returns (string, string, string)",
   "function updateRoute(string,string,string,address,uint32,bool,bool)",
   "function updateRouteType(string,string,string,uint32)",
   "function updateTarget(string,string,string,address)"

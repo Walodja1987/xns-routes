@@ -144,10 +144,10 @@ interface IXNSRoutes {
         string calldata routeLabel
     ) external view returns (RouteRecord memory record);
 
-    function getRouteRecord(string calldata xrl) external view returns (RouteRecord memory record);
+    function getRouteRecord(string calldata registryXRL) external view returns (RouteRecord memory record);
 
-    function splitXRL(
-        string calldata xrl
+    function splitRegistryXRL(
+        string calldata registryXRL
     ) external pure returns (string memory xnsName, string memory routeScope, string memory routeLabel);
 
     function isValidRouteScope(string calldata routeScope) external pure returns (bool valid);

@@ -682,13 +682,14 @@ contract XNSRoutes {
         return _getRouteRecord(xnsName, routeScope, routeLabel);
     }
 
-    /// @notice Reads stored route record data by registry XRL (`splitXRL`).
+    /// @notice Reads stored route record data by registry XRL (`splitRegistryXRL`).
     /// `record.target == address(0)` means that record does not exist.
     ///
-    /// @param xrl Registry XRL, e.g. `bob.xns/eth:my-wallet`, without trailing parameters (if any).
+    /// @param registryXRL Registry XRL, e.g. `bob.xns/eth:my-wallet`, without trailing parameters (if any).
     /// @return record The route record (target, routeType, isActive, isFrozen).
-    function getRouteRecord(string calldata xrl) external view returns (RouteRecord memory record) {
-        (string memory xnsName, string memory routeScope, string memory routeLabel) = _splitXRL(xrl);
+    function getRouteRecord(string calldata registryXRL) external view returns (RouteRecord memory record) {
+        (string memory xnsName, string memory routeScope, string memory routeLabel) =
+            _splitRegistryXRL(registryXRL);
         return _getRouteRecord(xnsName, routeScope, routeLabel);
     }
 
@@ -763,20 +764,20 @@ contract XNSRoutes {
     /// A registry XRL is `xnsName "/" route` — the on-chain subset of a full XRL (no `/params…` tail).
     /// Does not validate segments; malformed input may still parse but fail downstream.
     ///
-    /// Requires `xrl` to contain at least one `/`.
+    /// Requires `registryXRL` to contain at least one `/`.
     ///
-    /// @param xrl Registry XRL (not a full XRL with params), e.g. `bob.xns/eth:transfer-usdt`.
+    /// @param registryXRL Registry XRL (not a full XRL with params), e.g. `bob.xns/eth:transfer-usdt`.
     /// @return xnsName Segment before the first `/`.
     /// @return routeScope Segment before the first `:` in `route`, or empty if there is no `:`.
     /// @return routeLabel Segment after `:` if `routeScope` is present, else the whole `route` after `/`.
-    function splitXRL(
-        string calldata xrl
+    function splitRegistryXRL(
+        string calldata registryXRL
     )
         external
         pure
         returns (string memory xnsName, string memory routeScope, string memory routeLabel)
     {
-        return _splitXRL(xrl);
+        return _splitRegistryXRL(registryXRL);
     }
 
     /// @notice Returns whether `routeScope` satisfies local scope rules. Empty string is valid;
@@ -809,13 +810,13 @@ contract XNSRoutes {
         return _isValidRouteLabel(routeLabel);
     }
 
-    /// @dev Splits `xrl` at the first `/`, then at the first `:` in the remainder.
+    /// @dev Splits `registryXRL` at the first `/`, then at the first `:` in the remainder.
     /// Does not validate XNS labels or slug rules on segments. Parsing rules and revert behavior
-    /// match `splitXRL`.
-    function _splitXRL(
-        string calldata xrl
+    /// match `splitRegistryXRL`.
+    function _splitRegistryXRL(
+        string calldata registryXRL
     ) private pure returns (string memory xnsName, string memory routeScope, string memory routeLabel) {
-        bytes calldata b = bytes(xrl);
+        bytes calldata b = bytes(registryXRL);
         uint256 n = b.length;
         uint256 slash;
         bool foundSlash;

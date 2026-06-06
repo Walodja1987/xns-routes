@@ -172,7 +172,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 - All overloads return an empty `RouteRecord` (`target == address(0)`) when the route does not exist (soft read).
 - `getRouteRecord(xnsName, routeScope, routeLabel)` returns fields consistent with `createRoute` / `updateRoute` / `updateTarget` / `updateRouteType` / `activateRoute` / `deactivateRoute` / `freezeRoute` (until `deleteRoute` clears the slot).
-- `getRouteRecord(string xrl)` parses a **registry XRL** via `splitXRL` then reads the same record.
+- `getRouteRecord(string registryXRL)` parses a **registry XRL** via `splitRegistryXRL` then reads the same record.
 - `getRouteRecord(bytes32 routeKey)` reads storage directly by key.
 - Existence: `getRouteRecord(...).target != address(0)`.
 - Tuple overload applies the same local `routeScope` / routeLabel validation as mutating functions before deriving the key.
