@@ -784,7 +784,7 @@ contract XNSRoutes {
     /// non-empty must be 1–20 chars and match the slug charset/hyphen rules.
     ///
     /// @param routeScope Candidate route scope (may be empty).
-    /// @return valid True when `routeScope` is empty or passes `_isValidRouteScope`.
+    /// @return valid True if empty or a valid slug (1–20 chars).
     function isValidRouteScope(string calldata routeScope) external pure returns (bool valid) {
         return bytes(routeScope).length == 0 || _isValidRouteScope(routeScope);
     }
@@ -792,7 +792,7 @@ contract XNSRoutes {
     /// @notice Returns whether `routeLabel` satisfies local label rules (1–32 chars, slug rules).
     ///
     /// @param routeLabel Candidate route label.
-    /// @return valid True when `routeLabel` passes `_isValidRouteLabel`.
+    /// @return valid True if a valid slug (1–32 chars).
     function isValidRouteLabel(string calldata routeLabel) external pure returns (bool valid) {
         return _isValidRouteLabel(routeLabel);
     }
@@ -801,7 +801,7 @@ contract XNSRoutes {
     ///
     /// @param routeScope Candidate route scope (may be empty).
     /// @param routeLabel Candidate route label.
-    /// @return valid True when the tuple passes `_validateRouteScopeAndLabel` rules.
+    /// @return valid True if both inputs are valid slugs.
     function isValidRouteScopeAndLabel(
         string calldata routeScope,
         string calldata routeLabel

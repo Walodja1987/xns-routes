@@ -502,7 +502,7 @@ function isValidRouteScope(string routeScope) external pure returns (bool valid)
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| valid | bool | True when `routeScope` is empty or passes `_isValidRouteScope`. |
+| valid | bool | True if empty or a valid slug (1–20 chars). |
 
 ### isValidRouteLabel
 
@@ -524,7 +524,7 @@ function isValidRouteLabel(string routeLabel) external pure returns (bool valid)
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| valid | bool | True when `routeLabel` passes `_isValidRouteLabel`. |
+| valid | bool | True if a valid slug (1–32 chars). |
 
 ### isValidRouteScopeAndLabel
 
@@ -547,7 +547,7 @@ function isValidRouteScopeAndLabel(string routeScope, string routeLabel) externa
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| valid | bool | True when the tuple passes `_validateRouteScopeAndLabel` rules. |
+| valid | bool | True if both inputs are valid for route mutations. |
 
 
 ## Events
