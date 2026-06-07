@@ -17,27 +17,25 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// @title XNSRoutes
 /// @author Wladimir Weinbender (DIVA Technologies AG)
 /// @notice Route registry for XNS names which enables XNS name owners to map URL-style
-/// identifiers to any Ethereum address. Mappings are free and may point to EOAs and smart
-/// contracts including helper/view contracts returning arbitrary data, such as Bitcoin or
+/// identifiers to any Ethereum address. Routes may point to EOAs and smart contracts,
+/// including helper/view contracts returning arbitrary data, such as Bitcoin or
 /// Solana addresses, calldata, or other information.
 ///
-/// Routes are addressed with **XRL** (XNS Route Locator) strings. The format is:
+/// Routes are addressed with XRL (XNS Route Link) strings. The format is:
 ///
 /// XRL = `xnsName/[routeScope:]routeLabel[/params]`
 ///
 /// - **xnsName** — XNS name that owns the route book (e.g. `bob.xns`).
-/// - **route** — `[routeScope:]routeLabel` after the first `/` (e.g. `eth:usdt-wallet` or `my-wallet`).
 /// - **routeScope** — optional segment before `:` (1–20 chars if present).
 /// - **routeLabel** — required slug (1–32 chars).
-/// - **params** — optional tail for off-chain builders; not stored or validated on-chain.
-///
-/// Registry XRL = `xnsName/route` (XRL without the params tail). 
-/// This contract only parses and keys registry XRL.
+/// - **params** — optional parameters for off-chain route parsers; not stored or validated on-chain.
+/// - The segment `[routeScope:]routeLabel` is also referred to as **route**.
+/// - Registry XRL = `xnsName/[routeScope:]routeLabel` (XRL without the params tail). 
 //
-/// Examples (registry XRL):
+/// Examples XRLs:
 /// - `alice.og/my-sub-wallet`
 /// - `contracts.aave/eth:v3-pool-contract`
-/// - `bob.xns/eth:approve-usdt`
+/// - `bob.xns/uniswap:approve-usdt/amount=10`
 ///
 /// `routeScope` and `routeLabel` must follow the same character and hyphenation rules as `xnsName`:
 /// - Must consist only of [a-z0-9-] (lowercase letters, digits, and hyphens)

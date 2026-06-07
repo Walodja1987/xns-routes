@@ -8,7 +8,7 @@ Instead of sharing raw calldata or relying on a single frontend, protocols and u
 
 ## ✨ What are Routes?
 
-Routes are registered under an XNS name using **XRL** (XNS Route Locator) strings.
+Routes are registered under an XNS name using **XRL** (XNS Route Link) strings.
 
 **Grammar:**
 
@@ -45,7 +45,7 @@ Validation rules:
 
 | Term | Example | Notes |
 |------|---------|--------|
-| **XRL** | `ai.xns/eth:123/label=bro` | Full locator; optional param path after the route |
+| **XRL** | `ai.xns/eth:123/label=bro` | Full link; optional param path after the route |
 | **Registry XRL** | `ai.xns/eth:123` | On-chain subset of XRL: `xnsName "/" route` only (no params). Used by `splitRegistryXRL`, `routeKey`, and registry lookups |
 | **xnsName** | `ai.xns` | Host / owner scope |
 | **route** | `eth:123` | Part after `/` in a registry XRL |

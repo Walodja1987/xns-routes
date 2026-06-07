@@ -547,7 +547,7 @@ function isValidRouteScopeAndLabel(string routeScope, string routeLabel) externa
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| valid | bool | True if both inputs are valid for route mutations. |
+| valid | bool | True if both inputs are valid slugs. |
 
 
 ## Events
