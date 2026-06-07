@@ -5,10 +5,10 @@ This is an automatically generated documentation (using `solidity-docgen` packag
 ## XNSRoutes
 
 
-Examples (registry XRL):
+Examples XRLs:
 - `alice.og/my-sub-wallet`
 - `contracts.aave/eth:v3-pool-contract`
-- `bob.xns/eth:approve-usdt`
+- `bob.xns/uniswap:approve-usdt/amount=10`
 
 `routeScope` and `routeLabel` must follow the same character and hyphenation rules as `xnsName`:
 - Must consist only of [a-z0-9-] (lowercase letters, digits, and hyphens)
@@ -18,9 +18,12 @@ Examples (registry XRL):
 Key points:
 - Routes are owned and managed by the XNS name owner.
 - An XNS name owner can register unlimited routes for free.
-- A route record stores `target`, `routeType`, `isActive`, and `isFrozen`.
+- A route record stores `target`, `routeType`, `isActive`, `isFrozen`, and `activeController`.
 - Route freeze and route book freeze are irreversible.
-- Active status can still be toggled after freeze.
+- Only `activeController` may toggle `isActive` via `activateRoute` / `deactivateRoute`.
+- `activeController` is set at `createRoute` and cannot be changed afterward.
+- `activeController == address(0)` locks `isActive` at its create-time value forever.
+- `activeController` may still toggle `isActive` after route or route-book freeze.
 - `routeType` is a `uint32` tag whose meaning and interpretation are defined off-chain by route parsers.
   For example, `routeType = 0` may suggest that the `target` is an EOA.
   `routeType = 1` may suggest that the `target` is a smart contract.
@@ -58,7 +61,7 @@ with `xnsName`, querieable via `getRouteKeys`.
 Note: Bare names like `bob` are normalized/canonicalized to `bob.x` for storage.
 
 ```solidity
-function createRoute(string xnsName, string routeScope, string routeLabel, address target, uint32 routeType, bool activate, bool freeze) external
+function createRoute(string xnsName, string routeScope, string routeLabel, address target, uint32 routeType, bool activate, bool freeze, address activeController) external
 ```
 
 
@@ -73,12 +76,13 @@ function createRoute(string xnsName, string routeScope, string routeLabel, addre
 | routeType | uint32 | Parser hint for how to interpret `target` (off-chain semantics), e.g. 0 = plain address, 2 = Bitcoin address, 3 = address exposing a html, etc. |
 | activate | bool | Initial value for stored `isActive`. |
 | freeze | bool | If true, renders the route immutable. |
+| activeController | address | Account that may toggle `isActive`; `address(0)` locks active status at `activate` forever (requires `activate == true`). |
 
 
 ### updateRoute
 
 
-Update an existing route (target, routeType, activate, freeze in one tx).
+Update an existing route (target, routeType, freeze in one tx).
 
 **Requirements:**
 - `msg.sender` must be the XNS name owner of `xnsName`.
@@ -88,7 +92,7 @@ Update an existing route (target, routeType, activate, freeze in one tx).
 - The route must exist and must not already be frozen.
 
 ```solidity
-function updateRoute(string xnsName, string routeScope, string routeLabel, address target, uint32 routeType, bool activate, bool freeze) external
+function updateRoute(string xnsName, string routeScope, string routeLabel, address target, uint32 routeType, bool freeze) external
 ```
 
 
@@ -101,8 +105,7 @@ function updateRoute(string xnsName, string routeScope, string routeLabel, addre
 | routeLabel | string | Route label of the route path to be updated. |
 | target | address | New target address. Must be non-zero. |
 | routeType | uint32 | New route type integer. |
-| activate | bool | New value for stored `isActive`. |
-| freeze | bool | If true, renders the route immutable. Emits `RouteTargetUpdated`, `RouteTypeUpdated`, and/or `RouteActiveStatusUpdated` only when the corresponding stored field changes; emits `RouteFrozen` when `freeze` is true. |
+| freeze | bool | If true, renders the route immutable. Does not change `isActive`; use `activateRoute` / `deactivateRoute` as `activeController`. Emits `RouteTargetUpdated` and/or `RouteTypeUpdated` only when the corresponding stored field changes; emits `RouteFrozen` when `freeze` is true. |
 
 
 ### activateRoute
@@ -111,11 +114,12 @@ function updateRoute(string xnsName, string routeScope, string routeLabel, addre
 Mark an existing route as active.
 
 **Requirements:**
-- `msg.sender` must be the XNS name owner of `xnsName`.
+- `msg.sender` must be `record.activeController`.
+- `activeController` must not be `address(0)`.
 - Non-empty `routeScope` and `routeLabel` must satisfy character rules.
 - The route must exist.
 
-Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after routeLabel or route book freeze.
+Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after route or route book freeze.
 
 ```solidity
 function activateRoute(string xnsName, string routeScope, string routeLabel) external
@@ -137,12 +141,12 @@ function activateRoute(string xnsName, string routeScope, string routeLabel) ext
 Mark an existing route as inactive.
 
 **Requirements:**
-- `msg.sender` must be the XNS name owner of `xnsName`.
+- `msg.sender` must be `record.activeController`.
+- `activeController` must not be `address(0)`.
 - Non-empty `routeScope` and `routeLabel` must satisfy character rules.
 - The route must exist.
 
-Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after routeLabel
-or route book freeze.
+Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after route or route book freeze.
 
 ```solidity
 function deactivateRoute(string xnsName, string routeScope, string routeLabel) external
@@ -255,8 +259,8 @@ Freeze a single routeLabel forever.
 - Non-empty `routeScope` and `routeLabel` must satisfy character rules.
 - The route must exist.
 
-After freezing, `target` and `routeType` can never be changed again; active/inactive can
-still be toggled.
+After freezing, `target` and `routeType` can never be changed again; `activeController`
+can still toggle `isActive`.
 
 Emits `RouteFrozen` only if the route was not already frozen.
 
@@ -284,7 +288,7 @@ Freeze the entire route book under an XNS name forever.
 - No existing route targets may be changed under `xnsName`.
 - Routes may not be deleted under `xnsName`.
 - `freezeRoute` may not be called for routes under `xnsName`.
-- Route activation can still be toggled.
+- `activeController` can still toggle `isActive` for existing routes.
 
 Requires `msg.sender` to be the XNS name owner of `xnsName`.
 
@@ -323,7 +327,7 @@ function getRouteRecord(bytes32 routeKey) external view returns (struct XNSRoute
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| record | struct XNSRoutes.RouteRecord | The route record (target, routeType, isActive, isFrozen). |
+| record | struct XNSRoutes.RouteRecord | The route record (target, routeType, isActive, isFrozen, activeController). |
 
 ### getRouteRecord
 
@@ -350,7 +354,7 @@ function getRouteRecord(string xnsName, string routeScope, string routeLabel) ex
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| record | struct XNSRoutes.RouteRecord | The route record (target, routeType, isActive, isFrozen). |
+| record | struct XNSRoutes.RouteRecord | The route record (target, routeType, isActive, isFrozen, activeController). |
 
 ### getRouteRecord
 
@@ -373,7 +377,7 @@ function getRouteRecord(string registryXRL) external view returns (struct XNSRou
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| record | struct XNSRoutes.RouteRecord | The route record (target, routeType, isActive, isFrozen). |
+| record | struct XNSRoutes.RouteRecord | The route record (target, routeType, isActive, isFrozen, activeController). |
 
 ### isRouteBookFrozen
 
@@ -558,7 +562,7 @@ function isValidRouteScopeAndLabel(string routeScope, string routeLabel) externa
 
 
 ```solidity
-event RouteCreated(bytes32 nameHash, bytes32 routeKey, string xnsName, string routeScope, string routeLabel, address target, bool isActive, bool isFrozen, uint32 routeType)
+event RouteCreated(bytes32 nameHash, bytes32 routeKey, string xnsName, string routeScope, string routeLabel, address target, bool isActive, bool isFrozen, uint32 routeType, address activeController)
 ```
 
 _Emitted in `createRoute`._
@@ -603,7 +607,7 @@ _Emitted in `updateRouteType` and `updateRoute` when `routeType` changes._
 event RouteActiveStatusUpdated(bytes32 nameHash, bytes32 routeKey, string xnsName, string routeScope, string routeLabel, bool isActive)
 ```
 
-_Emitted in `activateRoute`, `deactivateRoute`, and `updateRoute` when `isActive` changes._
+_Emitted in `activateRoute` and `deactivateRoute` when `isActive` changes._
 
 
 
@@ -680,6 +684,7 @@ struct RouteRecord {
   uint32 routeType;
   bool isActive;
   bool isFrozen;
+  address activeController;
 ```
 
 

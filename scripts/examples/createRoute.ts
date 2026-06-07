@@ -42,6 +42,9 @@ const activate = true;
 /** If true, route target cannot be changed after this tx */
 const freeze = false;
 
+/** Account that may toggle `isActive`; use signer address, recipient, or 0x0 to lock forever */
+const activeControllerOverride: string | null = null;
+
 /** Signer index (0 = first account from mnemonic) */
 const signerIndex = 0;
 
@@ -74,18 +77,20 @@ async function main() {
   console.log(`target: ${GREEN}${target}${RESET}`);
   console.log(`routeType: ${GREEN}${routeType}${RESET}`);
   console.log(`activate: ${GREEN}${activate}${RESET}`);
-  console.log(`freeze: ${GREEN}${freeze}${RESET}\n`);
+  console.log(`freeze: ${GREEN}${freeze}${RESET}`);
+  const activeController = activeControllerOverride ?? signer.address;
+  console.log(`activeController: ${GREEN}${activeController}${RESET}\n`);
 
   const tx = await routes
     .connect(signer)
-    .createRoute(xnsName, routeScope, routeLabel, target, routeType, activate, freeze);
+    .createRoute(xnsName, routeScope, routeLabel, target, routeType, activate, freeze, activeController);
   console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
   const record = await routes.getRouteRecord(xnsName, routeScope, routeLabel);
   console.log(
-    `${GREEN}✓ Confirmed. getRouteRecord → target=${record.target} routeType=${record.routeType} isActive=${record.isActive} isFrozen=${record.isFrozen}${RESET}\n`,
+    `${GREEN}✓ Confirmed. getRouteRecord → target=${record.target} routeType=${record.routeType} isActive=${record.isActive} isFrozen=${record.isFrozen} activeController=${record.activeController}${RESET}\n`,
   );
 }
 

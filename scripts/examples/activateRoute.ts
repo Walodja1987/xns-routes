@@ -1,6 +1,6 @@
 /**
  * Mark an existing route as active. Emits `RouteActiveStatusUpdated` only if `isActive` changes.
- * Caller must be the address XNS currently resolves for `xnsName`.
+ * Caller must be `record.activeController` for the route.
  * Allowed even after route or route book freeze.
  *
  * USAGE:

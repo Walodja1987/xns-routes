@@ -1,5 +1,5 @@
 /**
- * Update an existing route (target, routeType, activate, optional freeze in one tx).
+ * Update an existing route (target, routeType, optional freeze in one tx).
  * Reverts with `"XNSRoutes: route not found"` (or other `XNSRoutes: ...` require messages) if the route does not exist, or if frozen / route book frozen when applicable.
  * Caller must be the address XNS currently resolves for `xnsName`.
  *
@@ -32,7 +32,6 @@ const routeLabel = "register-name";
 
 const target = "0x0000000000000000000000000000000000000001";
 const routeType = 0;
-const activate = true;
 const freeze = false;
 
 const signerIndex = 0;
@@ -65,12 +64,11 @@ async function main() {
   console.log(`routeLabel: ${GREEN}${route}${RESET}`);
   console.log(`target: ${GREEN}${target}${RESET}`);
   console.log(`routeType: ${GREEN}${routeType}${RESET}`);
-  console.log(`activate: ${GREEN}${activate}${RESET}`);
   console.log(`freeze: ${GREEN}${freeze}${RESET}\n`);
 
   const tx = await routes
     .connect(signer)
-    .updateRoute(xnsName, routeScope, routeLabel, target, routeType, activate, freeze);
+    .updateRoute(xnsName, routeScope, routeLabel, target, routeType, freeze);
   console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
   console.log("Waiting for confirmation...\n");
   await tx.wait();

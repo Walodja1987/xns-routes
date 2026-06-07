@@ -104,7 +104,8 @@ createRoute(
   address(builder),
   0,      // routeType (offchain-defined parser hint)
   true,   // activate → stored isActive
-  true    // freeze → set isFrozen in this tx
+  true,   // freeze → set isFrozen in this tx
+  msg.sender // activeController → sole account that may toggle isActive
 );
 ```
 
@@ -159,6 +160,7 @@ Each route has:
 - `target` → build contract
 - `isActive` → usable or disabled
 - `isFrozen` → immutable or editable
+- `activeController` → sole account that may toggle `isActive` (`address(0)` locks it forever)
 
 ### States
 
@@ -182,7 +184,7 @@ freezeRoute("xns.action", "eth", "register-name");
 ```
 
 - Target can never change again and the route cannot be deleted
-- Active flag can still be toggled (`activateRoute` / `deactivateRoute`)
+- `activeController` can still toggle `isActive` (`activateRoute` / `deactivateRoute`)
 
 ---
 
@@ -197,7 +199,7 @@ freezeRouteBook("xns.action");
 - No new routes can be added
 - No route targets can be changed
 - Routes cannot be deleted (`deleteRoute` reverts)
-- Activation still allowed (`activateRoute` / `deactivateRoute`)
+- `activeController` may still toggle `isActive` (`activateRoute` / `deactivateRoute`)
 
 > This is useful for publishers who want to finalize their entire action set.
 
@@ -334,15 +336,15 @@ npx hardhat run scripts/examples/<script_name>.ts --network <network_name>
 **Read-only**
 
 - [scripts/examples/routeExists.ts](scripts/examples/routeExists.ts) — check if a route is registered (`getRouteRecord(...).target != 0`)
-- [scripts/examples/getRouteRecord.ts](scripts/examples/getRouteRecord.ts) — read target, `isActive`, `isFrozen`, `routeType`
+- [scripts/examples/getRouteRecord.ts](scripts/examples/getRouteRecord.ts) — read target, `isActive`, `isFrozen`, `routeType`, `activeController`
 - [scripts/examples/isRouteBookFrozen.ts](scripts/examples/isRouteBookFrozen.ts) — route book freeze flag for a name
 
 **Write** (signer must be the address XNS currently resolves for the script’s `xnsName`)
 
 - [scripts/examples/createRoute.ts](scripts/examples/createRoute.ts) — register a new route key
 - [scripts/examples/updateRoute.ts](scripts/examples/updateRoute.ts) — full update of an existing route
-- [scripts/examples/activateRoute.ts](scripts/examples/activateRoute.ts) — set `isActive` true (emit only on change)
-- [scripts/examples/deactivateRoute.ts](scripts/examples/deactivateRoute.ts) — set `isActive` false (emit only on change)
+- [scripts/examples/activateRoute.ts](scripts/examples/activateRoute.ts) — set `isActive` true as `activeController` (emit only on change)
+- [scripts/examples/deactivateRoute.ts](scripts/examples/deactivateRoute.ts) — set `isActive` false as `activeController` (emit only on change)
 - [scripts/examples/deleteRoute.ts](scripts/examples/deleteRoute.ts) — remove route if not frozen / route book open
 - [scripts/examples/updateTarget.ts](scripts/examples/updateTarget.ts) — change build `target` (emit only on change)
 - [scripts/examples/updateRouteType.ts](scripts/examples/updateRouteType.ts) — change `routeType` (emit only on change)

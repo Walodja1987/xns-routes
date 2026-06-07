@@ -30,18 +30,19 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
-- Name owner can **create** a route for `(xnsName, routeScope, route)` with the given `target`, `routeType`, stored `isActive` from `activate`, and stored `isFrozen` from `freeze`.
+- Name owner can **create** a route for `(xnsName, routeScope, route)` with the given `target`, `routeType`, stored `isActive` from `activate`, stored `isFrozen` from `freeze`, and immutable `activeController`.
+- `activeController == address(0)` locks `isActive` at create-time (`activate == true` required).
 - Second `createRoute` for the same key should revert with `"XNSRoutes: route already exists"`.
 - With `freeze == true`, should set `isFrozen` and emit `RouteCreated` with `isFrozen == true` (does **not** emit `RouteFrozen`; use `RouteFrozen` only when an existing route freezes later).
 
 #### Events
 
-- Should emit `RouteCreated` with indexed `nameHash` (`keccak256(bytes(xnsName))`), `routeKey` (same as `_routeKey`), and `target`, then `xnsName`, `routeScope`, routeLabel, `isActive`, `isFrozen`, and `routeType` (non-indexed, full values in log data).
+- Should emit `RouteCreated` with indexed `nameHash` (`keccak256(bytes(xnsName))`), `routeKey` (same as `_routeKey`), and `target`, then `xnsName`, `routeScope`, routeLabel, `isActive`, `isFrozen`, `routeType`, and `activeController` (non-indexed, full values in log data).
 - Should **not** emit `RouteFrozen` on create (even when `freeze` is true).
 
 #### Reverts
 
-- Owner, local route-segment rules on non-empty `routeScope` and on routeLabel (prefix 1–20; route 1–32), non-zero `target`, `"XNSRoutes: route book frozen"`, plus `"XNSRoutes: route already exists"` if the route key already exists.
+- Owner, local route-segment rules on non-empty `routeScope` and on routeLabel (prefix 1–20; route 1–32), non-zero `target`, `"XNSRoutes: locked route must be active"` when `activeController == address(0)` and `activate == false`, `"XNSRoutes: route book frozen"`, plus `"XNSRoutes: route already exists"` if the route key already exists.
 
 ---
 
@@ -49,13 +50,14 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
-- Name owner can **update** `target`, `routeType`, and `isActive` (via `activate`) on an **existing** route while the entry is not frozen and the route book for that XNS name is not frozen.
+- Name owner can **update** `target`, `routeType`, and optionally `freeze` on an **existing** route while the entry is not frozen and the route book for that XNS name is not frozen.
+- `updateRoute` does **not** change `isActive`.
 - Should revert with `"XNSRoutes: route not found"` if no route exists for the key.
 - With `freeze == true`, should set `isFrozen` and emit `RouteFrozen`.
 
 #### Events
 
-- Emits `RouteTargetUpdated`, `RouteTypeUpdated`, and/or `RouteActiveStatusUpdated` only when the corresponding stored field changes (same shapes as `updateTarget` / `updateRouteType` / `activateRoute`).
+- Emits `RouteTargetUpdated` and/or `RouteTypeUpdated` only when the corresponding stored field changes (same shapes as `updateTarget` / `updateRouteType`).
 - Should emit `RouteFrozen` (indexed `nameHash` / `routeKey` + strings) when `freeze` is true on update.
 
 #### Reverts
@@ -74,8 +76,8 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
-- Name owner can set `isActive` to true / false for an existing `(xnsName, routeScope, route)`.
-- Should still succeed when the **route** is frozen or the **route book** is frozen (only target updates are blocked).
+- `activeController` can set `isActive` to true / false for an existing `(xnsName, routeScope, route)`.
+- Should still succeed when the **route** is frozen or the **route book** is frozen (only target/type updates are blocked for the name owner).
 - Like `freezeRoute`, should emit `RouteActiveStatusUpdated` **only when `isActive` actually changes** (second `deactivateRoute` or `activateRoute` when already in that state is a no-op for events).
 
 #### Events
@@ -84,8 +86,23 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Reverts
 
-- Should revert with `"XNSRoutes: not XNS name owner"` when the caller is not the resolved owner.
+- Should revert with `"XNSRoutes: not active controller"` when the caller is not `record.activeController`.
+- Should revert with `"XNSRoutes: active status locked"` when `activeController == address(0)`.
 - Should revert with `"XNSRoutes: route not found"` when no route exists for `(xnsName, routeScope, route)`.
+
+---
+
+## `activeController`
+
+#### Functionality
+
+- Set once at `createRoute`; never editable afterward.
+- Only `activeController` may call `activateRoute` / `deactivateRoute` (name owner has no special toggle rights unless they are the stored controller).
+- `activeController == address(0)` locks `isActive` at its create-time value forever.
+
+#### Reverts
+
+- `"XNSRoutes: locked route must be active"` on create when `activeController == address(0)` and `activate == false`.
 
 ---
 
@@ -153,7 +170,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 #### Functionality
 
 - Name owner can set `isRouteBookFrozen(xnsName)` permanently.
-- After route book freeze, `createRoute`, `updateRoute`, `deleteRoute`, `updateTarget`, `updateRouteType`, and `freezeRoute` must revert for that `xnsName`, while `activateRoute` / `deactivateRoute` may still run.
+- After route book freeze, `createRoute`, `updateRoute`, `deleteRoute`, `updateTarget`, `updateRouteType`, and `freezeRoute` must revert for that `xnsName`, while `activeController` may still call `activateRoute` / `deactivateRoute`.
 
 #### Events
 

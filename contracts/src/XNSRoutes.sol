@@ -45,9 +45,12 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// Key points:
 /// - Routes are owned and managed by the XNS name owner.
 /// - An XNS name owner can register unlimited routes for free.
-/// - A route record stores `target`, `routeType`, `isActive`, and `isFrozen`.
+/// - A route record stores `target`, `routeType`, `isActive`, `isFrozen`, and `activeController`.
 /// - Route freeze and route book freeze are irreversible.
-/// - Active status can still be toggled after freeze.
+/// - Only `activeController` may toggle `isActive` via `activateRoute` / `deactivateRoute`.
+/// - `activeController` is set at `createRoute` and cannot be changed afterward.
+/// - `activeController == address(0)` locks `isActive` at its create-time value forever.
+/// - `activeController` may still toggle `isActive` after route or route-book freeze.
 /// - `routeType` is a `uint32` tag whose meaning and interpretation are defined off-chain by route parsers.
 ///   For example, `routeType = 0` may suggest that the `target` is an EOA.
 ///   `routeType = 1` may suggest that the `target` is a smart contract.
@@ -70,6 +73,7 @@ contract XNSRoutes {
         uint32 routeType;
         bool isActive;
         bool isFrozen;
+        address activeController;
     }
 
     // -------------------------------------------------------------------------
@@ -103,7 +107,8 @@ contract XNSRoutes {
         address indexed target,
         bool isActive,
         bool isFrozen,
-        uint32 routeType
+        uint32 routeType,
+        address activeController
     );
 
     /// @dev Emitted in `updateTarget` and `updateRoute` when `target` changes.
@@ -128,7 +133,7 @@ contract XNSRoutes {
         uint32 newRouteType
     );
 
-    /// @dev Emitted in `activateRoute`, `deactivateRoute`, and `updateRoute` when `isActive` changes.
+    /// @dev Emitted in `activateRoute` and `deactivateRoute` when `isActive` changes.
     event RouteActiveStatusUpdated(
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,
@@ -208,6 +213,8 @@ contract XNSRoutes {
     /// e.g. 0 = plain address, 2 = Bitcoin address, 3 = address exposing a html, etc.
     /// @param activate Initial value for stored `isActive`.
     /// @param freeze If true, renders the route immutable.
+    /// @param activeController Account that may toggle `isActive`; `address(0)` locks active status
+    /// at `activate` forever (requires `activate == true`).
     function createRoute(
         string calldata xnsName,
         string calldata routeScope,
@@ -215,7 +222,8 @@ contract XNSRoutes {
         address target,
         uint32 routeType,
         bool activate,
-        bool freeze
+        bool freeze,
+        address activeController
     ) external {
         // Confirm that the XNS name is owned by the caller
         string memory canonicalXNSName = _requireXNSNameOwner(xnsName);
@@ -229,6 +237,12 @@ contract XNSRoutes {
         // Validate that the target is not the zero address
         require(target != address(0), "XNSRoutes: invalid target");
 
+        // Locked active status requires an initially active route
+        require(
+            activeController != address(0) || activate,
+            "XNSRoutes: locked route must be active"
+        );
+
         // Check if the route book is frozen
         require(!_routeBookFrozen[nameKey], "XNSRoutes: route book frozen");
 
@@ -241,7 +255,8 @@ contract XNSRoutes {
             target: target,
             routeType: routeType,
             isActive: activate,
-            isFrozen: freeze
+            isFrozen: freeze,
+            activeController: activeController
         });
 
         _routeKeysByXNSName[nameKey].push(routeKey);
@@ -256,11 +271,12 @@ contract XNSRoutes {
             target,
             activate,
             freeze,
-            routeType
+            routeType,
+            activeController
         );
     }
 
-    /// @notice Update an existing route (target, routeType, activate, freeze in one tx).
+    /// @notice Update an existing route (target, routeType, freeze in one tx).
     ///
     /// **Requirements:**
     /// - `msg.sender` must be the XNS name owner of `xnsName`.
@@ -274,18 +290,18 @@ contract XNSRoutes {
     /// @param routeLabel Route label of the route path to be updated.
     /// @param target New target address. Must be non-zero.
     /// @param routeType New route type integer.
-    /// @param activate New value for stored `isActive`.
     /// @param freeze If true, renders the route immutable.
     ///
-    /// Emits `RouteTargetUpdated`, `RouteTypeUpdated`, and/or `RouteActiveStatusUpdated` only
-    /// when the corresponding stored field changes; emits `RouteFrozen` when `freeze` is true.
+    /// Does not change `isActive`; use `activateRoute` / `deactivateRoute` as `activeController`.
+    ///
+    /// Emits `RouteTargetUpdated` and/or `RouteTypeUpdated` only when the corresponding stored
+    /// field changes; emits `RouteFrozen` when `freeze` is true.
     function updateRoute(
         string calldata xnsName,
         string calldata routeScope,
         string calldata routeLabel,
         address target,
         uint32 routeType,
-        bool activate,
         bool freeze
     ) external {
         string memory canonicalXNSName = _requireXNSNameOwner(xnsName);
@@ -307,11 +323,9 @@ contract XNSRoutes {
 
         address oldTarget = record.target;
         uint32 oldRouteType = record.routeType;
-        bool oldActive = record.isActive;
 
         record.target = target;
         record.routeType = routeType;
-        record.isActive = activate;
 
         if (target != oldTarget) {
             emit RouteTargetUpdated(
@@ -335,16 +349,6 @@ contract XNSRoutes {
                 routeType
             );
         }
-        if (activate != oldActive) {
-            emit RouteActiveStatusUpdated(
-                nameKey,
-                routeKey,
-                canonicalXNSName,
-                routeScope,
-                routeLabel,
-                activate
-            );
-        }
         if (freeze) {
             record.isFrozen = true;
             emit RouteFrozen(nameKey, routeKey, canonicalXNSName, routeScope, routeLabel);
@@ -354,11 +358,12 @@ contract XNSRoutes {
     /// @notice Mark an existing route as active.
     ///
     /// **Requirements:**
-    /// - `msg.sender` must be the XNS name owner of `xnsName`.
+    /// - `msg.sender` must be `record.activeController`.
+    /// - `activeController` must not be `address(0)`.
     /// - Non-empty `routeScope` and `routeLabel` must satisfy character rules.
     /// - The route must exist.
     ///
-    /// Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after routeLabel or route book freeze.
+    /// Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after route or route book freeze.
     ///
     /// @param xnsName The XNS name that owns the route space.
     /// @param routeScope Route scope of the route path to be activated (may be empty).
@@ -374,12 +379,12 @@ contract XNSRoutes {
     /// @notice Mark an existing route as inactive.
     ///
     /// **Requirements:**
-    /// - `msg.sender` must be the XNS name owner of `xnsName`.
+    /// - `msg.sender` must be `record.activeController`.
+    /// - `activeController` must not be `address(0)`.
     /// - Non-empty `routeScope` and `routeLabel` must satisfy character rules.
     /// - The route must exist.
     ///
-    /// Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after routeLabel
-    /// or route book freeze.
+    /// Emits `RouteActiveStatusUpdated` only when `isActive` changes. Allowed after route or route book freeze.
     ///
     /// @param xnsName The XNS name that owns the route space.
     /// @param routeScope Route scope of the route path to be deactivated (may be empty).
@@ -401,7 +406,7 @@ contract XNSRoutes {
         string calldata routeLabel,
         bool active
     ) private {
-        string memory canonicalXNSName = _requireXNSNameOwner(xnsName);
+        string memory canonicalXNSName = _canonicalizeXNSName(xnsName);
 
         // Validate route scope and route label
         _validateRouteScopeAndLabel(routeScope, routeLabel);
@@ -410,6 +415,8 @@ contract XNSRoutes {
         bytes32 routeKey = _routeKey(canonicalXNSName, routeScope, routeLabel);
         RouteRecord storage record = _routes[routeKey];
         require(record.target != address(0), "XNSRoutes: route not found");
+
+        _requireActiveController(record.activeController);
 
         // Update the routeLabel active status and emit the `RouteActiveStatusUpdated` event,
         // if the active status changes
@@ -585,8 +592,8 @@ contract XNSRoutes {
     /// - Non-empty `routeScope` and `routeLabel` must satisfy character rules.
     /// - The route must exist.
     ///
-    /// After freezing, `target` and `routeType` can never be changed again; active/inactive can
-    /// still be toggled.
+    /// After freezing, `target` and `routeType` can never be changed again; `activeController`
+    /// can still toggle `isActive`.
     ///
     /// Emits `RouteFrozen` only if the route was not already frozen.
     ///
@@ -626,7 +633,7 @@ contract XNSRoutes {
     /// - No existing route targets may be changed under `xnsName`.
     /// - Routes may not be deleted under `xnsName`.
     /// - `freezeRoute` may not be called for routes under `xnsName`.
-    /// - Route activation can still be toggled.
+    /// - `activeController` can still toggle `isActive` for existing routes.
     ///
     /// Requires `msg.sender` to be the XNS name owner of `xnsName`.
     ///
@@ -652,14 +659,15 @@ contract XNSRoutes {
     /// `record.target == address(0)` means that record does not exist.
     ///
     /// @param routeKey Canonical route storage key.
-    /// @return record The route record (target, routeType, isActive, isFrozen).
+    /// @return record The route record (target, routeType, isActive, isFrozen, activeController).
     function getRouteRecord(bytes32 routeKey) external view returns (RouteRecord memory record) {
         RouteRecord storage s = _routes[routeKey];
         record = RouteRecord({
             target: s.target,
             routeType: s.routeType,
             isActive: s.isActive,
-            isFrozen: s.isFrozen
+            isFrozen: s.isFrozen,
+            activeController: s.activeController
         });
     }
 
@@ -671,7 +679,7 @@ contract XNSRoutes {
     /// @param xnsName The XNS name that owns the route space.
     /// @param routeScope Route scope (may be empty).
     /// @param routeLabel Route label.
-    /// @return record The route record (target, routeType, isActive, isFrozen).
+    /// @return record The route record (target, routeType, isActive, isFrozen, activeController).
     function getRouteRecord(
         string calldata xnsName,
         string calldata routeScope,
@@ -684,7 +692,7 @@ contract XNSRoutes {
     /// `record.target == address(0)` means that record does not exist.
     ///
     /// @param registryXRL Registry XRL, e.g. `bob.xns/eth:my-wallet`, without trailing parameters (if any).
-    /// @return record The route record (target, routeType, isActive, isFrozen).
+    /// @return record The route record (target, routeType, isActive, isFrozen, activeController).
     function getRouteRecord(string calldata registryXRL) external view returns (RouteRecord memory record) {
         (string memory xnsName, string memory routeScope, string memory routeLabel) =
             _splitRegistryXRL(registryXRL);
@@ -703,7 +711,8 @@ contract XNSRoutes {
             target: s.target,
             routeType: s.routeType,
             isActive: s.isActive,
-            isFrozen: s.isFrozen
+            isFrozen: s.isFrozen,
+            activeController: s.activeController
         });
     }
 
@@ -903,6 +912,12 @@ contract XNSRoutes {
     ) private view returns (string memory canonicalXNSName) {
         canonicalXNSName = _canonicalizeXNSName(xnsName);
         require(msg.sender == XNS.getAddress(canonicalXNSName), "XNSRoutes: not XNS name owner");
+    }
+
+    /// @dev Requires `activeController != address(0)` and `msg.sender == activeController`.
+    function _requireActiveController(address activeController) private view {
+        require(activeController != address(0), "XNSRoutes: active status locked");
+        require(msg.sender == activeController, "XNSRoutes: not active controller");
     }
 
     /// @dev Route-book scope key: `keccak256(bytes(_canonicalizeXNSName(xnsName)))`.

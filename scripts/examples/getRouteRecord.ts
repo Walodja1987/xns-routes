@@ -1,5 +1,5 @@
 /**
- * Read route metadata (target, isActive, isFrozen, routeType) from XNSRoutes.
+ * Read route metadata (target, isActive, isFrozen, routeType, activeController) from XNSRoutes.
  *
  * USAGE:
  * `npx hardhat run scripts/examples/getRouteRecord.ts --network <network_name>`
@@ -59,7 +59,8 @@ async function main() {
   console.log(`target:    ${GREEN}${record.target}${RESET}`);
   console.log(`isActive:  ${GREEN}${record.isActive}${RESET}`);
   console.log(`isFrozen:  ${GREEN}${record.isFrozen}${RESET}`);
-  console.log(`routeType: ${GREEN}${record.routeType}${RESET}\n`);
+  console.log(`routeType: ${GREEN}${record.routeType}${RESET}`);
+  console.log(`activeController: ${GREEN}${record.activeController}${RESET}\n`);
 }
 
 main().catch((error: unknown) => {

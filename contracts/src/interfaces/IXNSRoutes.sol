@@ -10,6 +10,7 @@ interface IXNSRoutes {
         uint32 routeType;
         bool isActive;
         bool isFrozen;
+        address activeController;
     }
 
     event RouteCreated(
@@ -21,7 +22,8 @@ interface IXNSRoutes {
         address indexed target,
         bool isActive,
         bool isFrozen,
-        uint32 routeType
+        uint32 routeType,
+        address activeController
     );
 
     event RouteTargetUpdated(
@@ -83,7 +85,8 @@ interface IXNSRoutes {
         address target,
         uint32 routeType,
         bool activate,
-        bool freeze
+        bool freeze,
+        address activeController
     ) external;
 
     function updateRoute(
@@ -92,7 +95,6 @@ interface IXNSRoutes {
         string calldata routeLabel,
         address target,
         uint32 routeType,
-        bool activate,
         bool freeze
     ) external;
 

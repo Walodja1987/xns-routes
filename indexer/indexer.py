@@ -84,6 +84,7 @@ def init_db(conn: sqlite3.Connection) -> None:
             route_type INTEGER,
             is_active INTEGER,
             is_frozen INTEGER,
+            active_controller TEXT,
             deleted INTEGER NOT NULL DEFAULT 0,
             updated_block INTEGER NOT NULL,
             updated_tx_hash TEXT NOT NULL,
@@ -129,6 +130,7 @@ def upsert_route(
     route_type: int | None = None,
     is_active: int | None = None,
     is_frozen: int | None = None,
+    active_controller: str | None = None,
     deleted: int | None = None,
     block_number: int,
     tx_hash: str,
@@ -138,15 +140,16 @@ def upsert_route(
         """
         INSERT INTO routes(
             chain_id, contract, xns_name, route_scope, route_label,
-            target, route_type, is_active, is_frozen, deleted,
+            target, route_type, is_active, is_frozen, active_controller, deleted,
             updated_block, updated_tx_hash, updated_log_index
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(chain_id, contract, xns_name, route_scope, route_label)
         DO UPDATE SET
             target = COALESCE(excluded.target, routes.target),
             route_type = COALESCE(excluded.route_type, routes.route_type),
             is_active = COALESCE(excluded.is_active, routes.is_active),
             is_frozen = COALESCE(excluded.is_frozen, routes.is_frozen),
+            active_controller = COALESCE(excluded.active_controller, routes.active_controller),
             deleted = COALESCE(excluded.deleted, routes.deleted),
             updated_block = excluded.updated_block,
             updated_tx_hash = excluded.updated_tx_hash,
@@ -162,6 +165,7 @@ def upsert_route(
             route_type,
             is_active,
             is_frozen,
+            active_controller,
             deleted,
             block_number,
             tx_hash,
@@ -215,6 +219,7 @@ def apply_event(conn: sqlite3.Connection, chain_id: int, contract: str, evt: dic
             route_type=int(a["routeType"]),
             is_active=1 if a["isActive"] else 0,
             is_frozen=1 if a["isFrozen"] else 0,
+            active_controller=Web3.to_checksum_address(a["activeController"]),
             deleted=0,
         )
     elif name == "RouteTargetUpdated":
@@ -274,7 +279,7 @@ def print_routes(ctx: Context, xns_name: str) -> None:
 
     rows = conn.execute(
         """
-        SELECT route_scope, route_label, target, route_type, is_active, is_frozen, deleted,
+        SELECT route_scope, route_label, target, route_type, is_active, is_frozen, active_controller, deleted,
                updated_block, updated_tx_hash
         FROM routes
         WHERE chain_id = ? AND contract = ? AND xns_name = ?
@@ -289,11 +294,12 @@ def print_routes(ctx: Context, xns_name: str) -> None:
         return
 
     for r in rows:
-        scope, label, target, route_type, is_active, is_frozen, deleted, blk, tx = r
+        scope, label, target, route_type, is_active, is_frozen, active_controller, deleted, blk, tx = r
         marker = "DELETED" if deleted else "ACTIVE"
         print(
             f"{marker:7}  {xns_name}/{(scope + ':') if scope else ''}{label}  "
             f"target={target} type={route_type} active={bool(is_active)} frozen={bool(is_frozen)} "
+            f"controller={active_controller} "
             f"@block={blk} tx={tx[:10]}..."
         )
 
@@ -308,7 +314,7 @@ def export_routes(ctx: Context, xns_name: str | None, out_path: Path) -> None:
     if xns_name:
         rows = conn.execute(
             """
-            SELECT xns_name, route_scope, route_label, target, route_type, is_active, is_frozen, deleted,
+            SELECT xns_name, route_scope, route_label, target, route_type, is_active, is_frozen, active_controller, deleted,
                    updated_block, updated_tx_hash, updated_log_index
             FROM routes
             WHERE chain_id = ? AND contract = ? AND xns_name = ?
@@ -319,7 +325,7 @@ def export_routes(ctx: Context, xns_name: str | None, out_path: Path) -> None:
     else:
         rows = conn.execute(
             """
-            SELECT xns_name, route_scope, route_label, target, route_type, is_active, is_frozen, deleted,
+            SELECT xns_name, route_scope, route_label, target, route_type, is_active, is_frozen, active_controller, deleted,
                    updated_block, updated_tx_hash, updated_log_index
             FROM routes
             WHERE chain_id = ? AND contract = ?
@@ -347,10 +353,11 @@ def export_routes(ctx: Context, xns_name: str | None, out_path: Path) -> None:
                 "routeType": r[4],
                 "isActive": bool(r[5]) if r[5] is not None else None,
                 "isFrozen": bool(r[6]) if r[6] is not None else None,
-                "deleted": bool(r[7]),
-                "updatedBlock": r[8],
-                "updatedTxHash": r[9],
-                "updatedLogIndex": r[10],
+                "activeController": r[7],
+                "deleted": bool(r[8]),
+                "updatedBlock": r[9],
+                "updatedTxHash": r[10],
+                "updatedLogIndex": r[11],
             }
             for r in rows
         ],
