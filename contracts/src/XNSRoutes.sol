@@ -67,6 +67,8 @@ contract XNSRoutes {
     // Types
     // -------------------------------------------------------------------------
 
+// @todo: isFrozen can be false when route book is frozen; may be a bit misleading. Maybe we can return isFrozen = 0 when resolving/getting route?
+
     /// @dev Data structure to store route metadata.
     struct RouteRecord {
         address target;
