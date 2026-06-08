@@ -359,7 +359,7 @@ contract XNSRoutes {
     /// @notice Mark an existing route as active.
     ///
     /// **Requirements:**
-    /// - `msg.sender` must be `record.activeController` (so `activeController == address(0)` cannot toggle).
+    /// - `msg.sender` must be `record.activeController`.
     /// - Non-empty `routeScope` and `routeLabel` must satisfy character rules.
     /// - The route must exist.
     ///
@@ -379,7 +379,7 @@ contract XNSRoutes {
     /// @notice Mark an existing route as inactive.
     ///
     /// **Requirements:**
-    /// - `msg.sender` must be `record.activeController` (so `activeController == address(0)` cannot toggle).
+    /// - `msg.sender` must be `record.activeController`.
     /// - Non-empty `routeScope` and `routeLabel` must satisfy character rules.
     /// - The route must exist.
     ///
