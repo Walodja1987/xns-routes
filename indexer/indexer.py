@@ -2,7 +2,7 @@
 """Simple SQLite indexer for XNSRoutes events.
 
 Route-scoped events (`RouteCreated`, `RouteTargetUpdated`, etc.) include indexed `nameHash`
-(`keccak256(bytes(xnsName))`) and `routeKey` (same as on-chain `_routeKey`) as log topics.
+(`keccak256(bytes(canonicalXNSName))`) and `routeKey` (same as on-chain `_routeKey`) as log topics.
 `RouteCreated` indexes `target`; `RouteTargetUpdated` indexes `newTarget` (previous target is non-indexed in log data).
 Remaining fields are non-indexed (strings, flags, types) in log data. Use topics for narrow
 `eth_getLogs` filters; decoded `args` expose the same fields by name.
@@ -202,7 +202,7 @@ def apply_event(conn: sqlite3.Connection, chain_id: int, contract: str, evt: dic
     common = {
         "chain_id": chain_id,
         "contract": contract,
-        "xns_name": a["xnsName"],
+        "xns_name": a["canonicalXNSName"],
         "route_scope": a["routeScope"],
         "route_label": a["routeLabel"],
         "block_number": evt["blockNumber"],

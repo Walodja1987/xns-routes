@@ -37,7 +37,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Events
 
-- Should emit `RouteCreated` with indexed `nameHash` (`keccak256(bytes(xnsName))`), `routeKey` (same as `_routeKey`), and `target`, then `xnsName`, `routeScope`, routeLabel, `isActive`, `isFrozen`, `routeType`, and `activeController` (non-indexed, full values in log data).
+- Should emit `RouteCreated` with indexed `nameHash` (`keccak256(bytes(canonicalXNSName))`), `routeKey` (same as `_routeKey`), and `target`, then `canonicalXNSName`, `routeScope`, routeLabel, `isActive`, `isFrozen`, `routeType`, and `activeController` (non-indexed, full values in log data).
 - Should **not** emit `RouteFrozen` on create (even when `freeze` is true).
 
 #### Reverts
@@ -82,7 +82,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Events
 
-- Should emit `RouteActiveStatusUpdated` with indexed `nameHash` / `routeKey`, then `xnsName`, `routeScope`, routeLabel, and `isActive` when transitioning.
+- Should emit `RouteActiveStatusUpdated` with indexed `nameHash` / `routeKey`, then `canonicalXNSName`, `routeScope`, routeLabel, and `isActive` when transitioning.
 
 #### Reverts
 
@@ -116,7 +116,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Events
 
-- Should emit `RouteDeleted` with indexed `nameHash` / `routeKey` and `xnsName`, `routeScope`, routeLabel.
+- Should emit `RouteDeleted` with indexed `nameHash` / `routeKey` and `canonicalXNSName`, `routeScope`, routeLabel.
 
 #### Reverts
 
@@ -134,7 +134,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Events
 
-- `RouteTargetUpdated` with indexed `nameHash` / `routeKey` / `newTarget`, then `xnsName`, `routeScope`, routeLabel, and non-indexed `previousTarget`.
+- `RouteTargetUpdated` with indexed `nameHash` / `routeKey` / `newTarget`, then `canonicalXNSName`, `routeScope`, routeLabel, and non-indexed `previousTarget`.
 - `RouteTypeUpdated` with indexed `nameHash` / `routeKey`, then strings and non-indexed `previousRouteType` / `newRouteType`.
 
 #### Reverts
@@ -173,7 +173,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Events
 
-- Should emit `RouteBookFrozenForName` with indexed `nameHash` and full `xnsName` the first time the route book is frozen.
+- Should emit `RouteBookFrozenForName` with indexed `nameHash` and full `canonicalXNSName` the first time the route book is frozen.
 - Second call should not emit again (idempotent).
 
 #### Reverts

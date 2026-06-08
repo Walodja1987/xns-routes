@@ -32,10 +32,10 @@ Key points:
 - Forward resolution is direct: registry XRL -> `target`. Use `resolveRouteIfActive` or
   `resolveRouteIfActiveAndFrozen` for strict resolution; `getRouteRecord` returns raw storage.
   Reverse lookup is not supported because many routes may point to the same `target`.
+- Bare names like `bob` are normalized/canonicalized to `bob.x` for storage.
 - `routeKey` is `keccak256` of canonical registry XRL (`xnsName/route`; params excluded).
 - For one known `xnsName`, on-chain enumeration is available without an indexer via the append-only
   route-key log (`getRouteKeyCount`, `getRouteKeys`, `getRouteRecord`).
-- Bare names like `bob` are normalized/canonicalized to `bob.x` for storage.
 
 
 
@@ -116,7 +116,6 @@ Mark an existing route as active.
 
 **Requirements:**
 - `msg.sender` must be `record.activeController`.
-- `activeController` must not be `address(0)`.
 - Non-empty `routeScope` and `routeLabel` must satisfy character rules.
 - The route must exist.
 
@@ -143,7 +142,6 @@ Mark an existing route as inactive.
 
 **Requirements:**
 - `msg.sender` must be `record.activeController`.
-- `activeController` must not be `address(0)`.
 - Non-empty `routeScope` and `routeLabel` must satisfy character rules.
 - The route must exist.
 
@@ -675,7 +673,7 @@ function isValidRouteScopeAndLabel(string routeScope, string routeLabel) externa
 
 
 ```solidity
-event RouteCreated(bytes32 nameHash, bytes32 routeKey, string xnsName, string routeScope, string routeLabel, address target, bool isActive, bool isFrozen, uint32 routeType, address activeController)
+event RouteCreated(bytes32 nameHash, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, address target, bool isActive, bool isFrozen, uint32 routeType, address activeController)
 ```
 
 _Emitted in `createRoute`._
@@ -689,7 +687,7 @@ _Emitted in `createRoute`._
 
 
 ```solidity
-event RouteTargetUpdated(bytes32 nameHash, bytes32 routeKey, string xnsName, string routeScope, string routeLabel, address previousTarget, address newTarget)
+event RouteTargetUpdated(bytes32 nameHash, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, address previousTarget, address newTarget)
 ```
 
 _Emitted in `updateTarget` and `updateRoute` when `target` changes._
@@ -703,7 +701,7 @@ _Emitted in `updateTarget` and `updateRoute` when `target` changes._
 
 
 ```solidity
-event RouteTypeUpdated(bytes32 nameHash, bytes32 routeKey, string xnsName, string routeScope, string routeLabel, uint32 previousRouteType, uint32 newRouteType)
+event RouteTypeUpdated(bytes32 nameHash, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, uint32 previousRouteType, uint32 newRouteType)
 ```
 
 _Emitted in `updateRouteType` and `updateRoute` when `routeType` changes._
@@ -717,7 +715,7 @@ _Emitted in `updateRouteType` and `updateRoute` when `routeType` changes._
 
 
 ```solidity
-event RouteActiveStatusUpdated(bytes32 nameHash, bytes32 routeKey, string xnsName, string routeScope, string routeLabel, bool isActive)
+event RouteActiveStatusUpdated(bytes32 nameHash, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, bool isActive)
 ```
 
 _Emitted in `activateRoute` and `deactivateRoute` when `isActive` changes._
@@ -731,7 +729,7 @@ _Emitted in `activateRoute` and `deactivateRoute` when `isActive` changes._
 
 
 ```solidity
-event RouteFrozen(bytes32 nameHash, bytes32 routeKey, string xnsName, string routeScope, string routeLabel)
+event RouteFrozen(bytes32 nameHash, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel)
 ```
 
 _Emitted in `updateRoute` and `freezeRoute` when an existing route becomes frozen.
@@ -746,7 +744,7 @@ Initial freeze-at-create is reflected only in `RouteCreated` (`isFrozen`)._
 
 
 ```solidity
-event RouteBookFrozenForName(bytes32 nameHash, string xnsName)
+event RouteBookFrozenForName(bytes32 nameHash, string canonicalXNSName)
 ```
 
 _Emitted in `freezeRouteBook` when the route book is frozen for an XNS name._
@@ -760,7 +758,7 @@ _Emitted in `freezeRouteBook` when the route book is frozen for an XNS name._
 
 
 ```solidity
-event RouteDeleted(bytes32 nameHash, bytes32 routeKey, string xnsName, string routeScope, string routeLabel)
+event RouteDeleted(bytes32 nameHash, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel)
 ```
 
 _Emitted in `deleteRoute`._

@@ -1355,7 +1355,7 @@ describe("XNSRoutes", function () {
       ).to.be.revertedWith(XR.routeAlreadyExists);
     });
 
-    it("Should emit canonical xnsName in RouteActiveStatusUpdated", async function () {
+    it("Should emit canonicalXNSName in RouteActiveStatusUpdated", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployWithBare);
       await routes
         .connect(owner)

@@ -59,10 +59,10 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - Forward resolution is direct: registry XRL -> `target`. Use `resolveRouteIfActive` or
 ///   `resolveRouteIfActiveAndFrozen` for strict resolution; `getRouteRecord` returns raw storage.
 ///   Reverse lookup is not supported because many routes may point to the same `target`.
+/// - Bare names like `bob` are normalized/canonicalized to `bob.x` for storage.
 /// - `routeKey` is `keccak256` of canonical registry XRL (`xnsName/route`; params excluded).
 /// - For one known `xnsName`, on-chain enumeration is available without an indexer via the append-only
 ///   route-key log (`getRouteKeyCount`, `getRouteKeys`, `getRouteRecord`).
-/// - Bare names like `bob` are normalized/canonicalized to `bob.x` for storage.
 contract XNSRoutes {
     // -------------------------------------------------------------------------
     // Types
@@ -102,7 +102,7 @@ contract XNSRoutes {
     event RouteCreated(
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,
-        string xnsName,
+        string canonicalXNSName,
         string routeScope,
         string routeLabel,
         address indexed target,
@@ -116,7 +116,7 @@ contract XNSRoutes {
     event RouteTargetUpdated(
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,
-        string xnsName,
+        string canonicalXNSName,
         string routeScope,
         string routeLabel,
         address previousTarget,
@@ -127,7 +127,7 @@ contract XNSRoutes {
     event RouteTypeUpdated(
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,
-        string xnsName,
+        string canonicalXNSName,
         string routeScope,
         string routeLabel,
         uint32 previousRouteType,
@@ -138,7 +138,7 @@ contract XNSRoutes {
     event RouteActiveStatusUpdated(
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,
-        string xnsName,
+        string canonicalXNSName,
         string routeScope,
         string routeLabel,
         bool isActive
@@ -149,7 +149,7 @@ contract XNSRoutes {
     event RouteFrozen(
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,
-        string xnsName,
+        string canonicalXNSName,
         string routeScope,
         string routeLabel
     );
@@ -157,14 +157,14 @@ contract XNSRoutes {
     /// @dev Emitted in `freezeRouteBook` when the route book is frozen for an XNS name.
     event RouteBookFrozenForName(
         bytes32 indexed nameHash,
-        string xnsName
+        string canonicalXNSName
     );
 
     /// @dev Emitted in `deleteRoute`.
     event RouteDeleted(
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,
-        string xnsName,
+        string canonicalXNSName,
         string routeScope,
         string routeLabel
     );

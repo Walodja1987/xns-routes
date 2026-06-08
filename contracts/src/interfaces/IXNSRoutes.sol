@@ -3,7 +3,8 @@ pragma solidity 0.8.28;
 
 /// @title IXNSRoutes
 /// @notice Interface for the `XNSRoutes` route registry. Dotless `xnsName` arguments are
-///         normalized to `label.x` for auth, storage keys, views, and event strings.
+///         normalized to `label.x` for auth, storage keys, and views. Events emit the
+///         canonical form as `canonicalXNSName`.
 interface IXNSRoutes {
     struct RouteRecord {
         address target;
@@ -16,7 +17,7 @@ interface IXNSRoutes {
     event RouteCreated(
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,
-        string xnsName,
+        string canonicalXNSName,
         string routeScope,
         string routeLabel,
         address indexed target,
@@ -29,7 +30,7 @@ interface IXNSRoutes {
     event RouteTargetUpdated(
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,
-        string xnsName,
+        string canonicalXNSName,
         string routeScope,
         string routeLabel,
         address previousTarget,
@@ -39,7 +40,7 @@ interface IXNSRoutes {
     event RouteTypeUpdated(
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,
-        string xnsName,
+        string canonicalXNSName,
         string routeScope,
         string routeLabel,
         uint32 previousRouteType,
@@ -49,7 +50,7 @@ interface IXNSRoutes {
     event RouteActiveStatusUpdated(
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,
-        string xnsName,
+        string canonicalXNSName,
         string routeScope,
         string routeLabel,
         bool isActive
@@ -59,17 +60,17 @@ interface IXNSRoutes {
     event RouteFrozen(
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,
-        string xnsName,
+        string canonicalXNSName,
         string routeScope,
         string routeLabel
     );
 
-    event RouteBookFrozenForName(bytes32 indexed nameHash, string xnsName);
+    event RouteBookFrozenForName(bytes32 indexed nameHash, string canonicalXNSName);
 
     event RouteDeleted(
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,
-        string xnsName,
+        string canonicalXNSName,
         string routeScope,
         string routeLabel
     );
