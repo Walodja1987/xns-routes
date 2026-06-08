@@ -201,6 +201,24 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 ---
 
+## `resolveRouteIfActive` / `resolveRouteIfActiveAndFrozen`
+
+#### Functionality
+
+- Tuple and registry-XRL overloads return `(target, routeType)` for strict forward resolution.
+- `resolveRouteIfActive`: route exists (`target != address(0)`) and `isActive == true`.
+- `resolveRouteIfActiveAndFrozen`: above plus `record.isFrozen == true` **or** `isRouteBookFrozen(xnsName) == true`.
+
+#### Reverts
+
+- `"XNSRoutes: route not found"` when the route does not exist.
+- `"XNSRoutes: route inactive"` when `isActive == false`.
+- `"XNSRoutes: route not frozen"` for the frozen variant when neither per-route nor route-book freeze applies.
+- `"XNSRoutes: invalid route scope"` / `"XNSRoutes: invalid route label"` for malformed tuple inputs.
+- `"XNSRoutes: invalid XRL"` for registry-XRL overloads without `/`.
+
+---
+
 ## `isValidRouteScope` / `isValidRouteLabel / `isValidRouteScopeAndRoute`
 
 #### Functionality

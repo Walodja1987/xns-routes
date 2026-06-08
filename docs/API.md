@@ -29,8 +29,9 @@ Key points:
   `routeType = 1` may suggest that the `target` is a smart contract.
   `routeType = 2` may suggest that the `target` is a special contract that returns parametrized calldata.
   `routeType = 3` may suggest that the `target` returns a Bitcoin address.
-- Forward resolution is direct: registry XRL -> `target`. Reverse lookup is not supported because
-  many routes may point to the same `target`.
+- Forward resolution is direct: registry XRL -> `target`. Use `resolveRouteIfActive` or
+  `resolveRouteIfActiveAndFrozen` for strict resolution; `getRouteRecord` returns raw storage.
+  Reverse lookup is not supported because many routes may point to the same `target`.
 - `routeKey` is `keccak256` of canonical registry XRL (`xnsName/route`; params excluded).
 - For one known `xnsName`, on-chain enumeration is available without an indexer via the append-only
   route-key log (`getRouteKeyCount`, `getRouteKeys`, `getRouteRecord`).
@@ -378,6 +379,118 @@ function getRouteRecord(string registryXRL) external view returns (struct XNSRou
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | record | struct XNSRoutes.RouteRecord | The route record (target, routeType, isActive, isFrozen, activeController). |
+
+### resolveRouteIfActive
+
+
+Resolves an active route to `(target, routeType)`.
+
+**Requirements:**
+- The route must exist (`target != address(0)`).
+- `isActive` must be true.
+- Non-empty `routeScope` and `routeLabel` must satisfy character rules.
+
+```solidity
+function resolveRouteIfActive(string xnsName, string routeScope, string routeLabel) external view returns (address target, uint32 routeType)
+```
+
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| xnsName | string | The XNS name that owns the route space. |
+| routeScope | string | Route scope (may be empty). |
+| routeLabel | string | Route label. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| target | address | Resolved target address. |
+| routeType | uint32 | Parser hint for how to interpret `target`. |
+
+### resolveRouteIfActive
+
+
+Resolves an active route to `(target, routeType)` by registry XRL (`splitRegistryXRL`).
+
+**Requirements:** same as `resolveRouteIfActive(xnsName, routeScope, routeLabel)`.
+
+```solidity
+function resolveRouteIfActive(string registryXRL) external view returns (address target, uint32 routeType)
+```
+
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| registryXRL | string | Registry XRL, e.g. `bob.xns/eth:my-wallet`, without trailing parameters (if any). |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| target | address | Resolved target address. |
+| routeType | uint32 | Parser hint for how to interpret `target`. |
+
+### resolveRouteIfActiveAndFrozen
+
+
+Resolves an active and frozen route to `(target, routeType)`.
+
+**Requirements:**
+- The route must exist (`target != address(0)`).
+- `isActive` must be true.
+- `record.isFrozen` must be true or the route book for `xnsName` must be frozen.
+- Non-empty `routeScope` and `routeLabel` must satisfy character rules.
+
+```solidity
+function resolveRouteIfActiveAndFrozen(string xnsName, string routeScope, string routeLabel) external view returns (address target, uint32 routeType)
+```
+
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| xnsName | string | The XNS name that owns the route space. |
+| routeScope | string | Route scope (may be empty). |
+| routeLabel | string | Route label. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| target | address | Resolved target address. |
+| routeType | uint32 | Parser hint for how to interpret `target`. |
+
+### resolveRouteIfActiveAndFrozen
+
+
+Resolves an active and frozen route to `(target, routeType)` by registry XRL
+(`splitRegistryXRL`).
+
+**Requirements:** same as `resolveRouteIfActiveAndFrozen(xnsName, routeScope, routeLabel)`.
+
+```solidity
+function resolveRouteIfActiveAndFrozen(string registryXRL) external view returns (address target, uint32 routeType)
+```
+
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| registryXRL | string | Registry XRL, e.g. `bob.xns/eth:my-wallet`, without trailing parameters (if any). |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| target | address | Resolved target address. |
+| routeType | uint32 | Parser hint for how to interpret `target`. |
 
 ### isRouteBookFrozen
 

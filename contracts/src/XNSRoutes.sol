@@ -56,8 +56,9 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 ///   `routeType = 1` may suggest that the `target` is a smart contract.
 ///   `routeType = 2` may suggest that the `target` is a special contract that returns parametrized calldata.
 ///   `routeType = 3` may suggest that the `target` returns a Bitcoin address.
-/// - Forward resolution is direct: registry XRL -> `target`. Reverse lookup is not supported because
-///   many routes may point to the same `target`.
+/// - Forward resolution is direct: registry XRL -> `target`. Use `resolveRouteIfActive` or
+///   `resolveRouteIfActiveAndFrozen` for strict resolution; `getRouteRecord` returns raw storage.
+///   Reverse lookup is not supported because many routes may point to the same `target`.
 /// - `routeKey` is `keccak256` of canonical registry XRL (`xnsName/route`; params excluded).
 /// - For one known `xnsName`, on-chain enumeration is available without an indexer via the append-only
 ///   route-key log (`getRouteKeyCount`, `getRouteKeys`, `getRouteRecord`).
@@ -716,6 +717,98 @@ contract XNSRoutes {
             isFrozen: s.isFrozen,
             activeController: s.activeController
         });
+    }
+
+    /// @notice Resolves an active route to `(target, routeType)`.
+    ///
+    /// **Requirements:**
+    /// - The route must exist (`target != address(0)`).
+    /// - `isActive` must be true.
+    /// - Non-empty `routeScope` and `routeLabel` must satisfy character rules.
+    ///
+    /// @param xnsName The XNS name that owns the route space.
+    /// @param routeScope Route scope (may be empty).
+    /// @param routeLabel Route label.
+    /// @return target Resolved target address.
+    /// @return routeType Parser hint for how to interpret `target`.
+    function resolveRouteIfActive(
+        string calldata xnsName,
+        string calldata routeScope,
+        string calldata routeLabel
+    ) external view returns (address target, uint32 routeType) {
+        return _resolveRoute(xnsName, routeScope, routeLabel, false);
+    }
+
+    /// @notice Resolves an active route to `(target, routeType)` by registry XRL (`splitRegistryXRL`).
+    ///
+    /// **Requirements:** same as `resolveRouteIfActive(xnsName, routeScope, routeLabel)`.
+    ///
+    /// @param registryXRL Registry XRL, e.g. `bob.xns/eth:my-wallet`, without trailing parameters (if any).
+    /// @return target Resolved target address.
+    /// @return routeType Parser hint for how to interpret `target`.
+    function resolveRouteIfActive(
+        string calldata registryXRL
+    ) external view returns (address target, uint32 routeType) {
+        (string memory xnsName, string memory routeScope, string memory routeLabel) =
+            _splitRegistryXRL(registryXRL);
+        return _resolveRoute(xnsName, routeScope, routeLabel, false);
+    }
+
+    /// @notice Resolves an active and frozen route to `(target, routeType)`.
+    ///
+    /// **Requirements:**
+    /// - The route must exist (`target != address(0)`).
+    /// - `isActive` must be true.
+    /// - `record.isFrozen` must be true or the route book for `xnsName` must be frozen.
+    /// - Non-empty `routeScope` and `routeLabel` must satisfy character rules.
+    ///
+    /// @param xnsName The XNS name that owns the route space.
+    /// @param routeScope Route scope (may be empty).
+    /// @param routeLabel Route label.
+    /// @return target Resolved target address.
+    /// @return routeType Parser hint for how to interpret `target`.
+    function resolveRouteIfActiveAndFrozen(
+        string calldata xnsName,
+        string calldata routeScope,
+        string calldata routeLabel
+    ) external view returns (address target, uint32 routeType) {
+        return _resolveRoute(xnsName, routeScope, routeLabel, true);
+    }
+
+    /// @notice Resolves an active and frozen route to `(target, routeType)` by registry XRL
+    /// (`splitRegistryXRL`).
+    ///
+    /// **Requirements:** same as `resolveRouteIfActiveAndFrozen(xnsName, routeScope, routeLabel)`.
+    ///
+    /// @param registryXRL Registry XRL, e.g. `bob.xns/eth:my-wallet`, without trailing parameters (if any).
+    /// @return target Resolved target address.
+    /// @return routeType Parser hint for how to interpret `target`.
+    function resolveRouteIfActiveAndFrozen(
+        string calldata registryXRL
+    ) external view returns (address target, uint32 routeType) {
+        (string memory xnsName, string memory routeScope, string memory routeLabel) =
+            _splitRegistryXRL(registryXRL);
+        return _resolveRoute(xnsName, routeScope, routeLabel, true);
+    }
+
+    /// @dev Shared resolver for `resolveRouteIfActive` and `resolveRouteIfActiveAndFrozen`.
+    function _resolveRoute(
+        string memory xnsName,
+        string memory routeScope,
+        string memory routeLabel,
+        bool requireFrozen
+    ) private view returns (address target, uint32 routeType) {
+        RouteRecord memory record = _getRouteRecord(xnsName, routeScope, routeLabel);
+        require(record.target != address(0), "XNSRoutes: route not found");
+        require(record.isActive, "XNSRoutes: route inactive");
+        if (requireFrozen) {
+            string memory canonicalXNSName = _canonicalizeXNSName(xnsName);
+            require(
+                record.isFrozen || _routeBookFrozen[_xnsNameKey(canonicalXNSName)],
+                "XNSRoutes: route not frozen"
+            );
+        }
+        return (record.target, record.routeType);
     }
 
     /// @notice Returns whether the entire route book under `xnsName` is frozen.

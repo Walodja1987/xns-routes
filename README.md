@@ -141,7 +141,7 @@ A wallet:
 
 1. Resolves `xns.action`
 2. Parses `eth` and `register-name` from `eth:register-name`
-3. Looks up `(xnsName, routeScope, routeLabel)` on the registry (`routeScope` may be empty)
+3. Resolves `(xnsName, routeScope, routeLabel)` via `resolveRouteIfActive` or `resolveRouteIfActiveAndFrozen` (`routeScope` may be empty)
 4. Calls `build(...)`
 5. Gets:
    - target chain
@@ -290,9 +290,11 @@ The registry keeps an **append-only log** of **route storage keys** (`bytes32`) 
 - `getRouteRecord(routeKey)` — read one `RouteRecord` by key (no string tuple needed)
 - `getRouteRecord(xnsName, routeScope, routeLabel)` — read by components
 - `getRouteRecord(registryXRL)` — read by **registry XRL** (parsed by `splitRegistryXRL`)
+- `resolveRouteIfActive` — resolve `(target, routeType)` when the route exists and `isActive`
+- `resolveRouteIfActiveAndFrozen` — same, and `record.isFrozen` or route book frozen for `xnsName`
 - `splitRegistryXRL` — parse a registry XRL into `(xnsName, routeScope, routeLabel)` (not full XRL with params)
 
-All `getRouteRecord` overloads return an **empty record** (`target == address(0)`) when the route is missing; invalid scope/label/XRL still revert. Existence: `getRouteRecord(...).target != address(0)`.
+Use **`resolveRouteIfActive`** / **`resolveRouteIfActiveAndFrozen`** for execution paths; use **`getRouteRecord`** for raw metadata (admin, trust UI). Resolver overloads revert when the route is missing, inactive, or (for the frozen variant) not frozen. `getRouteRecord` returns an **empty record** (`target == address(0)`) when the route is missing.
 
 **Important semantics (don’t skip this)**
 

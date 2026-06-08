@@ -148,6 +148,26 @@ interface IXNSRoutes {
 
     function getRouteRecord(string calldata registryXRL) external view returns (RouteRecord memory record);
 
+    function resolveRouteIfActive(
+        string calldata xnsName,
+        string calldata routeScope,
+        string calldata routeLabel
+    ) external view returns (address target, uint32 routeType);
+
+    function resolveRouteIfActive(
+        string calldata registryXRL
+    ) external view returns (address target, uint32 routeType);
+
+    function resolveRouteIfActiveAndFrozen(
+        string calldata xnsName,
+        string calldata routeScope,
+        string calldata routeLabel
+    ) external view returns (address target, uint32 routeType);
+
+    function resolveRouteIfActiveAndFrozen(
+        string calldata registryXRL
+    ) external view returns (address target, uint32 routeType);
+
     function splitRegistryXRL(
         string calldata registryXRL
     ) external pure returns (string memory xnsName, string memory routeScope, string memory routeLabel);
