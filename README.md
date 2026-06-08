@@ -159,7 +159,7 @@ Each route has:
 
 - `target` → build contract
 - `isActive` → usable or disabled
-- `isFrozen` → immutable or editable
+- `isFrozen` → per-route structural lock (`target` / `routeType` / delete); route-book freeze can lock structure even when `isFrozen` is false
 - `activeController` → sole account that may toggle `isActive` (`address(0)` locks it forever)
 
 ### States
@@ -294,7 +294,9 @@ The registry keeps an **append-only log** of **route storage keys** (`bytes32`) 
 - `resolveRouteIfActiveAndFrozen` — same, and `record.isFrozen` or route book frozen for `xnsName`
 - `splitRegistryXRL` — parse a registry XRL into `(xnsName, routeScope, routeLabel)` (not full XRL with params)
 
-Use **`resolveRouteIfActive`** / **`resolveRouteIfActiveAndFrozen`** for execution paths; use **`getRouteRecord`** for raw metadata (admin, trust UI). Resolver overloads revert when the route is missing, inactive, or (for the frozen variant) not frozen. `getRouteRecord` returns an **empty record** (`target == address(0)`) when the route is missing.
+Use **`resolveRouteIfActive`** / **`resolveRouteIfActiveAndFrozen`** for execution paths; use **`getRouteRecord`** plus **`isRouteBookFrozen(xnsName)`** for raw metadata (admin, trust UI). Resolver overloads revert when the route is missing, inactive, or (for the frozen variant) not structurally locked. `getRouteRecord` returns an **empty record** (`target == address(0)`) when the route is missing.
+
+For trust/UI checks that mirror **`resolveRouteIfActiveAndFrozen`**, read `getRouteRecord` and compute structural lock as `record.isFrozen || isRouteBookFrozen(xnsName)` — target/type cannot change and the route cannot be deleted when either is true. That does **not** imply `isActive` is locked; only `activeController` (or `address(0)` at create) governs active status.
 
 **Important semantics (don’t skip this)**
 
