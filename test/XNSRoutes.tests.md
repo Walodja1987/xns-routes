@@ -86,8 +86,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Reverts
 
-- Should revert with `"XNSRoutes: not active controller"` when the caller is not `record.activeController`.
-- Should revert with `"XNSRoutes: active status locked"` when `activeController == address(0)`.
+- Should revert with `"XNSRoutes: not active controller"` when the caller is not `record.activeController` (including when `activeController == address(0)`).
 - Should revert with `"XNSRoutes: route not found"` when no route exists for `(xnsName, routeScope, route)`.
 
 ---

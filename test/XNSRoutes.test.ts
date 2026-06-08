@@ -24,7 +24,6 @@ describe("XNSRoutes", function () {
     invalidTarget: "XNSRoutes: invalid target",
     notXnsNameOwner: "XNSRoutes: not XNS name owner",
     notActiveController: "XNSRoutes: not active controller",
-    activeStatusLocked: "XNSRoutes: active status locked",
     lockedRouteMustBeActive: "XNSRoutes: locked route must be active",
     routeNotFound: "XNSRoutes: route not found",
     routeInactive: "XNSRoutes: route inactive",
@@ -591,7 +590,7 @@ describe("XNSRoutes", function () {
 
       await expect(
         routes.connect(owner).deactivateRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
-      ).to.be.revertedWith(XR.activeStatusLocked);
+      ).to.be.revertedWith(XR.notActiveController);
     });
 
     it("Should revert createRoute when locked route is created inactive", async function () {

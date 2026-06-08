@@ -359,8 +359,7 @@ contract XNSRoutes {
     /// @notice Mark an existing route as active.
     ///
     /// **Requirements:**
-    /// - `msg.sender` must be `record.activeController`.
-    /// - `activeController` must not be `address(0)`.
+    /// - `msg.sender` must be `record.activeController` (so `activeController == address(0)` cannot toggle).
     /// - Non-empty `routeScope` and `routeLabel` must satisfy character rules.
     /// - The route must exist.
     ///
@@ -380,8 +379,7 @@ contract XNSRoutes {
     /// @notice Mark an existing route as inactive.
     ///
     /// **Requirements:**
-    /// - `msg.sender` must be `record.activeController`.
-    /// - `activeController` must not be `address(0)`.
+    /// - `msg.sender` must be `record.activeController` (so `activeController == address(0)` cannot toggle).
     /// - Non-empty `routeScope` and `routeLabel` must satisfy character rules.
     /// - The route must exist.
     ///
@@ -416,8 +414,7 @@ contract XNSRoutes {
         bytes32 routeKey = _routeKey(canonicalXNSName, routeScope, routeLabel);
         RouteRecord storage record = _routes[routeKey];
         require(record.target != address(0), "XNSRoutes: route not found");
-
-        _requireActiveController(record.activeController);
+        require(msg.sender == record.activeController, "XNSRoutes: not active controller");
 
         // Update the routeLabel active status and emit the `RouteActiveStatusUpdated` event,
         // if the active status changes
@@ -1005,12 +1002,6 @@ contract XNSRoutes {
     ) private view returns (string memory canonicalXNSName) {
         canonicalXNSName = _canonicalizeXNSName(xnsName);
         require(msg.sender == XNS.getAddress(canonicalXNSName), "XNSRoutes: not XNS name owner");
-    }
-
-    /// @dev Requires `activeController != address(0)` and `msg.sender == activeController`.
-    function _requireActiveController(address activeController) private view {
-        require(activeController != address(0), "XNSRoutes: active status locked");
-        require(msg.sender == activeController, "XNSRoutes: not active controller");
     }
 
     /// @dev Route-book scope key: `keccak256(bytes(_canonicalizeXNSName(xnsName)))`.
