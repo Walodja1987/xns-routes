@@ -78,6 +78,12 @@ contract XNSRoutes {
         address activeController;
     }
 
+    /// @dev Stored route record plus route-book freeze status for UI reads.
+    struct RouteRecordWithBookStatus {
+        RouteRecord record;
+        bool isRouteBookFrozen;
+    }
+
     // -------------------------------------------------------------------------
     // Storage variables
     // -------------------------------------------------------------------------
@@ -733,6 +739,9 @@ contract XNSRoutes {
     /// @notice Reads stored route record data by `(xnsName, routeScope, routeLabel)`.
     /// `record.target == address(0)` means that record does not exist.
     ///
+    /// Returns stored route fields only. For route-book freeze status in the same call,
+    /// use `getRouteRecordWithBookStatus`.
+    ///
     /// Requires that `routeScope` and `routeLabel` are valid strings.
     ///
     /// @param xnsName The XNS name that owns the route space.
@@ -749,6 +758,9 @@ contract XNSRoutes {
 
     /// @notice Reads stored route record data by registry XRL (`splitRegistryXRL`).
     /// `record.target == address(0)` means that record does not exist.
+    ///
+    /// Returns stored route fields only. For route-book freeze status in the same call,
+    /// use `getRouteRecordWithBookStatus`.
     ///
     /// @param registryXRL Registry XRL, e.g. `bob.xns/eth:my-wallet`, without trailing parameters (if any).
     /// @return record The route record (target, routeType, isActive, isFrozen, activeController).
@@ -773,6 +785,54 @@ contract XNSRoutes {
             isFrozen: s.isFrozen,
             activeController: s.activeController
         });
+    }
+
+    /// @notice Reads stored route record data and route-book freeze status by
+    /// `(xnsName, routeScope, routeLabel)`.
+    ///
+    /// `details.record.target == address(0)` means that record does not exist.
+    /// Route-book freeze is name-scoped and not stored in `RouteRecord`.
+    /// For structural immutability (`target` / `routeType` / delete locked):
+    /// `details.record.isFrozen || details.isRouteBookFrozen`. `isActive` may still be toggled
+    /// by `activeController` when structurally frozen.
+    ///
+    /// Requires that `routeScope` and `routeLabel` are valid strings.
+    ///
+    /// @param xnsName The XNS name that owns the route space.
+    /// @param routeScope Route scope (may be empty).
+    /// @param routeLabel Route label.
+    /// @return details Stored route record and route-book freeze flag for `xnsName`.
+    function getRouteRecordWithBookStatus(
+        string calldata xnsName,
+        string calldata routeScope,
+        string calldata routeLabel
+    ) external view returns (RouteRecordWithBookStatus memory details) {
+        return _getRouteRecordWithBookStatus(xnsName, routeScope, routeLabel);
+    }
+
+    /// @notice Reads stored route record data and route-book freeze status by registry XRL
+    /// (`splitRegistryXRL`).
+    ///
+    /// Same semantics as `getRouteRecordWithBookStatus(xnsName, routeScope, routeLabel)`.
+    ///
+    /// @param registryXRL Registry XRL, e.g. `bob.xns/eth:my-wallet`, without trailing parameters (if any).
+    /// @return details Stored route record and route-book freeze flag for the parsed `xnsName`.
+    function getRouteRecordWithBookStatus(
+        string calldata registryXRL
+    ) external view returns (RouteRecordWithBookStatus memory details) {
+        (string memory xnsName, string memory routeScope, string memory routeLabel) =
+            _splitRegistryXRL(registryXRL);
+        return _getRouteRecordWithBookStatus(xnsName, routeScope, routeLabel);
+    }
+
+    /// @dev Validates scope/label, returns route record and route-book freeze for `xnsName`.
+    function _getRouteRecordWithBookStatus(
+        string memory xnsName,
+        string memory routeScope,
+        string memory routeLabel
+    ) private view returns (RouteRecordWithBookStatus memory details) {
+        details.record = _getRouteRecord(xnsName, routeScope, routeLabel);
+        details.isRouteBookFrozen = _routeBookFrozen[_xnsNameKey(xnsName)];
     }
 
     /// @notice Resolves an active route to `(target, routeType)`.

@@ -71,6 +71,11 @@ describe("XNSRoutes", function () {
     return routes["getRouteRecord(string)"](registryXRL);
   }
 
+  /** Disambiguate ethers overload: `getRouteRecordWithBookStatus(string)` (registry XRL). */
+  async function getRouteRecordWithBookStatusByXRL(routes: XNSRoutes, registryXRL: string) {
+    return routes["getRouteRecordWithBookStatus(string)"](registryXRL);
+  }
+
   /** Disambiguate ethers overload: `resolveRouteIfActive(string)` (registry XRL). */
   async function resolveRouteIfActiveByXRL(routes: XNSRoutes, registryXRL: string) {
     return routes["resolveRouteIfActive(string)"](registryXRL);
@@ -1007,6 +1012,70 @@ describe("XNSRoutes", function () {
       const fullPath = `${XNS_NAME}/${ROUTE_SCOPE}:${ROUTE_LABEL}`;
       const record = await getRouteRecordByXRL(routes, fullPath);
       expect(record.target).to.equal(ethers.ZeroAddress);
+    });
+  });
+
+  describe("getRouteRecordWithBookStatus", function () {
+    it("Should return record fields and isRouteBookFrozen false when book is not frozen", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes
+        .connect(owner)
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
+
+      const details = await routes.getRouteRecordWithBookStatus(
+        XNS_NAME,
+        ROUTE_SCOPE,
+        ROUTE_LABEL,
+      );
+
+      expect(details.record.target).to.equal(buildTarget);
+      expect(details.record.isFrozen).to.equal(false);
+      expect(details.isRouteBookFrozen).to.equal(false);
+    });
+
+    it("Should return isRouteBookFrozen true after freezeRouteBook while record.isFrozen is false", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes
+        .connect(owner)
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
+      await routes.connect(owner).freezeRouteBook(XNS_NAME);
+
+      const details = await routes.getRouteRecordWithBookStatus(
+        XNS_NAME,
+        ROUTE_SCOPE,
+        ROUTE_LABEL,
+      );
+
+      expect(details.record.isFrozen).to.equal(false);
+      expect(details.isRouteBookFrozen).to.equal(true);
+    });
+
+    it("Should return getRouteRecordWithBookStatus for an existing registry XRL", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes
+        .connect(owner)
+        .createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0, true, false);
+
+      const fullPath = `${XNS_NAME}/${ROUTE_SCOPE}:${ROUTE_LABEL}`;
+      const details = await getRouteRecordWithBookStatusByXRL(routes, fullPath);
+
+      expect(details.record.target).to.equal(buildTarget);
+      expect(details.isRouteBookFrozen).to.equal(false);
+    });
+
+    it("Should revert getRouteRecordWithBookStatus with InvalidRouteLabel for colon in label when scope is empty", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      const aliasRoute = `${ROUTE_SCOPE}:${ROUTE_LABEL}`;
+      await expect(
+        routes.getRouteRecordWithBookStatus(XNS_NAME, "", aliasRoute),
+      ).to.be.revertedWith(XR.invalidRouteLabel);
+    });
+
+    it("Should revert getRouteRecordWithBookStatus with InvalidXRL when no slash is present", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      await expect(
+        getRouteRecordWithBookStatusByXRL(routes, `${ROUTE_SCOPE}:${ROUTE_LABEL}`),
+      ).to.be.revertedWith(XR.invalidXRL);
     });
   });
 

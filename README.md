@@ -289,15 +289,16 @@ The registry keeps an **append-only log** of **route storage keys** (`bytes32`) 
 - `getRouteKeyCount(xnsName)` — length of the log for that name
 - `getRouteKeys(xnsName, start, end)` — page through keys (`end` **exclusive**; if `end` &gt; log length, it is clamped to the log length; if `start` is past that range, returns an empty array)
 - `getRouteRecord(routeKey)` — read one `RouteRecord` by key (no string tuple needed)
-- `getRouteRecord(xnsName, routeScope, routeLabel)` — read by components
+- `getRouteRecord(xnsName, routeScope, routeLabel)` — read by components (stored fields only)
 - `getRouteRecord(registryXRL)` — read by **registry XRL** (parsed by `splitRegistryXRL`)
+- `getRouteRecordWithBookStatus(...)` — same as tuple/registry-XRL `getRouteRecord`, plus `isRouteBookFrozen` (one-shot UI read)
 - `resolveRouteIfActive` — resolve `(target, routeType)` when the route exists and `isActive`
 - `resolveRouteIfActiveAndFrozen` — same, and `record.isFrozen` or route book frozen for `xnsName`
 - `splitRegistryXRL` — parse a registry XRL into `(xnsName, routeScope, routeLabel)` (not full XRL with params)
 
-Use **`resolveRouteIfActive`** / **`resolveRouteIfActiveAndFrozen`** for execution paths; use **`getRouteRecord`** plus **`isRouteBookFrozen(xnsName)`** for raw metadata (admin, trust UI). Resolver overloads revert when the route is missing, inactive, or (for the frozen variant) not structurally locked. `getRouteRecord` returns an **empty record** (`target == address(0)`) when the route is missing.
+Use **`resolveRouteIfActive`** / **`resolveRouteIfActiveAndFrozen`** for execution paths; use **`getRouteRecordWithBookStatus`** for trust/UI metadata in one call, or **`getRouteRecord`** for raw storage only. Resolver overloads revert when the route is missing, inactive, or (for the frozen variant) not structurally frozen. `getRouteRecord` returns an **empty record** (`target == address(0)`) when the route is missing.
 
-For trust/UI checks that mirror **`resolveRouteIfActiveAndFrozen`**, read `getRouteRecord` and compute structural lock as `record.isFrozen || isRouteBookFrozen(xnsName)` — target/type cannot change and the route cannot be deleted when either is true. That does **not** imply `isActive` is locked; only `activeController` (or `address(0)` at create) governs active status.
+For structural immutability (`target` / `routeType` / delete locked): **`details.record.isFrozen || details.isRouteBookFrozen`**. That does **not** imply `isActive` is locked; only `activeController` (or `address(0)` at create) governs active status.
 
 **Important semantics (don’t skip this)**
 
@@ -341,7 +342,7 @@ npx hardhat run scripts/examples/<script_name>.ts --network <network_name>
 **Read-only**
 
 - [scripts/examples/routeExists.ts](scripts/examples/routeExists.ts) — check if a route is registered (`getRouteRecord(...).target != 0`)
-- [scripts/examples/getRouteRecord.ts](scripts/examples/getRouteRecord.ts) — read target, `isActive`, `isFrozen`, `routeType`, `activeController`
+- [scripts/examples/getRouteRecord.ts](scripts/examples/getRouteRecord.ts) — read target, `isActive`, `isFrozen`, `routeType`, `activeController`, and route-book freeze
 - [scripts/examples/isRouteBookFrozen.ts](scripts/examples/isRouteBookFrozen.ts) — route book freeze flag for a name
 
 **Write** (signer must be the address XNS currently resolves for the script’s `xnsName`)

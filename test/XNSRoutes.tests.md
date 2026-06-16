@@ -212,6 +212,22 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 ---
 
+## `getRouteRecordWithBookStatus`
+
+#### Functionality
+
+- Tuple and registry-XRL overloads return `{ record, isRouteBookFrozen }` in one call.
+- `record` matches the corresponding `getRouteRecord` overload for the same inputs.
+- `isRouteBookFrozen` matches `isRouteBookFrozen(xnsName)` for the parsed/canonical name.
+- Structural immutability (target/routeType/delete locked): `record.isFrozen || isRouteBookFrozen`.
+- `isActive` may still be toggled by `activeController` when structurally frozen.
+
+#### Reverts
+
+- Same as `getRouteRecord` for the matching overload (invalid scope/label or invalid XRL).
+
+---
+
 ## `resolveRouteIfActive` / `resolveRouteIfActiveAndFrozen`
 
 #### Functionality

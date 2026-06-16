@@ -363,6 +363,9 @@ function getRouteRecord(bytes32 routeKey) external view returns (struct XNSRoute
 Reads stored route record data by `(xnsName, routeScope, routeLabel)`.
 `record.target == address(0)` means that record does not exist.
 
+Returns stored route fields only. For route-book freeze status in the same call,
+use `getRouteRecordWithBookStatus`.
+
 Requires that `routeScope` and `routeLabel` are valid strings.
 
 ```solidity
@@ -390,6 +393,9 @@ function getRouteRecord(string xnsName, string routeScope, string routeLabel) ex
 Reads stored route record data by registry XRL (`splitRegistryXRL`).
 `record.target == address(0)` means that record does not exist.
 
+Returns stored route fields only. For route-book freeze status in the same call,
+use `getRouteRecordWithBookStatus`.
+
 ```solidity
 function getRouteRecord(string registryXRL) external view returns (struct XNSRoutes.RouteRecord record)
 ```
@@ -406,6 +412,64 @@ function getRouteRecord(string registryXRL) external view returns (struct XNSRou
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | record | struct XNSRoutes.RouteRecord | The route record (target, routeType, isActive, isFrozen, activeController). |
+
+### getRouteRecordWithBookStatus
+
+
+Reads stored route record data and route-book freeze status by
+`(xnsName, routeScope, routeLabel)`.
+
+`details.record.target == address(0)` means that record does not exist.
+Route-book freeze is name-scoped and not stored in `RouteRecord`.
+For structural immutability (`target` / `routeType` / delete locked):
+`details.record.isFrozen || details.isRouteBookFrozen`. `isActive` may still be toggled
+by `activeController` when structurally frozen.
+
+Requires that `routeScope` and `routeLabel` are valid strings.
+
+```solidity
+function getRouteRecordWithBookStatus(string xnsName, string routeScope, string routeLabel) external view returns (struct XNSRoutes.RouteRecordWithBookStatus details)
+```
+
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| xnsName | string | The XNS name that owns the route space. |
+| routeScope | string | Route scope (may be empty). |
+| routeLabel | string | Route label. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| details | struct XNSRoutes.RouteRecordWithBookStatus | Stored route record and route-book freeze flag for `xnsName`. |
+
+### getRouteRecordWithBookStatus
+
+
+Reads stored route record data and route-book freeze status by registry XRL
+(`splitRegistryXRL`).
+
+Same semantics as `getRouteRecordWithBookStatus(xnsName, routeScope, routeLabel)`.
+
+```solidity
+function getRouteRecordWithBookStatus(string registryXRL) external view returns (struct XNSRoutes.RouteRecordWithBookStatus details)
+```
+
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| registryXRL | string | Registry XRL, e.g. `bob.xns/eth:my-wallet`, without trailing parameters (if any). |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| details | struct XNSRoutes.RouteRecordWithBookStatus | Stored route record and route-book freeze flag for the parsed `xnsName`. |
 
 ### resolveRouteIfActive
 
@@ -831,6 +895,22 @@ struct RouteRecord {
 
 
 _Data structure to store route metadata._
+
+
+
+
+### RouteRecordWithBookStatus
+
+```solidity
+struct RouteRecordWithBookStatus {
+  struct XNSRoutes.RouteRecord record;
+  bool isRouteBookFrozen;
+```
+
+
+
+
+_Stored route record plus route-book freeze status for UI reads._
 
 
 
