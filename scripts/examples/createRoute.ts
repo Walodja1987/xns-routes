@@ -42,7 +42,10 @@ const activate = true;
 /** If true, route target cannot be changed after this tx */
 const freeze = false;
 
-/** Account that may toggle `isActive`; use signer address, recipient, or 0x0 to lock forever */
+/**
+ * Optional explicit `activeController`. When set, calls `createRouteWithController` instead of
+ * `createRoute` (which defaults activeController to the XNS name owner).
+ */
 const activeControllerOverride: string | null = null;
 
 /** Signer index (0 = first account from mnemonic) */
@@ -73,17 +76,33 @@ async function main() {
   console.log(`Balance: ${GREEN}${formatEther(balance)} ETH${RESET}`);
   console.log(`xnsName: ${GREEN}${xnsName}${RESET}`);
   console.log(`routeScope: ${GREEN}${routeScope}${RESET}`);
-  console.log(`routeLabel: ${GREEN}${route}${RESET}`);
+  console.log(`routeLabel: ${GREEN}${routeLabel}${RESET}`);
   console.log(`target: ${GREEN}${target}${RESET}`);
   console.log(`routeType: ${GREEN}${routeType}${RESET}`);
   console.log(`activate: ${GREEN}${activate}${RESET}`);
   console.log(`freeze: ${GREEN}${freeze}${RESET}`);
-  const activeController = activeControllerOverride ?? signer.address;
-  console.log(`activeController: ${GREEN}${activeController}${RESET}\n`);
+  if (activeControllerOverride) {
+    console.log(`activeController: ${GREEN}${activeControllerOverride}${RESET} (override)\n`);
+  } else {
+    console.log(`activeController: ${GREEN}XNS name owner (default)${RESET}\n`);
+  }
 
-  const tx = await routes
-    .connect(signer)
-    .createRoute(xnsName, routeScope, routeLabel, target, routeType, activate, freeze, activeController);
+  const tx = activeControllerOverride
+    ? await routes
+        .connect(signer)
+        .createRouteWithController(
+          xnsName,
+          routeScope,
+          routeLabel,
+          target,
+          routeType,
+          activate,
+          freeze,
+          activeControllerOverride,
+        )
+    : await routes
+        .connect(signer)
+        .createRoute(xnsName, routeScope, routeLabel, target, routeType, activate, freeze);
   console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
   console.log("Waiting for confirmation...\n");
   await tx.wait();

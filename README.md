@@ -104,9 +104,10 @@ createRoute(
   address(builder),
   0,      // routeType (offchain-defined parser hint)
   true,   // activate → stored isActive
-  true,   // freeze → set isFrozen in this tx
-  msg.sender // activeController → sole account that may toggle isActive
+  true    // freeze → set isFrozen in this tx
 );
+// activeController defaults to the current XNS name owner.
+// Use createRouteWithController(...) to delegate toggling or lock isActive (address(0)).
 ```
 
 ---
@@ -160,7 +161,7 @@ Each route has:
 - `target` → build contract
 - `isActive` → usable or disabled
 - `isFrozen` → per-route structural lock (`target` / `routeType` / delete); route-book freeze can lock structure even when `isFrozen` is false
-- `activeController` → sole account that may toggle `isActive` (`address(0)` locks it forever)
+- `activeController` → sole account that may toggle `isActive`; set automatically to the XNS name owner by `createRoute`, or explicitly via `createRouteWithController` (`address(0)` locks it forever)
 
 ### States
 

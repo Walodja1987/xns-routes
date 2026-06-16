@@ -86,6 +86,16 @@ interface IXNSRoutes {
         address target,
         uint32 routeType,
         bool activate,
+        bool freeze
+    ) external;
+
+    function createRouteWithController(
+        string calldata xnsName,
+        string calldata routeScope,
+        string calldata routeLabel,
+        address target,
+        uint32 routeType,
+        bool activate,
         bool freeze,
         address activeController
     ) external;

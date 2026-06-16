@@ -21,7 +21,8 @@ Key points:
 - A route record stores `target`, `routeType`, `isActive`, `isFrozen`, and `activeController`.
 - Route freeze and route book freeze are irreversible.
 - Only `activeController` may toggle `isActive` via `activateRoute` / `deactivateRoute`.
-- `activeController` is set at `createRoute` and cannot be changed afterward.
+- `activeController` is set at `createRoute` (XNS name owner) or `createRouteWithController`
+  and cannot be changed afterward.
 - `activeController == address(0)` locks `isActive` at its create-time value forever.
 - `activeController` may still toggle `isActive` after route or route-book freeze.
 - `routeType` is a `uint32` tag whose meaning and interpretation are defined off-chain by route parsers.
@@ -47,7 +48,8 @@ Key points:
 ### createRoute
 
 
-Create a route `[xnsName]/[routeScope:][route]`.
+Create a route `[xnsName]/[routeScope:][route]` with `activeController` set to the
+current XNS name owner.
 
 **Requirements:**
 - `msg.sender` must be the owner for `xnsName`.
@@ -62,7 +64,7 @@ with `xnsName`, querieable via `getRouteKeys`.
 Note: Bare names like `bob` are normalized/canonicalized to `bob.x` for storage.
 
 ```solidity
-function createRoute(string xnsName, string routeScope, string routeLabel, address target, uint32 routeType, bool activate, bool freeze, address activeController) external
+function createRoute(string xnsName, string routeScope, string routeLabel, address target, uint32 routeType, bool activate, bool freeze) external
 ```
 
 
@@ -77,7 +79,34 @@ function createRoute(string xnsName, string routeScope, string routeLabel, addre
 | routeType | uint32 | Parser hint for how to interpret `target` (off-chain semantics), e.g. 0 = plain address, 2 = Bitcoin address, 3 = address exposing a html, etc. |
 | activate | bool | Initial value for stored `isActive`. |
 | freeze | bool | If true, renders the route immutable. |
-| activeController | address | Account that may toggle `isActive`; `address(0)` locks active status at `activate` forever (requires `activate == true`). |
+
+
+### createRouteWithController
+
+
+Same as `createRoute` but with an explicit `activeController`.
+Use when toggling `isActive` should be delegated to another account or locked at create time.
+
+Same requirements as `createRoute`, plus:
+- Only active routes can be locked at create time via `activeController == address(0)`.
+
+```solidity
+function createRouteWithController(string xnsName, string routeScope, string routeLabel, address target, uint32 routeType, bool activate, bool freeze, address activeController) external
+```
+
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| xnsName | string | The XNS name that owns the route space, e.g. "xns.action". |
+| routeScope | string | Optional path segment before `:`; non-empty must pass local route scope rules ([a-z0-9-], max length 20); empty means `xnsName/routeLabel` only (no `:` in the route). |
+| routeLabel | string | Required route label ([a-z0-9-], max length 32). |
+| target | address | Target address for `routeType`; must be non-zero (`address(0)` is reserved for non-existent route). |
+| routeType | uint32 | Parser hint for how to interpret `target` (off-chain semantics), e.g. 0 = plain address, 2 = Bitcoin address, 3 = address exposing a html, etc. |
+| activate | bool | Initial value for stored `isActive`. |
+| freeze | bool | If true, renders the route immutable. |
+| activeController | address | Account that may toggle `isActive`; `address(0)` locks `isActive` status forever (requires `activate == true`). |
 
 
 ### updateRoute

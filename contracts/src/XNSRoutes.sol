@@ -48,7 +48,8 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - A route record stores `target`, `routeType`, `isActive`, `isFrozen`, and `activeController`.
 /// - Route freeze and route book freeze are irreversible.
 /// - Only `activeController` may toggle `isActive` via `activateRoute` / `deactivateRoute`.
-/// - `activeController` is set at `createRoute` and cannot be changed afterward.
+/// - `activeController` is set at `createRoute` (XNS name owner) or `createRouteWithController`
+///   and cannot be changed afterward.
 /// - `activeController == address(0)` locks `isActive` at its create-time value forever.
 /// - `activeController` may still toggle `isActive` after route or route-book freeze.
 /// - `routeType` is a `uint32` tag whose meaning and interpretation are defined off-chain by route parsers.
@@ -190,7 +191,8 @@ contract XNSRoutes {
     // State-modifying functions
     // -------------------------------------------------------------------------
 
-    /// @notice Create a route `[xnsName]/[routeScope:][route]`.
+    /// @notice Create a route `[xnsName]/[routeScope:][route]` with `activeController` set to the
+    /// current XNS name owner.
     ///
     /// **Requirements:**
     /// - `msg.sender` must be the owner for `xnsName`.
@@ -214,9 +216,47 @@ contract XNSRoutes {
     /// e.g. 0 = plain address, 2 = Bitcoin address, 3 = address exposing a html, etc.
     /// @param activate Initial value for stored `isActive`.
     /// @param freeze If true, renders the route immutable.
-    /// @param activeController Account that may toggle `isActive`; `address(0)` locks active status
-    /// at `activate` forever (requires `activate == true`).
     function createRoute(
+        string calldata xnsName,
+        string calldata routeScope,
+        string calldata routeLabel,
+        address target,
+        uint32 routeType,
+        bool activate,
+        bool freeze
+    ) external {
+        string memory canonicalXNSName = _requireXNSNameOwner(xnsName);
+        _createRoute(
+            canonicalXNSName,
+            routeScope,
+            routeLabel,
+            target,
+            routeType,
+            activate,
+            freeze,
+            XNS.getAddress(canonicalXNSName)
+        );
+    }
+
+    /// @notice Same as `createRoute` but with an explicit `activeController`.
+    /// Use when toggling `isActive` should be delegated to another account or locked at create time.
+    ///
+    /// Same requirements as `createRoute`, plus:
+    /// - Only active routes can be locked at create time via `activeController == address(0)`.
+    ///
+    /// @param xnsName The XNS name that owns the route space, e.g. "xns.action".
+    /// @param routeScope Optional path segment before `:`; non-empty must pass local route scope
+    /// rules ([a-z0-9-], max length 20); empty means `xnsName/routeLabel` only (no `:` in the route).
+    /// @param routeLabel Required route label ([a-z0-9-], max length 32).
+    /// @param target Target address for `routeType`; must be non-zero (`address(0)` is reserved
+    /// for non-existent route).
+    /// @param routeType Parser hint for how to interpret `target` (off-chain semantics),
+    /// e.g. 0 = plain address, 2 = Bitcoin address, 3 = address exposing a html, etc.
+    /// @param activate Initial value for stored `isActive`.
+    /// @param freeze If true, renders the route immutable.
+    /// @param activeController Account that may toggle `isActive`; `address(0)` locks `isActive`
+    /// status forever (requires `activate == true`).
+    function createRouteWithController(
         string calldata xnsName,
         string calldata routeScope,
         string calldata routeLabel,
@@ -228,8 +268,29 @@ contract XNSRoutes {
     ) external {
         // Confirm that the XNS name is owned by the caller
         string memory canonicalXNSName = _requireXNSNameOwner(xnsName);
+        _createRoute(
+            canonicalXNSName,
+            routeScope,
+            routeLabel,
+            target,
+            routeType,
+            activate,
+            freeze,
+            activeController
+        );
+    }
 
-        // Derive the name key (`keccak256(bytes(canonical xnsName))`) for the XNS name
+    /// @dev Shared implementation for `createRoute` and `createRouteWithController`.
+    function _createRoute(
+        string memory canonicalXNSName,
+        string calldata routeScope,
+        string calldata routeLabel,
+        address target,
+        uint32 routeType,
+        bool activate,
+        bool freeze,
+        address activeController
+    ) private {
         bytes32 nameKey = _xnsNameKey(canonicalXNSName);
 
         // Validate route scope and route label
