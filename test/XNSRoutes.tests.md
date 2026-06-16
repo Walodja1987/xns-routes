@@ -173,7 +173,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Events
 
-- Should emit `RouteBookFrozenForName` with indexed `nameHash` and full `canonicalXNSName` the first time the route book is frozen.
+- Should emit `RouteBookFrozen` with indexed `nameHash` and full `canonicalXNSName` the first time the route book is frozen.
 - Second call should not emit again (idempotent).
 
 #### Reverts

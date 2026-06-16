@@ -155,7 +155,7 @@ contract XNSRoutes {
     );
 
     /// @dev Emitted in `freezeRouteBook` when the route book is frozen for an XNS name.
-    event RouteBookFrozenForName(
+    event RouteBookFrozen(
         bytes32 indexed nameHash,
         string canonicalXNSName
     );
@@ -635,7 +635,7 @@ contract XNSRoutes {
     ///
     /// Requires `msg.sender` to be the XNS name owner of `xnsName`.
     ///
-    /// Emits `RouteBookFrozenForName` only if the route book was not already frozen.
+    /// Emits `RouteBookFrozen` only if the route book was not already frozen.
     ///
     /// @param xnsName The XNS name whose route book to freeze.
     function freezeRouteBook(string calldata xnsName) external {
@@ -645,7 +645,7 @@ contract XNSRoutes {
         bytes32 nameKey = _xnsNameKey(canonicalXNSName);
         if (!_routeBookFrozen[nameKey]) {
             _routeBookFrozen[nameKey] = true;
-            emit RouteBookFrozenForName(nameKey, canonicalXNSName);
+            emit RouteBookFrozen(nameKey, canonicalXNSName);
         }
     }
 

@@ -291,7 +291,7 @@ Freeze the entire route book under an XNS name forever.
 
 Requires `msg.sender` to be the XNS name owner of `xnsName`.
 
-Emits `RouteBookFrozenForName` only if the route book was not already frozen.
+Emits `RouteBookFrozen` only if the route book was not already frozen.
 
 ```solidity
 function freezeRouteBook(string xnsName) external
@@ -738,13 +738,13 @@ Initial freeze-at-create is reflected only in `RouteCreated` (`isFrozen`)._
 
 
 
-### RouteBookFrozenForName
+### RouteBookFrozen
 
 
 
 
 ```solidity
-event RouteBookFrozenForName(bytes32 nameHash, string canonicalXNSName)
+event RouteBookFrozen(bytes32 nameHash, string canonicalXNSName)
 ```
 
 _Emitted in `freezeRouteBook` when the route book is frozen for an XNS name._

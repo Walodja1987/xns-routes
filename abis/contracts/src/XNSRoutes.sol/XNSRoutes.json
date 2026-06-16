@@ -1,7 +1,7 @@
 [
   "constructor(address) payable",
   "event RouteActiveStatusUpdated(bytes32 indexed,bytes32 indexed,string,string,string,bool)",
-  "event RouteBookFrozenForName(bytes32 indexed,string)",
+  "event RouteBookFrozen(bytes32 indexed,string)",
   "event RouteCreated(bytes32 indexed,bytes32 indexed,string,string,string,address indexed,bool,bool,uint32,address)",
   "event RouteDeleted(bytes32 indexed,bytes32 indexed,string,string,string)",
   "event RouteFrozen(bytes32 indexed,bytes32 indexed,string,string,string)",

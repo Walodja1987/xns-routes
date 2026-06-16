@@ -898,13 +898,13 @@ describe("XNSRoutes", function () {
   });
 
   describe("freezeRouteBook", function () {
-    it("Should set routeBookFrozen and emit RouteBookFrozenForName", async function () {
+    it("Should set routeBookFrozen and emit RouteBookFrozen", async function () {
       const { routes, owner } = await loadFixture(deployFixture);
       const xnsNameKey = ethers.keccak256(ethers.toUtf8Bytes(XNS_NAME));
 
       await expect(routes.connect(owner).freezeRouteBook(XNS_NAME)).to.emit(
         routes,
-        "RouteBookFrozenForName",
+        "RouteBookFrozen",
       );
 
       expect(await routes.isRouteBookFrozen(XNS_NAME)).to.equal(true);
@@ -943,11 +943,11 @@ describe("XNSRoutes", function () {
       );
     });
 
-    it("Should not emit RouteBookFrozenForName on second call", async function () {
+    it("Should not emit RouteBookFrozen on second call", async function () {
       const { routes, owner } = await loadFixture(deployFixture);
       await routes.connect(owner).freezeRouteBook(XNS_NAME);
 
-      const filter = routes.filters.RouteBookFrozenForName();
+      const filter = routes.filters.RouteBookFrozen();
       const before = (await routes.queryFilter(filter)).length;
       await routes.connect(owner).freezeRouteBook(XNS_NAME);
       const after = (await routes.queryFilter(filter)).length;

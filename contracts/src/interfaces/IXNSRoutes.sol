@@ -65,7 +65,7 @@ interface IXNSRoutes {
         string routeLabel
     );
 
-    event RouteBookFrozenForName(bytes32 indexed nameHash, string canonicalXNSName);
+    event RouteBookFrozen(bytes32 indexed nameHash, string canonicalXNSName);
 
     event RouteDeleted(
         bytes32 indexed nameHash,
