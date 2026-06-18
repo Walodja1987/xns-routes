@@ -29,41 +29,58 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - **routeScope** — optional segment before `:` (1–20 chars if present).
 /// - **routeLabel** — required slug (1–32 chars).
 /// - **params** — optional parameters for off-chain route parsers; not stored or validated on-chain.
-/// - The segment `[routeScope:]routeLabel` is also referred to as **route**.
-/// - Registry XRL = `xnsName/[routeScope:]routeLabel` (XRL without the params tail). 
-//
-/// Examples XRLs:
-/// - `alice.og/my-sub-wallet`
-/// - `contracts.aave/eth:v3-pool-contract`
-/// - `bob.xns/uniswap:approve-usdt/amount=10`
+/// - The segment `[routeScope:]routeLabel` is referred to as **route**.
+/// - The segment `xnsName/[routeScope:]routeLabel` (XRL without the params tail) is referred to as **Registry XRL**. 
 ///
-/// `routeScope` and `routeLabel` must follow the same character and hyphenation rules as `xnsName`:
+/// Examples XRLs:
+/// - `alice.og/my-sub-wallet` (without routeScope)
+/// - `contracts.aave/eth:v3-pool-contract` (with routeScope)
+/// - `bob.xns/uniswap:approve-usdt/amount=10` (with routeScope and params)
+///
+/// `routeScope` and `routeLabel` must follow the same character and hyphenation rules as XNS names:
 /// - Must consist only of [a-z0-9-] (lowercase letters, digits, and hyphens)
 /// - Cannot start or end with '-'
 /// - Cannot contain consecutive hyphens ('--')
 ///
-/// Key points:
-/// - Routes are owned and managed by the XNS name owner.
-/// - An XNS name owner can register unlimited routes for free.
-/// - A route record stores `target`, `routeType`, `isActive`, `isFrozen`, and `activeController`.
-/// - Route freeze and route book freeze are irreversible.
-/// - Only `activeController` may toggle `isActive` via `activateRoute` / `deactivateRoute`.
-/// - `activeController` is set at `createRoute` (XNS name owner) or `createRouteWithController`
-///   and cannot be changed afterward.
-/// - `activeController == address(0)` locks `isActive` at its create-time value forever.
-/// - `activeController` may still toggle `isActive` after route or route-book freeze.
-/// - `routeType` is a `uint32` tag whose meaning and interpretation are defined off-chain by route parsers.
-///   For example, `routeType = 0` may suggest that the `target` is an EOA.
-///   `routeType = 1` may suggest that the `target` is a smart contract.
-///   `routeType = 2` may suggest that the `target` is a special contract that returns parametrized calldata.
-///   `routeType = 3` may suggest that the `target` returns a Bitcoin address.
-/// - Forward resolution is direct: registry XRL -> `target`. Use `resolveRouteIfActive` or
-///   `resolveRouteIfActiveAndFrozen` for strict resolution; `getRouteRecord` returns raw storage.
-///   Reverse lookup is not supported because many routes may point to the same `target`.
-/// - Bare names like `bob` are normalized/canonicalized to `bob.x` for storage.
-/// - `routeKey` is `keccak256` of canonical registry XRL (`xnsName/route`; params excluded).
-/// - For one known `xnsName`, on-chain enumeration is available without an indexer via the append-only
-///   route-key log (`getRouteKeyCount`, `getRouteKeys`, `getRouteRecord`).
+/// Route metadata and controls:
+///
+/// **Route type**
+/// - Off-chain hint for route parsers on how to interpret `target`.
+/// - Examples: `0` = EOA, `1` = smart contract, `2` = calldata builder, `3` = Bitcoin address,
+///   `4` = Solana address, etc.
+///
+/// **Route freeze**
+/// - A route can be frozen so `target` and `routeType` cannot change and the route cannot be deleted.
+/// - Gives users a guarantee that the binding will not change.
+/// - Freeze is irreversible. `isActive` can still be toggled unless locked (see activeController).
+///
+/// **Active status & activeController**
+/// - Routes can be active or inactive (`isActive`).
+/// - `activeController` is the only account that may call `activateRoute` / `deactivateRoute`.
+/// - Useful to tell off-chain parsers not to resolve a route (e.g. deprecated or paused).
+/// - Set at create (`createRoute` defaults to the XNS name owner; `createRouteWithController` for explicit choice).
+/// - `activeController == address(0)` locks `isActive` at its create-time value forever
+///   (route must be created active).
+/// - A frozen route can still be activated or deactivated, unless `activeController` is `address(0)`.
+///
+/// **Route book freeze**
+/// - The XNS name owner can freeze the entire route book for an XNS name (`freezeRouteBook`).
+/// - No new routes; existing routes cannot be updated or deleted. Per-route `freezeRoute` is also blocked.
+/// - Existing routes can still be activated or deactivated, unless `activeController` is `address(0)`.
+///
+/// **Structural freeze**
+/// - A route is structurally frozen when `record.isFrozen || isRouteBookFrozen`.
+/// - The route itself may be unfrozen while the route book is frozen.
+/// - Use `getRouteRecordWithBookStatus` to read `record` and `isRouteBookFrozen` in one call.
+///
+/// **Other**
+/// - Routes are owned by the XNS name owner; registration is free and unlimited.
+/// - Route record: `target`, `routeType`, `isActive`, `isFrozen`, `activeController`.
+/// - Forward resolution: registry XRL -> `target`. Use `resolveRouteIfActive` / `resolveRouteIfActiveAndFrozen`
+///   for strict reads. Reverse lookup is not supported because many routes may point to the same `target`.
+/// - Bare names like `bob` are stored as `bob.x`.
+/// - `routeKey` = hash of canonical registry XRL.
+/// - List routes on-chain with `getRouteKeyCount` and `getRouteKeys`.
 contract XNSRoutes {
     // -------------------------------------------------------------------------
     // Types
@@ -105,7 +122,7 @@ contract XNSRoutes {
     // Events
     // -------------------------------------------------------------------------
 
-    /// @dev Emitted in `createRoute`.
+    /// @dev Emitted in `createRoute` and `createRouteWithController`.
     event RouteCreated(
         bytes32 indexed nameHash,
         bytes32 indexed routeKey,
