@@ -84,18 +84,18 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 ---
 
-## `transferActiveController` / `acceptActiveController` / `cancelActiveControllerTransfer`
+## `initiateActiveControllerTransfer` / `acceptActiveController` / `cancelActiveControllerTransfer`
 
 #### Functionality
 
-- Current `activeController` may start a transfer to a live non-zero address (`transferActiveController`).
+- Current `activeController` may initiate a transfer to a live non-zero address (`initiateActiveControllerTransfer`).
 - Pending recipient completes with `acceptActiveController`; current controller may `cancelActiveControllerTransfer`.
 - A new transfer replaces any existing pending transfer.
 - Cannot transfer to `RENOUNCED_ACTIVE_CONTROLLER` (use `renounceActiveControl`).
 
 #### Events
 
-- `ActiveControllerTransferStarted`, `ActiveControllerTransferAccepted`, `ActiveControllerTransferCancelled`.
+- `ActiveControllerTransferInitiated`, `ActiveControllerTransferAccepted`, `ActiveControllerTransferCancelled`.
 
 #### Reverts
 

@@ -63,7 +63,7 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// **Active status & activeController**
 /// - Routes can be active or inactive (`isActive`).
 /// - `activeController` may call `activateRoute` / `deactivateRoute`, start or cancel a
-///   two-step transfer (`transferActiveController` / `acceptActiveController`), or
+///   two-step transfer (`initiateActiveControllerTransfer` / `acceptActiveController`), or
 ///   `renounceActiveControl` (irreversible).
 /// - Useful to tell off-chain parsers not to resolve a route (e.g. deprecated or paused).
 /// - Set at create (`createRoute` defaults to the XNS name owner and isActive = true;
@@ -158,8 +158,8 @@ contract XNSRoutes {
     /// @dev Emitted in `freezeRouteBook` when the route book is frozen for an XNS name.
     event RouteBookFrozen(bytes32 indexed xnsNameHash, string canonicalXNSName);
 
-    /// @dev Emitted in `transferActiveController`.
-    event ActiveControllerTransferStarted(
+    /// @dev Emitted in `initiateActiveControllerTransfer`.
+    event ActiveControllerTransferInitiated(
         bytes32 indexed xnsNameHash,
         bytes32 indexed routeKey,
         string canonicalXNSName,
@@ -415,7 +415,7 @@ contract XNSRoutes {
     /// Replaces any existing pending transfer for this route.
     ///
     /// @param newActiveController Account that must call `acceptActiveController` to complete the transfer.
-    function transferActiveController(
+    function initiateActiveControllerTransfer(
         string calldata xnsName,
         string calldata routeScope,
         string calldata routeLabel,
@@ -438,7 +438,7 @@ contract XNSRoutes {
 
         _pendingActiveController[routeKey] = newActiveController;
 
-        emit ActiveControllerTransferStarted(
+        emit ActiveControllerTransferInitiated(
             nameKey,
             routeKey,
             canonicalXNSName,
@@ -451,7 +451,7 @@ contract XNSRoutes {
     /// @notice Complete a pending `activeController` transfer.
     ///
     /// **Requirements:**
-    /// - `msg.sender` must be the pending `newActiveController` from `transferActiveController`.
+    /// - `msg.sender` must be the pending `newActiveController` from `initiateActiveControllerTransfer`.
     /// - The route must exist and active control must not be renounced.
     function acceptActiveController(
         string calldata xnsName,

@@ -36,7 +36,7 @@ interface IXNSRoutes {
 
     event RouteBookFrozen(bytes32 indexed xnsNameHash, string canonicalXNSName);
 
-    event ActiveControllerTransferStarted(
+    event ActiveControllerTransferInitiated(
         bytes32 indexed xnsNameHash,
         bytes32 indexed routeKey,
         string canonicalXNSName,
@@ -114,7 +114,7 @@ interface IXNSRoutes {
         string calldata routeLabel
     ) external;
 
-    function transferActiveController(
+    function initiateActiveControllerTransfer(
         string calldata xnsName,
         string calldata routeScope,
         string calldata routeLabel,

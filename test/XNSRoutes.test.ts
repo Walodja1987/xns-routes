@@ -525,9 +525,9 @@ describe("XNSRoutes", function () {
       await expect(
         routes
           .connect(owner)
-          .transferActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, other.address),
+          .initiateActiveControllerTransfer(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, other.address),
       )
-        .to.emit(routes, "ActiveControllerTransferStarted")
+        .to.emit(routes, "ActiveControllerTransferInitiated")
         .withArgs(
           xnsNameKey(XNS_NAME),
           routeStorageKey(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
@@ -567,7 +567,7 @@ describe("XNSRoutes", function () {
 
       await routes
         .connect(owner)
-        .transferActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, other.address);
+        .initiateActiveControllerTransfer(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, other.address);
 
       await expect(
         routes.connect(owner).cancelActiveControllerTransfer(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
@@ -598,10 +598,10 @@ describe("XNSRoutes", function () {
 
       await routes
         .connect(owner)
-        .transferActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, other.address);
+        .initiateActiveControllerTransfer(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, other.address);
       await routes
         .connect(owner)
-        .transferActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, third.address);
+        .initiateActiveControllerTransfer(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, third.address);
 
       expect(await routes.pendingActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).to.equal(
         third.address,
@@ -617,7 +617,7 @@ describe("XNSRoutes", function () {
       );
     });
 
-    it("Should revert transferActiveController for invalid newActiveController", async function () {
+    it("Should revert initiateActiveControllerTransfer for invalid newActiveController", async function () {
       const fixture = await loadFixture(deployFixture);
       const { routes, owner, other } = fixture;
       await createDefaultRoute(fixture);
@@ -625,25 +625,25 @@ describe("XNSRoutes", function () {
       await expect(
         routes
           .connect(owner)
-          .transferActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, ethers.ZeroAddress),
+          .initiateActiveControllerTransfer(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, ethers.ZeroAddress),
       ).to.be.revertedWith(XR.invalidActiveController);
 
       await expect(
         routes
           .connect(owner)
-          .transferActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, owner.address),
+          .initiateActiveControllerTransfer(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, owner.address),
       ).to.be.revertedWith(XR.sameActiveController);
 
       await expect(
         routes
           .connect(owner)
-          .transferActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, RENOUNCED),
+          .initiateActiveControllerTransfer(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, RENOUNCED),
       ).to.be.revertedWith(XR.useRenounceActiveControl);
 
       await expect(
         routes
           .connect(other)
-          .transferActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, other.address),
+          .initiateActiveControllerTransfer(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, other.address),
       ).to.be.revertedWith(XR.notActiveController);
     });
 
@@ -674,7 +674,7 @@ describe("XNSRoutes", function () {
       ).to.be.revertedWith(XR.activeControlRenounced);
 
       await expect(
-        routes.connect(owner).transferActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, owner.address),
+        routes.connect(owner).initiateActiveControllerTransfer(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, owner.address),
       ).to.be.revertedWith(XR.activeControlRenounced);
     });
 
@@ -685,7 +685,7 @@ describe("XNSRoutes", function () {
 
       await routes
         .connect(owner)
-        .transferActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, other.address);
+        .initiateActiveControllerTransfer(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, other.address);
       await routes.connect(owner).renounceActiveControl(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
 
       expect(await routes.pendingActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).to.equal(

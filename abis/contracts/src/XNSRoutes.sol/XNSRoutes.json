@@ -3,7 +3,7 @@
   "event ActiveControllerRenounced(bytes32 indexed,bytes32 indexed,string,string,string)",
   "event ActiveControllerTransferAccepted(bytes32 indexed,bytes32 indexed,string,string,string,address,address indexed)",
   "event ActiveControllerTransferCancelled(bytes32 indexed,bytes32 indexed,string,string,string,address indexed)",
-  "event ActiveControllerTransferStarted(bytes32 indexed,bytes32 indexed,string,string,string,address indexed)",
+  "event ActiveControllerTransferInitiated(bytes32 indexed,bytes32 indexed,string,string,string,address indexed)",
   "event RouteActiveStatusUpdated(bytes32 indexed,bytes32 indexed,string,string,string,bool)",
   "event RouteBookFrozen(bytes32 indexed,string)",
   "event RouteCreated(bytes32 indexed,bytes32 indexed,string,string,string,address indexed,uint32,bool,address)",
@@ -21,6 +21,7 @@
   "function getRouteRecord(string) view returns (tuple(address,uint32,bool,address))",
   "function getRouteRecord(bytes32) view returns (tuple(address,uint32,bool,address))",
   "function getRouteRecord(string,string,string) view returns (tuple(address,uint32,bool,address))",
+  "function initiateActiveControllerTransfer(string,string,string,address)",
   "function isRouteBookFrozen(string) view returns (bool)",
   "function isValidRouteLabel(string) pure returns (bool)",
   "function isValidRouteScope(string) pure returns (bool)",
@@ -31,6 +32,5 @@
   "function resolveRoute(string) view returns (address, uint32)",
   "function resolveRouteIfActive(string,string,string) view returns (address, uint32)",
   "function resolveRouteIfActive(string) view returns (address, uint32)",
-  "function splitRegistryXRL(string) pure returns (string, string, string)",
-  "function transferActiveController(string,string,string,address)"
+  "function splitRegistryXRL(string) pure returns (string, string, string)"
 ]

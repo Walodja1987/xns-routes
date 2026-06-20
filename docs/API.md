@@ -52,7 +52,7 @@ Route metadata and controls:
 **Active status & activeController**
 - Routes can be active or inactive (`isActive`).
 - `activeController` may call `activateRoute` / `deactivateRoute`, start or cancel a
-  two-step transfer (`transferActiveController` / `acceptActiveController`), or
+  two-step transfer (`initiateActiveControllerTransfer` / `acceptActiveController`), or
   `renounceActiveControl` (irreversible).
 - Useful to tell off-chain parsers not to resolve a route (e.g. deprecated or paused).
 - Set at create (`createRoute` defaults to the XNS name owner and isActive = true;
@@ -197,7 +197,7 @@ function deactivateRoute(string xnsName, string routeScope, string routeLabel) e
 | routeLabel | string | Route label of the route path to be deactivated. |
 
 
-### transferActiveController
+### initiateActiveControllerTransfer
 
 
 Start a two-step transfer of `activeController` to `newActiveController`.
@@ -211,7 +211,7 @@ Start a two-step transfer of `activeController` to `newActiveController`.
 Replaces any existing pending transfer for this route.
 
 ```solidity
-function transferActiveController(string xnsName, string routeScope, string routeLabel, address newActiveController) external
+function initiateActiveControllerTransfer(string xnsName, string routeScope, string routeLabel, address newActiveController) external
 ```
 
 
@@ -231,7 +231,7 @@ function transferActiveController(string xnsName, string routeScope, string rout
 Complete a pending `activeController` transfer.
 
 **Requirements:**
-- `msg.sender` must be the pending `newActiveController` from `transferActiveController`.
+- `msg.sender` must be the pending `newActiveController` from `initiateActiveControllerTransfer`.
 - The route must exist and active control must not be renounced.
 
 ```solidity
@@ -713,16 +713,16 @@ _Emitted in `freezeRouteBook` when the route book is frozen for an XNS name._
 
 
 
-### ActiveControllerTransferStarted
+### ActiveControllerTransferInitiated
 
 
 
 
 ```solidity
-event ActiveControllerTransferStarted(bytes32 xnsNameHash, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, address pendingActiveController)
+event ActiveControllerTransferInitiated(bytes32 xnsNameHash, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, address pendingActiveController)
 ```
 
-_Emitted in `transferActiveController`._
+_Emitted in `initiateActiveControllerTransfer`._
 
 
 
