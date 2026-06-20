@@ -36,7 +36,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Events
 
-- Should emit `RouteCreated` with indexed `nameHash` (`keccak256(bytes(canonicalXNSName))`), `routeKey` (same as `_routeKey`), and `target`, then `canonicalXNSName`, `routeScope`, routeLabel, `routeType`, `isActive`, and `activeController` (non-indexed, full values in log data).
+- Should emit `RouteCreated` with indexed `xnsNameHash` (`keccak256(bytes(canonicalXNSName))`), `routeKey` (same as `_routeKey`), and `target`, then `canonicalXNSName`, `routeScope`, routeLabel, `routeType`, `isActive`, and `activeController` (non-indexed, full values in log data).
 
 #### Reverts
 
@@ -66,7 +66,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Events
 
-- Should emit `RouteActiveStatusUpdated` with indexed `nameHash` / `routeKey`, then `canonicalXNSName`, `routeScope`, routeLabel, and `isActive` when transitioning.
+- Should emit `RouteActiveStatusUpdated` with indexed `xnsNameHash` / `routeKey`, then `canonicalXNSName`, `routeScope`, routeLabel, and `isActive` when transitioning.
 
 #### Reverts
 
@@ -93,7 +93,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Events
 
-- Should emit `RouteBookFrozen` with indexed `nameHash` and full `canonicalXNSName` the first time the route book is frozen.
+- Should emit `RouteBookFrozen` with indexed `xnsNameHash` and full `canonicalXNSName` the first time the route book is frozen.
 - Second call should not emit again (idempotent).
 
 #### Reverts
@@ -120,20 +120,6 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 ---
 
-## `getRouteRecordWithBookStatus`
-
-#### Functionality
-
-- Tuple and registry-XRL overloads return `{ record, isRouteBookFrozen }` in one call.
-- `record` matches the corresponding `getRouteRecord` overload for the same inputs.
-- `isRouteBookFrozen` matches `isRouteBookFrozen(xnsName)` for the parsed/canonical name.
-
-#### Reverts
-
-- Same as `getRouteRecord` for the matching overload (invalid scope/label or invalid XRL).
-
----
-
 ## `resolveRoute` / `resolveRouteIfActive`
 
 #### Functionality
@@ -152,13 +138,13 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 ---
 
-## Route key log (append-only)
+## Route key list
 
 #### Functionality
 
 - `getRouteKeyCount` starts at zero for a name; increments by one on each successful `createRoute`.
-- `getRouteKeys(xnsName, start, end)` pages through keys (`end` exclusive; clamped to log length).
-- Failed `createRoute` (e.g. duplicate key) does not append to the log.
+- `getRouteKeys(xnsName, start, end)` pages through keys (`end` exclusive; clamped to array length).
+- Failed `createRoute` (e.g. duplicate key) does not add a key to the list.
 - `getRouteKeys` reverts when `start > end`; returns empty when `start` is past the log range.
 
 ---

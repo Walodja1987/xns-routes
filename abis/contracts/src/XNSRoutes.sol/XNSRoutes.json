@@ -14,8 +14,6 @@
   "function getRouteRecord(string) view returns (tuple(address,uint32,bool,address))",
   "function getRouteRecord(bytes32) view returns (tuple(address,uint32,bool,address))",
   "function getRouteRecord(string,string,string) view returns (tuple(address,uint32,bool,address))",
-  "function getRouteRecordWithBookStatus(string) view returns (tuple(tuple(address,uint32,bool,address),bool))",
-  "function getRouteRecordWithBookStatus(string,string,string) view returns (tuple(tuple(address,uint32,bool,address),bool))",
   "function isRouteBookFrozen(string) view returns (bool)",
   "function isValidRouteLabel(string) pure returns (bool)",
   "function isValidRouteScope(string) pure returns (bool)",

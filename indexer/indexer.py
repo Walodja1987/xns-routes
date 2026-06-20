@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Simple SQLite indexer for XNSRoutes events.
 
-Route-scoped events (`RouteCreated`, `RouteActiveStatusUpdated`) include indexed `nameHash`
+Route-scoped events (`RouteCreated`, `RouteActiveStatusUpdated`) include indexed `xnsNameHash`
 (`keccak256(bytes(canonicalXNSName))`) and `routeKey` (same as on-chain `_routeKey`) as log topics.
 `RouteCreated` indexes `target`; remaining fields are non-indexed in log data. Use topics for narrow
 `eth_getLogs` filters; decoded `args` expose the same fields by name.

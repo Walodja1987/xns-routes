@@ -62,7 +62,7 @@ Route metadata and controls:
 - The XNS name owner can freeze the entire route book for an XNS name (`freezeRouteBook`).
 - Prevents adding new routes under that name. Existing routes are unchanged.
 - Existing routes can still be activated or deactivated by their `activeController`.
-- Use `getRouteRecordWithBookStatus` to read `record` and `isRouteBookFrozen` in one call.
+- Use `isRouteBookFrozen` to check whether new routes can still be added.
 
 **Other**
 - Routes are owned by the XNS name owner; registration is free and unlimited.
@@ -95,8 +95,8 @@ Create a route `[xnsName]/[routeScope:][routeLabel]` with `isActive = true` and
 - The route book for `xnsName` must not be frozen.
 - The route key must not already exist.
 
-On success, appends the route key to the append-only array `_routeKeysByXNSName` associated
-with `xnsName`, querieable via `getRouteKeys`.
+On success, adds the route key to `_routeKeysByXNSName` for `xnsName`, queryable via
+`getRouteKeys`.
 Note: Bare names like `bob` are normalized/canonicalized to `bob.x` for storage.
 
 ```solidity
@@ -112,7 +112,7 @@ function createRoute(string xnsName, string routeScope, string routeLabel, addre
 | routeScope | string | Optional path segment before `:`; non-empty must pass local route scope rules ([a-z0-9-], max length 20); empty means `xnsName/routeLabel` only (no `:` in the route). |
 | routeLabel | string | Required route label ([a-z0-9-], max length 32). |
 | target | address | Target address for `routeType`; must be non-zero (`address(0)` is reserved for non-existent route). |
-| routeType | uint32 | Parser hint for how to interpret `target` (off-chain semantics). e.g. `0` = target is the answer, `1` = target must be queried, `2` = target returns executable calldata. |
+| routeType | uint32 | Parser hint for how to interpret `target` (off-chain semantics). |
 
 
 ### createRouteWithController
@@ -248,9 +248,6 @@ function getRouteRecord(bytes32 routeKey) external view returns (struct XNSRoute
 Reads stored route record data by `(xnsName, routeScope, routeLabel)`.
 `record.target == address(0)` means that record does not exist.
 
-Returns stored route fields only. For route-book freeze status in the same call,
-use `getRouteRecordWithBookStatus`.
-
 Requires that `routeScope` and `routeLabel` are valid strings.
 
 ```solidity
@@ -278,9 +275,6 @@ function getRouteRecord(string xnsName, string routeScope, string routeLabel) ex
 Reads stored route record data by registry XRL (`splitRegistryXRL`).
 `record.target == address(0)` means that record does not exist.
 
-Returns stored route fields only. For route-book freeze status in the same call,
-use `getRouteRecordWithBookStatus`.
-
 ```solidity
 function getRouteRecord(string registryXRL) external view returns (struct XNSRoutes.RouteRecord record)
 ```
@@ -297,61 +291,6 @@ function getRouteRecord(string registryXRL) external view returns (struct XNSRou
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | record | struct XNSRoutes.RouteRecord | The route record (target, routeType, isActive, activeController). |
-
-### getRouteRecordWithBookStatus
-
-
-Reads stored route record data and route-book freeze status by
-`(xnsName, routeScope, routeLabel)`.
-
-`details.record.target == address(0)` means that record does not exist.
-Route-book freeze is name-scoped and not stored in `RouteRecord`.
-
-Requires that `routeScope` and `routeLabel` are valid strings.
-
-```solidity
-function getRouteRecordWithBookStatus(string xnsName, string routeScope, string routeLabel) external view returns (struct XNSRoutes.RouteRecordWithBookStatus details)
-```
-
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| xnsName | string | The XNS name that owns the route space. |
-| routeScope | string | Route scope (may be empty). |
-| routeLabel | string | Route label. |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| details | struct XNSRoutes.RouteRecordWithBookStatus | Stored route record and route-book freeze flag for `xnsName`. |
-
-### getRouteRecordWithBookStatus
-
-
-Reads stored route record data and route-book freeze status by registry XRL
-(`splitRegistryXRL`).
-
-Same semantics as `getRouteRecordWithBookStatus(xnsName, routeScope, routeLabel)`.
-
-```solidity
-function getRouteRecordWithBookStatus(string registryXRL) external view returns (struct XNSRoutes.RouteRecordWithBookStatus details)
-```
-
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| registryXRL | string | Registry XRL, e.g. `bob.xns/eth:my-wallet`, without trailing parameters (if any). |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| details | struct XNSRoutes.RouteRecordWithBookStatus | Stored route record and route-book freeze flag for the parsed `xnsName`. |
 
 ### resolveRouteIfActive
 
@@ -487,7 +426,7 @@ function isRouteBookFrozen(string xnsName) external view returns (bool frozen)
 ### getRouteKeyCount
 
 
-Number of entries in the append-only route-key log for `xnsName`.
+Number of route keys registered under `xnsName`.
 
 ```solidity
 function getRouteKeyCount(string xnsName) external view returns (uint256 count)
@@ -644,7 +583,7 @@ function isValidRouteScopeAndLabel(string routeScope, string routeLabel) externa
 
 
 ```solidity
-event RouteCreated(bytes32 nameHash, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, address target, uint32 routeType, bool isActive, address activeController)
+event RouteCreated(bytes32 xnsNameHash, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, address target, uint32 routeType, bool isActive, address activeController)
 ```
 
 _Emitted in `createRoute` and `createRouteWithController`._
@@ -658,7 +597,7 @@ _Emitted in `createRoute` and `createRouteWithController`._
 
 
 ```solidity
-event RouteActiveStatusUpdated(bytes32 nameHash, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, bool isActive)
+event RouteActiveStatusUpdated(bytes32 xnsNameHash, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, bool isActive)
 ```
 
 _Emitted in `activateRoute` and `deactivateRoute` when `isActive` changes._
@@ -672,7 +611,7 @@ _Emitted in `activateRoute` and `deactivateRoute` when `isActive` changes._
 
 
 ```solidity
-event RouteBookFrozen(bytes32 nameHash, string canonicalXNSName)
+event RouteBookFrozen(bytes32 xnsNameHash, string canonicalXNSName)
 ```
 
 _Emitted in `freezeRouteBook` when the route book is frozen for an XNS name._
@@ -715,22 +654,6 @@ struct RouteRecord {
 
 
 _Data structure to store route metadata._
-
-
-
-
-### RouteRecordWithBookStatus
-
-```solidity
-struct RouteRecordWithBookStatus {
-  struct XNSRoutes.RouteRecord record;
-  bool isRouteBookFrozen;
-```
-
-
-
-
-_Stored route record plus route-book freeze status for UI reads._
 
 
 

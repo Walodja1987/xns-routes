@@ -73,7 +73,7 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - The XNS name owner can freeze the entire route book for an XNS name (`freezeRouteBook`).
 /// - Prevents adding new routes under that name. Existing routes are unchanged.
 /// - Existing routes can still be activated or deactivated by their `activeController`.
-/// - Use `getRouteRecordWithBookStatus` to read `record` and `isRouteBookFrozen` in one call.
+/// - Use `isRouteBookFrozen` to check whether new routes can still be added.
 ///
 /// **Other**
 /// - Routes are owned by the XNS name owner; registration is free and unlimited.
@@ -97,12 +97,6 @@ contract XNSRoutes {
         address activeController;
     }
 
-    /// @dev Stored route record plus route-book freeze status for UI reads.
-    struct RouteRecordWithBookStatus {
-        RouteRecord record;
-        bool isRouteBookFrozen;
-    }
-
     // -------------------------------------------------------------------------
     // Storage variables
     // -------------------------------------------------------------------------
@@ -116,8 +110,7 @@ contract XNSRoutes {
     // _routeKey(canonical xnsName, routeScope, routeLabel) => route record
     mapping(bytes32 => RouteRecord) private _routes;
 
-    // keccak256(bytes(canonical xnsName)) => append-only log of route keys ever created
-    // under that XNS name
+    // keccak256(bytes(canonical xnsName)) => route keys created under that XNS name
     mapping(bytes32 => bytes32[]) private _routeKeysByXNSName;
 
     // -------------------------------------------------------------------------
@@ -126,7 +119,7 @@ contract XNSRoutes {
 
     /// @dev Emitted in `createRoute` and `createRouteWithController`.
     event RouteCreated(
-        bytes32 indexed nameHash,
+        bytes32 indexed xnsNameHash,
         bytes32 indexed routeKey,
         string canonicalXNSName,
         string routeScope,
@@ -139,7 +132,7 @@ contract XNSRoutes {
 
     /// @dev Emitted in `activateRoute` and `deactivateRoute` when `isActive` changes.
     event RouteActiveStatusUpdated(
-        bytes32 indexed nameHash,
+        bytes32 indexed xnsNameHash,
         bytes32 indexed routeKey,
         string canonicalXNSName,
         string routeScope,
@@ -148,7 +141,7 @@ contract XNSRoutes {
     );
 
     /// @dev Emitted in `freezeRouteBook` when the route book is frozen for an XNS name.
-    event RouteBookFrozen(bytes32 indexed nameHash, string canonicalXNSName);
+    event RouteBookFrozen(bytes32 indexed xnsNameHash, string canonicalXNSName);
 
     // -------------------------------------------------------------------------
     // Constructor
@@ -182,8 +175,8 @@ contract XNSRoutes {
     /// - The route book for `xnsName` must not be frozen.
     /// - The route key must not already exist.
     ///
-    /// On success, appends the route key to the append-only array `_routeKeysByXNSName` associated
-    /// with `xnsName`, querieable via `getRouteKeys`.
+    /// On success, adds the route key to `_routeKeysByXNSName` for `xnsName`, queryable via
+    /// `getRouteKeys`.
     /// Note: Bare names like `bob` are normalized/canonicalized to `bob.x` for storage.
     ///
     /// @param xnsName The XNS name that owns the route space, e.g. "xns.action".
@@ -193,7 +186,6 @@ contract XNSRoutes {
     /// @param target Target address for `routeType`; must be non-zero (`address(0)` is reserved
     /// for non-existent route).
     /// @param routeType Parser hint for how to interpret `target` (off-chain semantics).
-    /// e.g. `0` = target is the answer, `1` = target must be queried, `2` = target returns executable calldata.
     function createRoute(
         string calldata xnsName,
         string calldata routeScope,
@@ -209,7 +201,7 @@ contract XNSRoutes {
             target,
             routeType,
             true, // isActive
-            XNS.getAddress(canonicalXNSName)
+            XNS.getAddress(canonicalXNSName) // activeController
         );
     }
 
@@ -399,9 +391,6 @@ contract XNSRoutes {
     /// @notice Reads stored route record data by `(xnsName, routeScope, routeLabel)`.
     /// `record.target == address(0)` means that record does not exist.
     ///
-    /// Returns stored route fields only. For route-book freeze status in the same call,
-    /// use `getRouteRecordWithBookStatus`.
-    ///
     /// Requires that `routeScope` and `routeLabel` are valid strings.
     ///
     /// @param xnsName The XNS name that owns the route space.
@@ -419,50 +408,12 @@ contract XNSRoutes {
     /// @notice Reads stored route record data by registry XRL (`splitRegistryXRL`).
     /// `record.target == address(0)` means that record does not exist.
     ///
-    /// Returns stored route fields only. For route-book freeze status in the same call,
-    /// use `getRouteRecordWithBookStatus`.
-    ///
     /// @param registryXRL Registry XRL, e.g. `bob.xns/eth:my-wallet`, without trailing parameters (if any).
     /// @return record The route record (target, routeType, isActive, activeController).
     function getRouteRecord(string calldata registryXRL) external view returns (RouteRecord memory record) {
         (string memory xnsName, string memory routeScope, string memory routeLabel) =
             _splitRegistryXRL(registryXRL);
         return _getRouteRecord(xnsName, routeScope, routeLabel);
-    }
-
-    /// @notice Reads stored route record data and route-book freeze status by
-    /// `(xnsName, routeScope, routeLabel)`.
-    ///
-    /// `details.record.target == address(0)` means that record does not exist.
-    /// Route-book freeze is name-scoped and not stored in `RouteRecord`.
-    ///
-    /// Requires that `routeScope` and `routeLabel` are valid strings.
-    ///
-    /// @param xnsName The XNS name that owns the route space.
-    /// @param routeScope Route scope (may be empty).
-    /// @param routeLabel Route label.
-    /// @return details Stored route record and route-book freeze flag for `xnsName`.
-    function getRouteRecordWithBookStatus(
-        string calldata xnsName,
-        string calldata routeScope,
-        string calldata routeLabel
-    ) external view returns (RouteRecordWithBookStatus memory details) {
-        return _getRouteRecordWithBookStatus(xnsName, routeScope, routeLabel);
-    }
-
-    /// @notice Reads stored route record data and route-book freeze status by registry XRL
-    /// (`splitRegistryXRL`).
-    ///
-    /// Same semantics as `getRouteRecordWithBookStatus(xnsName, routeScope, routeLabel)`.
-    ///
-    /// @param registryXRL Registry XRL, e.g. `bob.xns/eth:my-wallet`, without trailing parameters (if any).
-    /// @return details Stored route record and route-book freeze flag for the parsed `xnsName`.
-    function getRouteRecordWithBookStatus(
-        string calldata registryXRL
-    ) external view returns (RouteRecordWithBookStatus memory details) {
-        (string memory xnsName, string memory routeScope, string memory routeLabel) =
-            _splitRegistryXRL(registryXRL);
-        return _getRouteRecordWithBookStatus(xnsName, routeScope, routeLabel);
     }
 
     /// @notice Resolves an active route to `(target, routeType)`.
@@ -542,7 +493,7 @@ contract XNSRoutes {
         return _routeBookFrozen[_xnsNameKey(xnsName)];
     }
 
-    /// @notice Number of entries in the append-only route-key log for `xnsName`.
+    /// @notice Number of route keys registered under `xnsName`.
     ///
     /// @param xnsName The XNS name to get the route key count for.
     /// @return count The number of route keys.
@@ -648,16 +599,6 @@ contract XNSRoutes {
             isActive: s.isActive,
             activeController: s.activeController
         });
-    }
-
-    /// @dev Validates scope/label, returns route record and route-book freeze for `xnsName`.
-    function _getRouteRecordWithBookStatus(
-        string memory xnsName,
-        string memory routeScope,
-        string memory routeLabel
-    ) private view returns (RouteRecordWithBookStatus memory details) {
-        details.record = _getRouteRecord(xnsName, routeScope, routeLabel);
-        details.isRouteBookFrozen = _routeBookFrozen[_xnsNameKey(xnsName)];
     }
 
     function _resolveRouteIfActive(

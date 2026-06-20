@@ -13,13 +13,8 @@ interface IXNSRoutes {
         address activeController;
     }
 
-    struct RouteRecordWithBookStatus {
-        RouteRecord record;
-        bool isRouteBookFrozen;
-    }
-
     event RouteCreated(
-        bytes32 indexed nameHash,
+        bytes32 indexed xnsNameHash,
         bytes32 indexed routeKey,
         string canonicalXNSName,
         string routeScope,
@@ -31,7 +26,7 @@ interface IXNSRoutes {
     );
 
     event RouteActiveStatusUpdated(
-        bytes32 indexed nameHash,
+        bytes32 indexed xnsNameHash,
         bytes32 indexed routeKey,
         string canonicalXNSName,
         string routeScope,
@@ -39,7 +34,7 @@ interface IXNSRoutes {
         bool isActive
     );
 
-    event RouteBookFrozen(bytes32 indexed nameHash, string canonicalXNSName);
+    event RouteBookFrozen(bytes32 indexed xnsNameHash, string canonicalXNSName);
 
     function XNS() external view returns (address);
 
@@ -86,16 +81,6 @@ interface IXNSRoutes {
     ) external view returns (RouteRecord memory record);
 
     function getRouteRecord(string calldata registryXRL) external view returns (RouteRecord memory record);
-
-    function getRouteRecordWithBookStatus(
-        string calldata xnsName,
-        string calldata routeScope,
-        string calldata routeLabel
-    ) external view returns (RouteRecordWithBookStatus memory details);
-
-    function getRouteRecordWithBookStatus(
-        string calldata registryXRL
-    ) external view returns (RouteRecordWithBookStatus memory details);
 
     function resolveRouteIfActive(
         string calldata xnsName,

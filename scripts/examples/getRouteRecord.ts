@@ -1,5 +1,5 @@
 /**
- * Read route metadata and route-book freeze status from XNSRoutes.
+ * Read route metadata from XNSRoutes.
  *
  * USAGE:
  * `npx hardhat run scripts/examples/getRouteRecord.ts --network <network_name>`
@@ -50,16 +50,17 @@ async function main() {
   console.log(`routeScope: ${GREEN}${routeScope}${RESET}`);
   console.log(`routeLabel: ${GREEN}${routeLabel}${RESET}\n`);
 
-  const details = await routes.getRouteRecordWithBookStatus(xnsName, routeScope, routeLabel);
-  const record = details.record;
+  const record = await routes.getRouteRecord(xnsName, routeScope, routeLabel);
   if (record.target === hre.ethers.ZeroAddress) {
     console.log(`${YELLOW}⚠${RESET} Route not found (empty record).\n`);
     return;
   }
 
+  const bookFrozen = await routes.isRouteBookFrozen(xnsName);
+
   console.log(`target:    ${GREEN}${record.target}${RESET}`);
   console.log(`isActive:  ${GREEN}${record.isActive}${RESET}`);
-  console.log(`isRouteBookFrozen: ${GREEN}${details.isRouteBookFrozen}${RESET}`);
+  console.log(`isRouteBookFrozen: ${GREEN}${bookFrozen}${RESET}`);
   console.log(`routeType: ${GREEN}${record.routeType}${RESET}`);
   console.log(`activeController: ${GREEN}${record.activeController}${RESET}\n`);
 }

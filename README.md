@@ -179,7 +179,7 @@ freezeRouteBook("xns.action");
 
 > Useful for finalized app registries, audited contract maps, or limited route collections.
 
-Use `getRouteRecordWithBookStatus` to read a route plus `isRouteBookFrozen` in one call.
+Use `isRouteBookFrozen(xnsName)` to check whether the book is closed.
 
 ---
 
@@ -259,31 +259,31 @@ They enable:
 
 ## 📇 On-chain route discovery (no indexer)
 
-The registry keeps an **append-only log** of **route storage keys** (`bytes32`) per XNS name so integrators can discover “what was ever created here” using only `eth_call`s—**no subgraph or indexer required** for that workflow.
+The registry keeps a **list of route storage keys** (`bytes32`) per XNS name so integrators can discover registered routes using only `eth_call`s—**no subgraph or indexer required** for that workflow.
 
 **Views (see NatSpec / [docs/API.md](docs/API.md))**
 
-- `getRouteKeyCount(xnsName)` — length of the log for that name
-- `getRouteKeys(xnsName, start, end)` — page through keys (`end` **exclusive**; if `end` &gt; log length, it is clamped to the log length; if `start` is past that range, returns an empty array)
+- `getRouteKeyCount(xnsName)` — number of routes for that name
+- `getRouteKeys(xnsName, start, end)` — page through keys (`end` **exclusive**; if `end` &gt; array length, it is clamped to the array length; if `start` is past that range, returns an empty array)
 - `getRouteRecord(routeKey)` — read one `RouteRecord` by key (no string tuple needed)
 - `getRouteRecord(xnsName, routeScope, routeLabel)` — read by components (stored fields only)
 - `getRouteRecord(registryXRL)` — read by **registry XRL** (parsed by `splitRegistryXRL`)
-- `getRouteRecordWithBookStatus(...)` — same as tuple/registry-XRL `getRouteRecord`, plus `isRouteBookFrozen` (one-shot UI read)
+- `isRouteBookFrozen(xnsName)` — whether new routes can still be added under that name
 - `resolveRoute` — resolve `(target, routeType)` when the route exists (ignores `isActive`)
 - `resolveRouteIfActive` — same, but requires `isActive == true`
 - `splitRegistryXRL` — parse a registry XRL into `(xnsName, routeScope, routeLabel)` (not full XRL with params)
 
-Use **`resolveRouteIfActive`** for execution paths that must skip inactive routes; use **`resolveRoute`** when you need the binding regardless of active status. Use **`getRouteRecordWithBookStatus`** for trust/UI metadata in one call, or **`getRouteRecord`** for raw storage only. Resolver overloads revert when the route is missing or (for `resolveRouteIfActive`) inactive. `getRouteRecord` returns an **empty record** (`target == address(0)`) when the route is missing.
+Use **`resolveRouteIfActive`** for execution paths that must skip inactive routes; use **`resolveRoute`** when you need the binding regardless of active status. Use **`getRouteRecord`** for route metadata. Resolver overloads revert when the route is missing or (for `resolveRouteIfActive`) inactive. `getRouteRecord` returns an **empty record** (`target == address(0)`) when the route is missing.
 
 `target` and `routeType` are **immutable** after create. Route book freeze blocks **new** routes only; `activeController` can still toggle `isActive` on existing routes.
 
 **Important semantics (don’t skip this)**
 
-1. **Append-only key log**  
-   `getRouteKeyCount` counts **log entries** for a name—one entry per successful `createRoute`. Routes are never deleted on-chain; each key maps to a permanent record.
+1. **Route key list**  
+   `getRouteKeyCount` equals the number of routes registered under a name—one entry per successful `createRoute`. Routes are never deleted on-chain.
 
 2. **Existence check**  
-   Treat **`getRouteRecord(...).target == address(0)`** as "route not registered". The key log lists keys for routes that were successfully created.
+   Treat **`getRouteRecord(...).target == address(0)`** as "route not registered".
 
 ---
 
