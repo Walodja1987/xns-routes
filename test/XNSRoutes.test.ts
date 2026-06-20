@@ -14,6 +14,7 @@ describe("XNSRoutes", function () {
   const OTHER_BASE = "other.action";
   /** Default `routeType` in tests; semantics are offchain */
   const RT0 = 0;
+  const RENOUNCED = "0x000000000000000000000000000000000000dEaD";
 
   /** Matches `require(..., "XNSRoutes: ...")` in `XNSRoutes.sol`. */
   const XR = {
@@ -25,6 +26,11 @@ describe("XNSRoutes", function () {
     invalidActiveController: "XNSRoutes: invalid active controller",
     notXnsNameOwner: "XNSRoutes: not XNS name owner",
     notActiveController: "XNSRoutes: not active controller",
+    activeControlRenounced: "XNSRoutes: active control renounced",
+    sameActiveController: "XNSRoutes: same active controller",
+    useRenounceActiveControl: "XNSRoutes: use renounceActiveControl",
+    noPendingTransfer: "XNSRoutes: no pending transfer",
+    notPendingActiveController: "XNSRoutes: not pending active controller",
     routeNotFound: "XNSRoutes: route not found",
     routeInactive: "XNSRoutes: route inactive",
     routeBookFrozen: "XNSRoutes: route book frozen",
@@ -502,6 +508,215 @@ describe("XNSRoutes", function () {
       await expect(
         routes.connect(owner).deactivateRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
       ).to.be.revertedWith(XR.notActiveController);
+    });
+  });
+
+  describe("activeController transfer and renounce", function () {
+    async function createDefaultRoute(fixture: Fixture) {
+      const { routes, owner, buildTarget } = fixture;
+      await routes.connect(owner).createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0);
+    }
+
+    it("Should transfer activeController in two steps", async function () {
+      const fixture = await loadFixture(deployFixture);
+      const { routes, owner, other } = fixture;
+      await createDefaultRoute(fixture);
+
+      await expect(
+        routes
+          .connect(owner)
+          .transferActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, other.address),
+      )
+        .to.emit(routes, "ActiveControllerTransferStarted")
+        .withArgs(
+          xnsNameKey(XNS_NAME),
+          routeStorageKey(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
+          XNS_NAME,
+          ROUTE_SCOPE,
+          ROUTE_LABEL,
+          other.address,
+        );
+
+      expect(
+        await routes.pendingActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
+      ).to.equal(other.address);
+
+      await expect(routes.connect(other).acceptActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))
+        .to.emit(routes, "ActiveControllerTransferAccepted")
+        .withArgs(
+          xnsNameKey(XNS_NAME),
+          routeStorageKey(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
+          XNS_NAME,
+          ROUTE_SCOPE,
+          ROUTE_LABEL,
+          owner.address,
+          other.address,
+        );
+
+      const record = await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
+      expect(record.activeController).to.equal(other.address);
+      expect(await routes.pendingActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).to.equal(
+        ethers.ZeroAddress,
+      );
+    });
+
+    it("Should let the current controller cancel a pending transfer", async function () {
+      const fixture = await loadFixture(deployFixture);
+      const { routes, owner, other } = fixture;
+      await createDefaultRoute(fixture);
+
+      await routes
+        .connect(owner)
+        .transferActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, other.address);
+
+      await expect(
+        routes.connect(owner).cancelActiveControllerTransfer(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
+      )
+        .to.emit(routes, "ActiveControllerTransferCancelled")
+        .withArgs(
+          xnsNameKey(XNS_NAME),
+          routeStorageKey(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
+          XNS_NAME,
+          ROUTE_SCOPE,
+          ROUTE_LABEL,
+          other.address,
+        );
+
+      expect(await routes.pendingActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).to.equal(
+        ethers.ZeroAddress,
+      );
+      expect((await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).activeController).to.equal(
+        owner.address,
+      );
+    });
+
+    it("Should replace an existing pending transfer", async function () {
+      const fixture = await loadFixture(deployFixture);
+      const { routes, owner, other } = fixture;
+      const [, , , third] = await ethers.getSigners();
+      await createDefaultRoute(fixture);
+
+      await routes
+        .connect(owner)
+        .transferActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, other.address);
+      await routes
+        .connect(owner)
+        .transferActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, third.address);
+
+      expect(await routes.pendingActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).to.equal(
+        third.address,
+      );
+
+      await expect(
+        routes.connect(other).acceptActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
+      ).to.be.revertedWith(XR.notPendingActiveController);
+
+      await routes.connect(third).acceptActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
+      expect((await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).activeController).to.equal(
+        third.address,
+      );
+    });
+
+    it("Should revert transferActiveController for invalid newActiveController", async function () {
+      const fixture = await loadFixture(deployFixture);
+      const { routes, owner, other } = fixture;
+      await createDefaultRoute(fixture);
+
+      await expect(
+        routes
+          .connect(owner)
+          .transferActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, ethers.ZeroAddress),
+      ).to.be.revertedWith(XR.invalidActiveController);
+
+      await expect(
+        routes
+          .connect(owner)
+          .transferActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, owner.address),
+      ).to.be.revertedWith(XR.sameActiveController);
+
+      await expect(
+        routes
+          .connect(owner)
+          .transferActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, RENOUNCED),
+      ).to.be.revertedWith(XR.useRenounceActiveControl);
+
+      await expect(
+        routes
+          .connect(other)
+          .transferActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, other.address),
+      ).to.be.revertedWith(XR.notActiveController);
+    });
+
+    it("Should renounce active control and block further toggles", async function () {
+      const fixture = await loadFixture(deployFixture);
+      const { routes, owner } = fixture;
+      await createDefaultRoute(fixture);
+
+      await expect(routes.connect(owner).renounceActiveControl(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))
+        .to.emit(routes, "RouteActiveStatusUpdated")
+        .withArgs(
+          xnsNameKey(XNS_NAME),
+          routeStorageKey(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
+          XNS_NAME,
+          ROUTE_SCOPE,
+          ROUTE_LABEL,
+          false,
+        )
+        .and.to.emit(routes, "ActiveControllerRenounced");
+
+      const record = await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
+      expect(record.isActive).to.equal(false);
+      expect(record.activeController).to.equal(RENOUNCED);
+      expect(await routes.RENOUNCED_ACTIVE_CONTROLLER()).to.equal(RENOUNCED);
+
+      await expect(
+        routes.connect(owner).activateRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
+      ).to.be.revertedWith(XR.activeControlRenounced);
+
+      await expect(
+        routes.connect(owner).transferActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, owner.address),
+      ).to.be.revertedWith(XR.activeControlRenounced);
+    });
+
+    it("Should clear pending transfer on renounce", async function () {
+      const fixture = await loadFixture(deployFixture);
+      const { routes, owner, other } = fixture;
+      await createDefaultRoute(fixture);
+
+      await routes
+        .connect(owner)
+        .transferActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, other.address);
+      await routes.connect(owner).renounceActiveControl(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
+
+      expect(await routes.pendingActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).to.equal(
+        ethers.ZeroAddress,
+      );
+      await expect(
+        routes.connect(other).acceptActiveController(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
+      ).to.be.revertedWith(XR.activeControlRenounced);
+    });
+
+    it("Should revert renounceActiveControl when already renounced", async function () {
+      const fixture = await loadFixture(deployFixture);
+      const { routes, owner } = fixture;
+      await createDefaultRoute(fixture);
+
+      await routes.connect(owner).renounceActiveControl(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
+      await expect(
+        routes.connect(owner).renounceActiveControl(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
+      ).to.be.revertedWith(XR.activeControlRenounced);
+    });
+
+    it("Should revert resolveRouteIfActive after renounce", async function () {
+      const fixture = await loadFixture(deployFixture);
+      const { routes, owner } = fixture;
+      await createDefaultRoute(fixture);
+
+      await routes.connect(owner).renounceActiveControl(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
+
+      await expect(
+        routes.resolveRouteIfActive(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
+      ).to.be.revertedWith(XR.routeInactive);
     });
   });
 

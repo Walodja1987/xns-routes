@@ -84,6 +84,51 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 ---
 
+## `transferActiveController` / `acceptActiveController` / `cancelActiveControllerTransfer`
+
+#### Functionality
+
+- Current `activeController` may start a transfer to a live non-zero address (`transferActiveController`).
+- Pending recipient completes with `acceptActiveController`; current controller may `cancelActiveControllerTransfer`.
+- A new transfer replaces any existing pending transfer.
+- Cannot transfer to `RENOUNCED_ACTIVE_CONTROLLER` (use `renounceActiveControl`).
+
+#### Events
+
+- `ActiveControllerTransferStarted`, `ActiveControllerTransferAccepted`, `ActiveControllerTransferCancelled`.
+
+#### Reverts
+
+- `"XNSRoutes: not active controller"`, `"XNSRoutes: invalid active controller"`, `"XNSRoutes: same active controller"`, `"XNSRoutes: use renounceActiveControl"`, `"XNSRoutes: no pending transfer"`, `"XNSRoutes: not pending active controller"`, `"XNSRoutes: active control renounced"`, `"XNSRoutes: route not found"`.
+
+---
+
+## `renounceActiveControl`
+
+#### Functionality
+
+- Current `activeController` may permanently renounce control: sets `activeController` to `RENOUNCED_ACTIVE_CONTROLLER` and `isActive` to false.
+- Clears any pending transfer. Emits `RouteActiveStatusUpdated` only if `isActive` was true.
+- After renounce, toggles and transfers revert.
+
+#### Events
+
+- `ActiveControllerRenounced`; optionally `RouteActiveStatusUpdated`.
+
+#### Reverts
+
+- `"XNSRoutes: not active controller"`, `"XNSRoutes: active control renounced"`, `"XNSRoutes: route not found"`.
+
+---
+
+## `pendingActiveController`
+
+#### Functionality
+
+- Returns pending accept address for a route, or `address(0)` if none.
+
+---
+
 ## `freezeRouteBook`
 
 #### Functionality

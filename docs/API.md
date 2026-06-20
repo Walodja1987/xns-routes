@@ -51,12 +51,15 @@ Route metadata and controls:
 
 **Active status & activeController**
 - Routes can be active or inactive (`isActive`).
-- `activeController` is the only account that may call `activateRoute` / `deactivateRoute`.
+- `activeController` may call `activateRoute` / `deactivateRoute`, start or cancel a
+  two-step transfer (`transferActiveController` / `acceptActiveController`), or
+  `renounceActiveControl` (irreversible).
 - Useful to tell off-chain parsers not to resolve a route (e.g. deprecated or paused).
 - Set at create (`createRoute` defaults to the XNS name owner and isActive = true;
   `createRouteWithController` for explicit choice).
 - `activeController` must not be `address(0)`.
-- To make `isActive` permanently immutable, set `activeController` to a non-zero dead address.
+- At create, `activeController` may be `RENOUNCED_ACTIVE_CONTROLLER` to lock `isActive`
+  permanently; after create use `renounceActiveControl` for the same effect.
 
 **Route book freeze**
 - The XNS name owner can freeze the entire route book for an XNS name (`freezeRouteBook`).
@@ -192,6 +195,85 @@ function deactivateRoute(string xnsName, string routeScope, string routeLabel) e
 | xnsName | string | The XNS name that owns the route space. |
 | routeScope | string | Route scope of the route path to be deactivated (may be empty). |
 | routeLabel | string | Route label of the route path to be deactivated. |
+
+
+### transferActiveController
+
+
+Start a two-step transfer of `activeController` to `newActiveController`.
+
+**Requirements:**
+- `msg.sender` must be the current `activeController`.
+- The route must exist and active control must not be renounced.
+- `newActiveController` must not be zero, the current controller, or
+  `RENOUNCED_ACTIVE_CONTROLLER` (use `renounceActiveControl` instead).
+
+Replaces any existing pending transfer for this route.
+
+```solidity
+function transferActiveController(string xnsName, string routeScope, string routeLabel, address newActiveController) external
+```
+
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| xnsName | string |  |
+| routeScope | string |  |
+| routeLabel | string |  |
+| newActiveController | address | Account that must call `acceptActiveController` to complete the transfer. |
+
+
+### acceptActiveController
+
+
+Complete a pending `activeController` transfer.
+
+**Requirements:**
+- `msg.sender` must be the pending `newActiveController` from `transferActiveController`.
+- The route must exist and active control must not be renounced.
+
+```solidity
+function acceptActiveController(string xnsName, string routeScope, string routeLabel) external
+```
+
+
+
+
+### cancelActiveControllerTransfer
+
+
+Cancel a pending `activeController` transfer.
+
+**Requirements:**
+- `msg.sender` must be the current `activeController`.
+- A pending transfer must exist.
+
+```solidity
+function cancelActiveControllerTransfer(string xnsName, string routeScope, string routeLabel) external
+```
+
+
+
+
+### renounceActiveControl
+
+
+Permanently renounce active control: sets `activeController` to
+`RENOUNCED_ACTIVE_CONTROLLER` and `isActive` to false.
+
+**Requirements:**
+- `msg.sender` must be the current `activeController`.
+- Active control must not already be renounced.
+
+Clears any pending transfer. Emits `RouteActiveStatusUpdated` if `isActive` changes.
+
+```solidity
+function renounceActiveControl(string xnsName, string routeScope, string routeLabel) external
+```
+
+
 
 
 ### freezeRouteBook
@@ -423,6 +505,18 @@ function isRouteBookFrozen(string xnsName) external view returns (bool frozen)
 | ---- | ---- | ----------- |
 | frozen | bool | True if the route book is frozen. |
 
+### pendingActiveController
+
+
+Pending `acceptActiveController` recipient for a route, or `address(0)` if none.
+
+```solidity
+function pendingActiveController(string xnsName, string routeScope, string routeLabel) external view returns (address pending)
+```
+
+
+
+
 ### getRouteKeyCount
 
 
@@ -619,10 +713,80 @@ _Emitted in `freezeRouteBook` when the route book is frozen for an XNS name._
 
 
 
+### ActiveControllerTransferStarted
+
+
+
+
+```solidity
+event ActiveControllerTransferStarted(bytes32 xnsNameHash, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, address pendingActiveController)
+```
+
+_Emitted in `transferActiveController`._
+
+
+
+
+### ActiveControllerTransferAccepted
+
+
+
+
+```solidity
+event ActiveControllerTransferAccepted(bytes32 xnsNameHash, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, address previousActiveController, address newActiveController)
+```
+
+_Emitted in `acceptActiveController`._
+
+
+
+
+### ActiveControllerTransferCancelled
+
+
+
+
+```solidity
+event ActiveControllerTransferCancelled(bytes32 xnsNameHash, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, address cancelledPendingActiveController)
+```
+
+_Emitted in `cancelActiveControllerTransfer`._
+
+
+
+
+### ActiveControllerRenounced
+
+
+
+
+```solidity
+event ActiveControllerRenounced(bytes32 xnsNameHash, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel)
+```
+
+_Emitted in `renounceActiveControl`._
+
+
+
+
 
 
 
 ## State Variables
+
+### RENOUNCED_ACTIVE_CONTROLLER
+
+
+Sentinel stored in `activeController` after `renounceActiveControl`.
+That account cannot toggle, transfer, or accept; `isActive` is forced false.
+
+```solidity
+address RENOUNCED_ACTIVE_CONTROLLER
+```
+
+
+
+
 
 ### XNS
 

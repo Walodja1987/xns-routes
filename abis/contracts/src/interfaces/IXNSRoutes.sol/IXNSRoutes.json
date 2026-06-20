@@ -1,9 +1,16 @@
 [
+  "event ActiveControllerRenounced(bytes32 indexed,bytes32 indexed,string,string,string)",
+  "event ActiveControllerTransferAccepted(bytes32 indexed,bytes32 indexed,string,string,string,address,address indexed)",
+  "event ActiveControllerTransferCancelled(bytes32 indexed,bytes32 indexed,string,string,string,address indexed)",
+  "event ActiveControllerTransferStarted(bytes32 indexed,bytes32 indexed,string,string,string,address indexed)",
   "event RouteActiveStatusUpdated(bytes32 indexed,bytes32 indexed,string,string,string,bool)",
   "event RouteBookFrozen(bytes32 indexed,string)",
   "event RouteCreated(bytes32 indexed,bytes32 indexed,string,string,string,address indexed,uint32,bool,address)",
+  "function RENOUNCED_ACTIVE_CONTROLLER() view returns (address)",
   "function XNS() view returns (address)",
+  "function acceptActiveController(string,string,string)",
   "function activateRoute(string,string,string)",
+  "function cancelActiveControllerTransfer(string,string,string)",
   "function createRoute(string,string,string,address,uint32)",
   "function createRouteWithController(string,string,string,address,uint32,bool,address)",
   "function deactivateRoute(string,string,string)",
@@ -17,9 +24,12 @@
   "function isValidRouteLabel(string) pure returns (bool)",
   "function isValidRouteScope(string) pure returns (bool)",
   "function isValidRouteScopeAndLabel(string,string) pure returns (bool)",
+  "function pendingActiveController(string,string,string) view returns (address)",
+  "function renounceActiveControl(string,string,string)",
   "function resolveRoute(string,string,string) view returns (address, uint32)",
   "function resolveRoute(string) view returns (address, uint32)",
   "function resolveRouteIfActive(string,string,string) view returns (address, uint32)",
   "function resolveRouteIfActive(string) view returns (address, uint32)",
-  "function splitRegistryXRL(string) pure returns (string, string, string)"
+  "function splitRegistryXRL(string) pure returns (string, string, string)",
+  "function transferActiveController(string,string,string,address)"
 ]

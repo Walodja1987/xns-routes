@@ -30,6 +30,8 @@ EVENT_NAMES = (
     "RouteCreated",
     "RouteActiveStatusUpdated",
     "RouteBookFrozen",
+    "ActiveControllerTransferAccepted",
+    "ActiveControllerRenounced",
 )
 
 
@@ -257,6 +259,21 @@ def apply_event(conn: sqlite3.Connection, chain_id: int, contract: str, evt: dic
             block_number=evt["blockNumber"],
             tx_hash=evt["transactionHash"],
             log_index=evt["logIndex"],
+        )
+    elif name == "ActiveControllerTransferAccepted":
+        upsert_route(
+            conn,
+            **common,
+            active_controller=Web3.to_checksum_address(a["newActiveController"]),
+        )
+    elif name == "ActiveControllerRenounced":
+        upsert_route(
+            conn,
+            **common,
+            is_active=0,
+            active_controller=Web3.to_checksum_address(
+                "0x000000000000000000000000000000000000dEaD"
+            ),
         )
 
 

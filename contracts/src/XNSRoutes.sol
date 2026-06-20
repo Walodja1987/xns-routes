@@ -62,12 +62,15 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 ///
 /// **Active status & activeController**
 /// - Routes can be active or inactive (`isActive`).
-/// - `activeController` is the only account that may call `activateRoute` / `deactivateRoute`.
+/// - `activeController` may call `activateRoute` / `deactivateRoute`, start or cancel a
+///   two-step transfer (`transferActiveController` / `acceptActiveController`), or
+///   `renounceActiveControl` (irreversible).
 /// - Useful to tell off-chain parsers not to resolve a route (e.g. deprecated or paused).
 /// - Set at create (`createRoute` defaults to the XNS name owner and isActive = true;
 ///   `createRouteWithController` for explicit choice).
 /// - `activeController` must not be `address(0)`.
-/// - To make `isActive` permanently immutable, set `activeController` to a non-zero dead address.
+/// - At create, `activeController` may be `RENOUNCED_ACTIVE_CONTROLLER` to lock `isActive`
+///   permanently; after create use `renounceActiveControl` for the same effect.
 ///
 /// **Route book freeze**
 /// - The XNS name owner can freeze the entire route book for an XNS name (`freezeRouteBook`).
@@ -85,6 +88,15 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - `routeKey` = hash of canonical registry XRL.
 /// - List routes on-chain with `getRouteKeyCount` and `getRouteKeys`.
 contract XNSRoutes {
+    // -------------------------------------------------------------------------
+    // Constants
+    // -------------------------------------------------------------------------
+
+    /// @notice Sentinel stored in `activeController` after `renounceActiveControl`.
+    /// That account cannot toggle, transfer, or accept; `isActive` is forced false.
+    address public constant RENOUNCED_ACTIVE_CONTROLLER =
+        address(0x000000000000000000000000000000000000dEaD);
+
     // -------------------------------------------------------------------------
     // Types
     // -------------------------------------------------------------------------
@@ -112,6 +124,9 @@ contract XNSRoutes {
 
     // keccak256(bytes(canonical xnsName)) => route keys created under that XNS name
     mapping(bytes32 => bytes32[]) private _routeKeysByXNSName;
+
+    // _routeKey(...) => pending `acceptActiveController` recipient (0 = none)
+    mapping(bytes32 => address) private _pendingActiveController;
 
     // -------------------------------------------------------------------------
     // Events
@@ -142,6 +157,46 @@ contract XNSRoutes {
 
     /// @dev Emitted in `freezeRouteBook` when the route book is frozen for an XNS name.
     event RouteBookFrozen(bytes32 indexed xnsNameHash, string canonicalXNSName);
+
+    /// @dev Emitted in `transferActiveController`.
+    event ActiveControllerTransferStarted(
+        bytes32 indexed xnsNameHash,
+        bytes32 indexed routeKey,
+        string canonicalXNSName,
+        string routeScope,
+        string routeLabel,
+        address indexed pendingActiveController
+    );
+
+    /// @dev Emitted in `acceptActiveController`.
+    event ActiveControllerTransferAccepted(
+        bytes32 indexed xnsNameHash,
+        bytes32 indexed routeKey,
+        string canonicalXNSName,
+        string routeScope,
+        string routeLabel,
+        address previousActiveController,
+        address indexed newActiveController
+    );
+
+    /// @dev Emitted in `cancelActiveControllerTransfer`.
+    event ActiveControllerTransferCancelled(
+        bytes32 indexed xnsNameHash,
+        bytes32 indexed routeKey,
+        string canonicalXNSName,
+        string routeScope,
+        string routeLabel,
+        address indexed cancelledPendingActiveController
+    );
+
+    /// @dev Emitted in `renounceActiveControl`.
+    event ActiveControllerRenounced(
+        bytes32 indexed xnsNameHash,
+        bytes32 indexed routeKey,
+        string canonicalXNSName,
+        string routeScope,
+        string routeLabel
+    );
 
     // -------------------------------------------------------------------------
     // Constructor
@@ -333,6 +388,7 @@ contract XNSRoutes {
         RouteRecord storage record = _routes[routeKey];
 
         require(record.target != address(0), "XNSRoutes: route not found");
+        require(record.activeController != RENOUNCED_ACTIVE_CONTROLLER, "XNSRoutes: active control renounced");
         require(msg.sender == record.activeController, "XNSRoutes: not active controller");
 
         if (record.isActive != active) {
@@ -346,6 +402,166 @@ contract XNSRoutes {
                 active
             );
         }
+    }
+
+    /// @notice Start a two-step transfer of `activeController` to `newActiveController`.
+    ///
+    /// **Requirements:**
+    /// - `msg.sender` must be the current `activeController`.
+    /// - The route must exist and active control must not be renounced.
+    /// - `newActiveController` must not be zero, the current controller, or
+    ///   `RENOUNCED_ACTIVE_CONTROLLER` (use `renounceActiveControl` instead).
+    ///
+    /// Replaces any existing pending transfer for this route.
+    ///
+    /// @param newActiveController Account that must call `acceptActiveController` to complete the transfer.
+    function transferActiveController(
+        string calldata xnsName,
+        string calldata routeScope,
+        string calldata routeLabel,
+        address newActiveController
+    ) external {
+        (
+            string memory canonicalXNSName,
+            bytes32 nameKey,
+            bytes32 routeKey,
+            RouteRecord storage record
+        ) = _requireMutableActiveControllerRoute(xnsName, routeScope, routeLabel);
+
+        require(newActiveController != address(0), "XNSRoutes: invalid active controller");
+        require(
+            newActiveController != RENOUNCED_ACTIVE_CONTROLLER,
+            "XNSRoutes: use renounceActiveControl"
+        );
+        require(newActiveController != record.activeController, "XNSRoutes: same active controller");
+        require(msg.sender == record.activeController, "XNSRoutes: not active controller");
+
+        _pendingActiveController[routeKey] = newActiveController;
+
+        emit ActiveControllerTransferStarted(
+            nameKey,
+            routeKey,
+            canonicalXNSName,
+            routeScope,
+            routeLabel,
+            newActiveController
+        );
+    }
+
+    /// @notice Complete a pending `activeController` transfer.
+    ///
+    /// **Requirements:**
+    /// - `msg.sender` must be the pending `newActiveController` from `transferActiveController`.
+    /// - The route must exist and active control must not be renounced.
+    function acceptActiveController(
+        string calldata xnsName,
+        string calldata routeScope,
+        string calldata routeLabel
+    ) external {
+        (
+            string memory canonicalXNSName,
+            bytes32 nameKey,
+            bytes32 routeKey,
+            RouteRecord storage record
+        ) = _requireMutableActiveControllerRoute(xnsName, routeScope, routeLabel);
+
+        address pending = _pendingActiveController[routeKey];
+        require(pending != address(0), "XNSRoutes: no pending transfer");
+        require(msg.sender == pending, "XNSRoutes: not pending active controller");
+
+        address previous = record.activeController;
+        record.activeController = pending;
+        delete _pendingActiveController[routeKey];
+
+        emit ActiveControllerTransferAccepted(
+            nameKey,
+            routeKey,
+            canonicalXNSName,
+            routeScope,
+            routeLabel,
+            previous,
+            pending
+        );
+    }
+
+    /// @notice Cancel a pending `activeController` transfer.
+    ///
+    /// **Requirements:**
+    /// - `msg.sender` must be the current `activeController`.
+    /// - A pending transfer must exist.
+    function cancelActiveControllerTransfer(
+        string calldata xnsName,
+        string calldata routeScope,
+        string calldata routeLabel
+    ) external {
+        (
+            string memory canonicalXNSName,
+            bytes32 nameKey,
+            bytes32 routeKey,
+            RouteRecord storage record
+        ) = _requireMutableActiveControllerRoute(xnsName, routeScope, routeLabel);
+
+        address pending = _pendingActiveController[routeKey];
+        require(pending != address(0), "XNSRoutes: no pending transfer");
+        require(msg.sender == record.activeController, "XNSRoutes: not active controller");
+
+        delete _pendingActiveController[routeKey];
+
+        emit ActiveControllerTransferCancelled(
+            nameKey,
+            routeKey,
+            canonicalXNSName,
+            routeScope,
+            routeLabel,
+            pending
+        );
+    }
+
+    /// @notice Permanently renounce active control: sets `activeController` to
+    /// `RENOUNCED_ACTIVE_CONTROLLER` and `isActive` to false.
+    ///
+    /// **Requirements:**
+    /// - `msg.sender` must be the current `activeController`.
+    /// - Active control must not already be renounced.
+    ///
+    /// Clears any pending transfer. Emits `RouteActiveStatusUpdated` if `isActive` changes.
+    function renounceActiveControl(
+        string calldata xnsName,
+        string calldata routeScope,
+        string calldata routeLabel
+    ) external {
+        (
+            string memory canonicalXNSName,
+            bytes32 nameKey,
+            bytes32 routeKey,
+            RouteRecord storage record
+        ) = _requireMutableActiveControllerRoute(xnsName, routeScope, routeLabel);
+
+        require(msg.sender == record.activeController, "XNSRoutes: not active controller");
+
+        delete _pendingActiveController[routeKey];
+
+        if (record.isActive) {
+            record.isActive = false;
+            emit RouteActiveStatusUpdated(
+                nameKey,
+                routeKey,
+                canonicalXNSName,
+                routeScope,
+                routeLabel,
+                false
+            );
+        }
+
+        record.activeController = RENOUNCED_ACTIVE_CONTROLLER;
+
+        emit ActiveControllerRenounced(
+            nameKey,
+            routeKey,
+            canonicalXNSName,
+            routeScope,
+            routeLabel
+        );
     }
 
     /// @notice Freeze the entire route book under an XNS name forever.
@@ -493,6 +709,17 @@ contract XNSRoutes {
         return _routeBookFrozen[_xnsNameKey(xnsName)];
     }
 
+    /// @notice Pending `acceptActiveController` recipient for a route, or `address(0)` if none.
+    function pendingActiveController(
+        string calldata xnsName,
+        string calldata routeScope,
+        string calldata routeLabel
+    ) external view returns (address pending) {
+        string memory canonicalXNSName = _canonicalizeXNSName(xnsName);
+        _validateRouteScopeAndLabel(routeScope, routeLabel);
+        return _pendingActiveController[_routeKey(canonicalXNSName, routeScope, routeLabel)];
+    }
+
     /// @notice Number of route keys registered under `xnsName`.
     ///
     /// @param xnsName The XNS name to get the route key count for.
@@ -583,6 +810,33 @@ contract XNSRoutes {
     ) external pure returns (bool valid) {
         if (bytes(routeScope).length != 0 && !_isValidRouteScope(routeScope)) return false;
         return _isValidRouteLabel(routeLabel);
+    }
+
+    /// @dev Validates scope/label, loads an existing route with mutable active control.
+    function _requireMutableActiveControllerRoute(
+        string calldata xnsName,
+        string calldata routeScope,
+        string calldata routeLabel
+    )
+        private
+        view
+        returns (
+            string memory canonicalXNSName,
+            bytes32 nameKey,
+            bytes32 routeKey,
+            RouteRecord storage record
+        )
+    {
+        canonicalXNSName = _canonicalizeXNSName(xnsName);
+        _validateRouteScopeAndLabel(routeScope, routeLabel);
+        nameKey = _xnsNameKey(canonicalXNSName);
+        routeKey = _routeKey(canonicalXNSName, routeScope, routeLabel);
+        record = _routes[routeKey];
+        require(record.target != address(0), "XNSRoutes: route not found");
+        require(
+            record.activeController != RENOUNCED_ACTIVE_CONTROLLER,
+            "XNSRoutes: active control renounced"
+        );
     }
 
     /// @dev Validates scope/label, derives key and returns the route record.

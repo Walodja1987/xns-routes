@@ -160,7 +160,7 @@ Each route has:
 - `target` → build contract (**immutable** after create)
 - `routeType` → off-chain parser hint (**immutable** after create)
 - `isActive` → usable or disabled (toggled by `activeController`)
-- `activeController` → sole account that may call `activateRoute` / `deactivateRoute` (must not be `address(0)`)
+- `activeController` → sole account that may call `activateRoute` / `deactivateRoute`, start a two-step transfer, or `renounceActiveControl` (must not be `address(0)`; see `RENOUNCED_ACTIVE_CONTROLLER`)
 
 Routes cannot be updated or deleted. The binding from registry XRL to `target` is permanent.
 

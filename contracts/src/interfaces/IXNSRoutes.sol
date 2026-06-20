@@ -36,9 +36,53 @@ interface IXNSRoutes {
 
     event RouteBookFrozen(bytes32 indexed xnsNameHash, string canonicalXNSName);
 
+    event ActiveControllerTransferStarted(
+        bytes32 indexed xnsNameHash,
+        bytes32 indexed routeKey,
+        string canonicalXNSName,
+        string routeScope,
+        string routeLabel,
+        address indexed pendingActiveController
+    );
+
+    event ActiveControllerTransferAccepted(
+        bytes32 indexed xnsNameHash,
+        bytes32 indexed routeKey,
+        string canonicalXNSName,
+        string routeScope,
+        string routeLabel,
+        address previousActiveController,
+        address indexed newActiveController
+    );
+
+    event ActiveControllerTransferCancelled(
+        bytes32 indexed xnsNameHash,
+        bytes32 indexed routeKey,
+        string canonicalXNSName,
+        string routeScope,
+        string routeLabel,
+        address indexed cancelledPendingActiveController
+    );
+
+    event ActiveControllerRenounced(
+        bytes32 indexed xnsNameHash,
+        bytes32 indexed routeKey,
+        string canonicalXNSName,
+        string routeScope,
+        string routeLabel
+    );
+
+    function RENOUNCED_ACTIVE_CONTROLLER() external view returns (address);
+
     function XNS() external view returns (address);
 
     function isRouteBookFrozen(string calldata xnsName) external view returns (bool);
+
+    function pendingActiveController(
+        string calldata xnsName,
+        string calldata routeScope,
+        string calldata routeLabel
+    ) external view returns (address pending);
 
     function createRoute(
         string calldata xnsName,
@@ -65,6 +109,31 @@ interface IXNSRoutes {
     ) external;
 
     function deactivateRoute(
+        string calldata xnsName,
+        string calldata routeScope,
+        string calldata routeLabel
+    ) external;
+
+    function transferActiveController(
+        string calldata xnsName,
+        string calldata routeScope,
+        string calldata routeLabel,
+        address newActiveController
+    ) external;
+
+    function acceptActiveController(
+        string calldata xnsName,
+        string calldata routeScope,
+        string calldata routeLabel
+    ) external;
+
+    function cancelActiveControllerTransfer(
+        string calldata xnsName,
+        string calldata routeScope,
+        string calldata routeLabel
+    ) external;
+
+    function renounceActiveControl(
         string calldata xnsName,
         string calldata routeScope,
         string calldata routeLabel
