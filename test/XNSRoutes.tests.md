@@ -72,6 +72,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 - Should revert with `"XNSRoutes: not active controller"` when the caller is not `record.activeController`.
 - Should revert with `"XNSRoutes: route not found"` when no route exists for `(xnsName, routeScope, routeLabel)`.
+- Should revert with `"XNSRoutes: active control renounced"` after `renounceActiveControl`.
 
 ---
 
@@ -79,7 +80,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
-- Set at `createRoute` (XNS name owner) or `createRouteWithController`; never editable afterward.
+- Set at `createRoute` (XNS name owner) or `createRouteWithController`; may be transferred in two steps or renounced.
 - Only `activeController` may call `activateRoute` / `deactivateRoute` (name owner has no special toggle rights unless they are the stored controller).
 
 ---
@@ -153,7 +154,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 - All overloads return an empty `RouteRecord` (`target == address(0)`) when the route does not exist (soft read).
 - `getRouteRecord(xnsName, routeScope, routeLabel)` returns fields consistent with `createRoute` / `createRouteWithController` / `activateRoute` / `deactivateRoute`.
-- `getRouteRecord(string registryXRL)` parses a **registry XRL** via `splitRegistryXRL` then reads the same record.
+- `getRouteRecord(string route)` parses a **route** via `splitRoute` then reads the same record.
 - `getRouteRecord(bytes32 routeKey)` reads storage directly by key.
 - Existence: `getRouteRecord(...).target != address(0)`.
 - Tuple overload applies the same local `routeScope` / routeLabel validation as mutating functions before deriving the key.
@@ -161,7 +162,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 #### Reverts
 
 - Should revert with `"XNSRoutes: invalid route scope"` / `"XNSRoutes: invalid route label"` for malformed `routeScope` / routeLabel (e.g. `:` in routeLabel when `routeScope` is empty).
-- `getRouteRecord(string)` should revert with `"XNSRoutes: invalid XRL"` when no `/` is present.
+- `getRouteRecord(string)` should revert with `"XNSRoutes: invalid route"` when no `/` is present.
 
 ---
 
@@ -169,7 +170,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
-- Tuple and registry-XRL overloads return `(target, routeType)` for forward resolution.
+- Tuple and route-string overloads return `(target, routeType)` for forward resolution.
 - `resolveRoute`: route exists (`target != address(0)`); ignores `isActive`.
 - `resolveRouteIfActive`: route exists and `isActive == true`.
 - Both succeed when the route book is frozen (existing routes unchanged).
@@ -179,7 +180,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 - `"XNSRoutes: route not found"` when the route does not exist.
 - `"XNSRoutes: route inactive"` for `resolveRouteIfActive` when `isActive == false`.
 - `"XNSRoutes: invalid route scope"` / `"XNSRoutes: invalid route label"` for malformed tuple inputs.
-- `"XNSRoutes: invalid XRL"` for registry-XRL overloads without `/`.
+- `"XNSRoutes: invalid route"` for route-string overloads without `/`.
 
 ---
 

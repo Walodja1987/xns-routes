@@ -31,5 +31,5 @@
   "function resolveRoute(string) view returns (address, uint32)",
   "function resolveRouteIfActive(string,string,string) view returns (address, uint32)",
   "function resolveRouteIfActive(string) view returns (address, uint32)",
-  "function splitRegistryXRL(string) pure returns (string, string, string)"
+  "function splitRoute(string) pure returns (string, string, string)"
 ]

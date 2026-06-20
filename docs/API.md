@@ -10,30 +10,29 @@ identifiers to any Ethereum address. Routes may point to EOAs and smart contract
 including helper/view contracts returning arbitrary data, such as Bitcoin or
 Solana addresses, calldata, or other information.
 
-Routes are addressed with XRL (XNS Route Link) strings. The format is:
+Routes are addressed with **route** and **parametrized route** strings.
 
-XRL = `xnsName/[routeScope:]routeLabel[/params]`
+- **route** — `xnsName/[routeScope:]routeLabel` (on-chain identity; no params).
+- **parametrized route** — route plus optional `/params…` tail (off-chain parsers only).
 
 - **xnsName** — XNS name that owns the route book (e.g. `bob.xns`).
 - **routeScope** — optional segment before `:` (1–20 chars if present).
 - **routeLabel** — required slug (1–32 chars).
+- **route identifier** — `[routeScope:]routeLabel` within an `xnsName`.
 - **params** — optional parameters for off-chain route parsers; not stored or
   validated on-chain.
-- The segment `[routeScope:]routeLabel` is referred to as **route**.
-- The segment `xnsName/[routeScope:]routeLabel` (XRL without the params tail) is
-  referred to as **Registry XRL**.
 
-Examples XRLs:
-- `alice.og/my-sub-wallet` (without routeScope)
-- `contracts.aave/eth:v3-pool-contract` (with routeScope)
-- `bob.xns/uniswap:approve-usdt/amount=10` (with routeScope and params)
+Examples:
+- route: `alice.og/my-sub-wallet` (without routeScope)
+- route: `contracts.aave/eth:v3-pool-contract` (with routeScope)
+- parametrized route: `bob.xns/uniswap:approve-usdt/amount=10` (with routeScope and params)
 
 `routeScope` and `routeLabel` must follow the same character and hyphenation rules as XNS names:
 - Must consist only of [a-z0-9-] (lowercase letters, digits, and hyphens)
 - Cannot start or end with '-'
 - Cannot contain consecutive hyphens ('--')
 
-Each registry XRL points to a `target`. Once created, `target` and `routeType` are immutable.
+Each route points to a `target`. Once created, `target` and `routeType` are immutable.
 
 Route metadata and controls:
 
@@ -70,11 +69,11 @@ Route metadata and controls:
 **Other**
 - Routes are owned by the XNS name owner; registration is free and unlimited.
 - Route record: `target`, `routeType`, `isActive`, `activeController`.
-- Forward resolution: registry XRL -> `target`. Use `resolveRouteIfActive` for safe reads
+- Forward resolution: route -> `target`. Use `resolveRouteIfActive` for safe reads
   or `resolveRoute` for raw resolution. Reverse lookup is not supported because many routes
   may point to the same `target`.
 - Bare names like `bob` are stored as `bob.x`.
-- `routeKey` = hash of canonical registry XRL.
+- `routeKey` = hash of canonical route.
 - List routes on-chain with `getRouteKeyCount` and `getRouteKeys`.
 
 
@@ -354,11 +353,11 @@ function getRouteRecord(string xnsName, string routeScope, string routeLabel) ex
 ### getRouteRecord
 
 
-Reads stored route record data by registry XRL (`splitRegistryXRL`).
+Reads stored route record data by route string (`splitRoute`).
 `record.target == address(0)` means that record does not exist.
 
 ```solidity
-function getRouteRecord(string registryXRL) external view returns (struct XNSRoutes.RouteRecord record)
+function getRouteRecord(string route) external view returns (struct XNSRoutes.RouteRecord record)
 ```
 
 
@@ -366,7 +365,7 @@ function getRouteRecord(string registryXRL) external view returns (struct XNSRou
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| registryXRL | string | Registry XRL, e.g. `bob.xns/eth:my-wallet`, without trailing parameters (if any). |
+| route | string | Route, e.g. `bob.xns/eth:my-wallet`, without a parametrized `/params…` tail. |
 
 #### Return Values
 
@@ -407,12 +406,12 @@ function resolveRouteIfActive(string xnsName, string routeScope, string routeLab
 ### resolveRouteIfActive
 
 
-Resolves an active route to `(target, routeType)` by registry XRL (`splitRegistryXRL`).
+Resolves an active route to `(target, routeType)` by route string (`splitRoute`).
 
 **Requirements:** same as `resolveRouteIfActive(xnsName, routeScope, routeLabel)`.
 
 ```solidity
-function resolveRouteIfActive(string registryXRL) external view returns (address target, uint32 routeType)
+function resolveRouteIfActive(string route) external view returns (address target, uint32 routeType)
 ```
 
 
@@ -420,7 +419,7 @@ function resolveRouteIfActive(string registryXRL) external view returns (address
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| registryXRL | string | Registry XRL, e.g. `bob.xns/eth:my-wallet`, without trailing parameters (if any). |
+| route | string | Route, e.g. `bob.xns/eth:my-wallet`, without a parametrized `/params…` tail. |
 
 #### Return Values
 
@@ -461,12 +460,12 @@ function resolveRoute(string xnsName, string routeScope, string routeLabel) exte
 ### resolveRoute
 
 
-Resolves a route to `(target, routeType)` by registry XRL (`splitRegistryXRL`).
+Resolves a route to `(target, routeType)` by route string (`splitRoute`).
 
 **Requirements:** same as `resolveRoute(xnsName, routeScope, routeLabel)`.
 
 ```solidity
-function resolveRoute(string registryXRL) external view returns (address target, uint32 routeType)
+function resolveRoute(string route) external view returns (address target, uint32 routeType)
 ```
 
 
@@ -474,7 +473,7 @@ function resolveRoute(string registryXRL) external view returns (address target,
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| registryXRL | string | Registry XRL, e.g. `bob.xns/eth:my-wallet`, without trailing parameters (if any). |
+| route | string | Route, e.g. `bob.xns/eth:my-wallet`, without a parametrized `/params…` tail. |
 
 #### Return Values
 
@@ -569,20 +568,20 @@ function getRouteKeys(string xnsName, uint256 start, uint256 end) external view 
 | ---- | ---- | ----------- |
 | keys | bytes32[] | The route keys. |
 
-### splitRegistryXRL
+### splitRoute
 
 
-Parses a registry XRL into `(xnsName, routeScope, routeLabel)`.
+Parses a route into `(xnsName, routeScope, routeLabel)`.
 Example: `bro.xns/eth:my-wallet` -> `(bro.xns, eth, my-wallet)`.
 Useful when calling tuple-based mutating functions (`createRoute`, etc.).
 
-A registry XRL is `xnsName "/" route` — the on-chain subset of a full XRL (no `/params…` tail).
+A route is `xnsName "/" routeIdentifier` — not a parametrized route (no `/params…` tail).
 Does not validate segments; malformed input may still parse but fail downstream.
 
-Requires `registryXRL` to contain at least one `/`.
+Requires `route` to contain at least one `/`.
 
 ```solidity
-function splitRegistryXRL(string registryXRL) external pure returns (string xnsName, string routeScope, string routeLabel)
+function splitRoute(string route) external pure returns (string xnsName, string routeScope, string routeLabel)
 ```
 
 
@@ -590,15 +589,15 @@ function splitRegistryXRL(string registryXRL) external pure returns (string xnsN
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| registryXRL | string | Registry XRL (not a full XRL with params), e.g. `bob.xns/eth:transfer-usdt`. |
+| route | string | Route (not a parametrized route), e.g. `bob.xns/eth:transfer-usdt`. |
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | xnsName | string | Segment before the first `/`. |
-| routeScope | string | Segment before the first `:` in `route`, or empty if there is no `:`. |
-| routeLabel | string | Segment after `:` if `routeScope` is present, else the whole `route` after `/`. |
+| routeScope | string | Segment before the first `:` in the route identifier, or empty if there is no `:`. |
+| routeLabel | string | Segment after `:` if `routeScope` is present, else the whole route identifier after `/`. |
 
 ### isValidRouteScope
 

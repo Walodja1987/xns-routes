@@ -21,30 +21,29 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// including helper/view contracts returning arbitrary data, such as Bitcoin or
 /// Solana addresses, calldata, or other information.
 ///
-/// Routes are addressed with XRL (XNS Route Link) strings. The format is:
+/// Routes are addressed with **route** and **parametrized route** strings.
 ///
-/// XRL = `xnsName/[routeScope:]routeLabel[/params]`
+/// - **route** — `xnsName/[routeScope:]routeLabel` (on-chain identity; no params).
+/// - **parametrized route** — route plus optional `/params…` tail (off-chain parsers only).
 ///
 /// - **xnsName** — XNS name that owns the route book (e.g. `bob.xns`).
 /// - **routeScope** — optional segment before `:` (1–20 chars if present).
 /// - **routeLabel** — required slug (1–32 chars).
+/// - **route identifier** — `[routeScope:]routeLabel` within an `xnsName`.
 /// - **params** — optional parameters for off-chain route parsers; not stored or
 ///   validated on-chain.
-/// - The segment `[routeScope:]routeLabel` is referred to as **route**.
-/// - The segment `xnsName/[routeScope:]routeLabel` (XRL without the params tail) is
-///   referred to as **Registry XRL**.
 ///
-/// Examples XRLs:
-/// - `alice.og/my-sub-wallet` (without routeScope)
-/// - `contracts.aave/eth:v3-pool-contract` (with routeScope)
-/// - `bob.xns/uniswap:approve-usdt/amount=10` (with routeScope and params)
+/// Examples:
+/// - route: `alice.og/my-sub-wallet` (without routeScope)
+/// - route: `contracts.aave/eth:v3-pool-contract` (with routeScope)
+/// - parametrized route: `bob.xns/uniswap:approve-usdt/amount=10` (with routeScope and params)
 ///
 /// `routeScope` and `routeLabel` must follow the same character and hyphenation rules as XNS names:
 /// - Must consist only of [a-z0-9-] (lowercase letters, digits, and hyphens)
 /// - Cannot start or end with '-'
 /// - Cannot contain consecutive hyphens ('--')
 ///
-/// Each registry XRL points to a `target`. Once created, `target` and `routeType` are immutable.
+/// Each route points to a `target`. Once created, `target` and `routeType` are immutable.
 ///
 /// Route metadata and controls:
 ///
@@ -81,11 +80,11 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// **Other**
 /// - Routes are owned by the XNS name owner; registration is free and unlimited.
 /// - Route record: `target`, `routeType`, `isActive`, `activeController`.
-/// - Forward resolution: registry XRL -> `target`. Use `resolveRouteIfActive` for safe reads
+/// - Forward resolution: route -> `target`. Use `resolveRouteIfActive` for safe reads
 ///   or `resolveRoute` for raw resolution. Reverse lookup is not supported because many routes
 ///   may point to the same `target`.
 /// - Bare names like `bob` are stored as `bob.x`.
-/// - `routeKey` = hash of canonical registry XRL.
+/// - `routeKey` = hash of canonical route.
 /// - List routes on-chain with `getRouteKeyCount` and `getRouteKeys`.
 contract XNSRoutes {
     // -------------------------------------------------------------------------
@@ -621,14 +620,14 @@ contract XNSRoutes {
         return _getRouteRecord(xnsName, routeScope, routeLabel);
     }
 
-    /// @notice Reads stored route record data by registry XRL (`splitRegistryXRL`).
+    /// @notice Reads stored route record data by route string (`splitRoute`).
     /// `record.target == address(0)` means that record does not exist.
     ///
-    /// @param registryXRL Registry XRL, e.g. `bob.xns/eth:my-wallet`, without trailing parameters (if any).
+    /// @param route Route, e.g. `bob.xns/eth:my-wallet`, without a parametrized `/params…` tail.
     /// @return record The route record (target, routeType, isActive, activeController).
-    function getRouteRecord(string calldata registryXRL) external view returns (RouteRecord memory record) {
+    function getRouteRecord(string calldata route) external view returns (RouteRecord memory record) {
         (string memory xnsName, string memory routeScope, string memory routeLabel) =
-            _splitRegistryXRL(registryXRL);
+            _splitRoute(route);
         return _getRouteRecord(xnsName, routeScope, routeLabel);
     }
 
@@ -652,18 +651,18 @@ contract XNSRoutes {
         return _resolveRouteIfActive(xnsName, routeScope, routeLabel);
     }
 
-    /// @notice Resolves an active route to `(target, routeType)` by registry XRL (`splitRegistryXRL`).
+    /// @notice Resolves an active route to `(target, routeType)` by route string (`splitRoute`).
     ///
     /// **Requirements:** same as `resolveRouteIfActive(xnsName, routeScope, routeLabel)`.
     ///
-    /// @param registryXRL Registry XRL, e.g. `bob.xns/eth:my-wallet`, without trailing parameters (if any).
+    /// @param route Route, e.g. `bob.xns/eth:my-wallet`, without a parametrized `/params…` tail.
     /// @return target Resolved target address.
     /// @return routeType Parser hint for how to interpret `target`.
     function resolveRouteIfActive(
-        string calldata registryXRL
+        string calldata route
     ) external view returns (address target, uint32 routeType) {
         (string memory xnsName, string memory routeScope, string memory routeLabel) =
-            _splitRegistryXRL(registryXRL);
+            _splitRoute(route);
         return _resolveRouteIfActive(xnsName, routeScope, routeLabel);
     }
 
@@ -686,18 +685,18 @@ contract XNSRoutes {
         return _resolveRoute(xnsName, routeScope, routeLabel);
     }
 
-    /// @notice Resolves a route to `(target, routeType)` by registry XRL (`splitRegistryXRL`).
+    /// @notice Resolves a route to `(target, routeType)` by route string (`splitRoute`).
     ///
     /// **Requirements:** same as `resolveRoute(xnsName, routeScope, routeLabel)`.
     ///
-    /// @param registryXRL Registry XRL, e.g. `bob.xns/eth:my-wallet`, without trailing parameters (if any).
+    /// @param route Route, e.g. `bob.xns/eth:my-wallet`, without a parametrized `/params…` tail.
     /// @return target Resolved target address.
     /// @return routeType Parser hint for how to interpret `target`.
     function resolveRoute(
-        string calldata registryXRL
+        string calldata route
     ) external view returns (address target, uint32 routeType) {
         (string memory xnsName, string memory routeScope, string memory routeLabel) =
-            _splitRegistryXRL(registryXRL);
+            _splitRoute(route);
         return _resolveRoute(xnsName, routeScope, routeLabel);
     }
 
@@ -759,27 +758,27 @@ contract XNSRoutes {
         }
     }
 
-    /// @notice Parses a registry XRL into `(xnsName, routeScope, routeLabel)`.
+    /// @notice Parses a route into `(xnsName, routeScope, routeLabel)`.
     /// Example: `bro.xns/eth:my-wallet` -> `(bro.xns, eth, my-wallet)`.
     /// Useful when calling tuple-based mutating functions (`createRoute`, etc.).
     ///
-    /// A registry XRL is `xnsName "/" route` — the on-chain subset of a full XRL (no `/params…` tail).
+    /// A route is `xnsName "/" routeIdentifier` — not a parametrized route (no `/params…` tail).
     /// Does not validate segments; malformed input may still parse but fail downstream.
     ///
-    /// Requires `registryXRL` to contain at least one `/`.
+    /// Requires `route` to contain at least one `/`.
     ///
-    /// @param registryXRL Registry XRL (not a full XRL with params), e.g. `bob.xns/eth:transfer-usdt`.
+    /// @param route Route (not a parametrized route), e.g. `bob.xns/eth:transfer-usdt`.
     /// @return xnsName Segment before the first `/`.
-    /// @return routeScope Segment before the first `:` in `route`, or empty if there is no `:`.
-    /// @return routeLabel Segment after `:` if `routeScope` is present, else the whole `route` after `/`.
-    function splitRegistryXRL(
-        string calldata registryXRL
+    /// @return routeScope Segment before the first `:` in the route identifier, or empty if there is no `:`.
+    /// @return routeLabel Segment after `:` if `routeScope` is present, else the whole route identifier after `/`.
+    function splitRoute(
+        string calldata route
     )
         external
         pure
         returns (string memory xnsName, string memory routeScope, string memory routeLabel)
     {
-        return _splitRegistryXRL(registryXRL);
+        return _splitRoute(route);
     }
 
     /// @notice Returns whether `routeScope` satisfies local scope rules. Empty string is valid;
@@ -876,11 +875,11 @@ contract XNSRoutes {
         return (record.target, record.routeType);
     }
 
-    /// @dev Splits `registryXRL` at the first `/`, then at the first `:` in the remainder.
-    function _splitRegistryXRL(
-        string calldata registryXRL
+    /// @dev Splits `route` at the first `/`, then at the first `:` in the route identifier.
+    function _splitRoute(
+        string calldata route
     ) private pure returns (string memory xnsName, string memory routeScope, string memory routeLabel) {
-        bytes calldata b = bytes(registryXRL);
+        bytes calldata b = bytes(route);
         uint256 n = b.length;
         uint256 slash;
         bool foundSlash;
@@ -891,7 +890,7 @@ contract XNSRoutes {
                 break;
             }
         }
-        require(foundSlash, "XNSRoutes: invalid XRL");
+        require(foundSlash, "XNSRoutes: invalid route");
 
         xnsName = _calldataSubstringToString(b, 0, slash);
 
@@ -930,7 +929,7 @@ contract XNSRoutes {
         uint256 start,
         uint256 end
     ) private pure returns (string memory out) {
-        require(end >= start, "XNSRoutes: invalid XRL");
+        require(end >= start, "XNSRoutes: invalid route");
         uint256 len = end - start;
         bytes memory buf = new bytes(len);
         for (uint256 i = 0; i < len; ++i) {
@@ -975,7 +974,7 @@ contract XNSRoutes {
         return keccak256(bytes(_canonicalizeXNSName(xnsName)));
     }
 
-    /// @dev Returns keccak256 of canonical registry routeLabel: `{canonicalXNSName}/{routeLabel}` when
+    /// @dev Returns keccak256 of canonical route: `{canonicalXNSName}/{routeLabel}` when
     /// `routeScope` is empty, else `{canonicalXNSName}/{routeScope}:{routeLabel}`.
     function _routeKey(
         string memory xnsName,

@@ -35,7 +35,7 @@ describe("XNSRoutes", function () {
     routeInactive: "XNSRoutes: route inactive",
     routeBookFrozen: "XNSRoutes: route book frozen",
     routeAlreadyExists: "XNSRoutes: route already exists",
-    invalidXRL: "XNSRoutes: invalid XRL",
+    invalidRoute: "XNSRoutes: invalid route",
     invalidRouteKeySlice: "XNSRoutes: invalid route key slice",
   } as const;
 
@@ -69,19 +69,19 @@ describe("XNSRoutes", function () {
     return routes["getRouteRecord(bytes32)"](routeKey);
   }
 
-  /** Disambiguate ethers overload: `getRouteRecord(string)` (registry XRL). */
-  async function getRouteRecordByXRL(routes: XNSRoutes, registryXRL: string) {
-    return routes["getRouteRecord(string)"](registryXRL);
+  /** Disambiguate ethers overload: `getRouteRecord(string)` (route). */
+  async function getRouteRecordByRoute(routes: XNSRoutes, route: string) {
+    return routes["getRouteRecord(string)"](route);
   }
 
-  /** Disambiguate ethers overload: `resolveRouteIfActive(string)` (registry XRL). */
-  async function resolveRouteIfActiveByXRL(routes: XNSRoutes, registryXRL: string) {
-    return routes["resolveRouteIfActive(string)"](registryXRL);
+  /** Disambiguate ethers overload: `resolveRouteIfActive(string)` (route). */
+  async function resolveRouteIfActiveByRoute(routes: XNSRoutes, route: string) {
+    return routes["resolveRouteIfActive(string)"](route);
   }
 
-  /** Disambiguate ethers overload: `resolveRoute(string)` (registry XRL). */
-  async function resolveRouteByXRL(routes: XNSRoutes, registryXRL: string) {
-    return routes["resolveRoute(string)"](registryXRL);
+  /** Disambiguate ethers overload: `resolveRoute(string)` (route). */
+  async function resolveRouteByRoute(routes: XNSRoutes, route: string) {
+    return routes["resolveRoute(string)"](route);
   }
 
   /** `getRouteRecord(routeKey)` returns a struct; destructure as tuple in tests. */
@@ -784,12 +784,12 @@ describe("XNSRoutes", function () {
       );
     });
 
-    it("Should return getRouteRecord for an existing registry XRL", async function () {
+    it("Should return getRouteRecord for an existing route string", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes.connect(owner).createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0);
 
       const fullPath = `${XNS_NAME}/${ROUTE_SCOPE}:${ROUTE_LABEL}`;
-      const record = await getRouteRecordByXRL(routes, fullPath);
+      const record = await getRouteRecordByRoute(routes, fullPath);
 
       expect(record.target).to.equal(buildTarget);
       expect(record.isActive).to.equal(true);
@@ -797,17 +797,17 @@ describe("XNSRoutes", function () {
       expect(record.activeController).to.equal(owner.address);
     });
 
-    it("Should revert getRouteRecord with InvalidXRL when no slash is present", async function () {
+    it("Should revert getRouteRecord with InvalidRoute when no slash is present", async function () {
       const { routes } = await loadFixture(deployFixture);
-      await expect(getRouteRecordByXRL(routes, `${ROUTE_SCOPE}:${ROUTE_LABEL}`)).to.be.revertedWith(
-        XR.invalidXRL,
+      await expect(getRouteRecordByRoute(routes, `${ROUTE_SCOPE}:${ROUTE_LABEL}`)).to.be.revertedWith(
+        XR.invalidRoute,
       );
     });
 
-    it("Should return empty record for missing registry XRL", async function () {
+    it("Should return empty record for missing route string", async function () {
       const { routes } = await loadFixture(deployFixture);
       const fullPath = `${XNS_NAME}/${ROUTE_SCOPE}:${ROUTE_LABEL}`;
-      const record = await getRouteRecordByXRL(routes, fullPath);
+      const record = await getRouteRecordByRoute(routes, fullPath);
       expect(record.target).to.equal(ethers.ZeroAddress);
     });
   });
@@ -826,12 +826,12 @@ describe("XNSRoutes", function () {
       expect(routeType).to.equal(RT0);
     });
 
-    it("Should resolve an active route by registry XRL via resolveRouteIfActive", async function () {
+    it("Should resolve an active route by route string via resolveRouteIfActive", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes.connect(owner).createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0);
 
       const fullPath = `${XNS_NAME}/${ROUTE_SCOPE}:${ROUTE_LABEL}`;
-      const [target, routeType] = await resolveRouteIfActiveByXRL(routes, fullPath);
+      const [target, routeType] = await resolveRouteIfActiveByRoute(routes, fullPath);
       expect(target).to.equal(buildTarget);
       expect(routeType).to.equal(RT0);
     });
@@ -846,13 +846,13 @@ describe("XNSRoutes", function () {
       expect(routeType).to.equal(RT0);
     });
 
-    it("Should resolve an inactive route by registry XRL via resolveRoute", async function () {
+    it("Should resolve an inactive route by route string via resolveRoute", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes.connect(owner).createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0);
       await routes.connect(owner).deactivateRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
 
       const fullPath = `${XNS_NAME}/${ROUTE_SCOPE}:${ROUTE_LABEL}`;
-      const [target, routeType] = await resolveRouteByXRL(routes, fullPath);
+      const [target, routeType] = await resolveRouteByRoute(routes, fullPath);
       expect(target).to.equal(buildTarget);
       expect(routeType).to.equal(RT0);
     });
@@ -895,18 +895,18 @@ describe("XNSRoutes", function () {
       expect(routeType).to.equal(RT0);
     });
 
-    it("Should revert resolveRouteIfActive with InvalidXRL when no slash is present", async function () {
+    it("Should revert resolveRouteIfActive with InvalidRoute when no slash is present", async function () {
       const { routes } = await loadFixture(deployFixture);
       await expect(
-        resolveRouteIfActiveByXRL(routes, `${ROUTE_SCOPE}:${ROUTE_LABEL}`),
-      ).to.be.revertedWith(XR.invalidXRL);
+        resolveRouteIfActiveByRoute(routes, `${ROUTE_SCOPE}:${ROUTE_LABEL}`),
+      ).to.be.revertedWith(XR.invalidRoute);
     });
 
-    it("Should revert resolveRoute with InvalidXRL when no slash is present", async function () {
+    it("Should revert resolveRoute with InvalidRoute when no slash is present", async function () {
       const { routes } = await loadFixture(deployFixture);
       await expect(
-        resolveRouteByXRL(routes, `${ROUTE_SCOPE}:${ROUTE_LABEL}`),
-      ).to.be.revertedWith(XR.invalidXRL);
+        resolveRouteByRoute(routes, `${ROUTE_SCOPE}:${ROUTE_LABEL}`),
+      ).to.be.revertedWith(XR.invalidRoute);
     });
   });
 
@@ -1107,7 +1107,7 @@ describe("XNSRoutes", function () {
       await routes.connect(owner).createRoute(BARE_LABEL, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0);
 
       const fullPath = `${BARE_LABEL}/${ROUTE_SCOPE}:${ROUTE_LABEL}`;
-      const record = await getRouteRecordByXRL(routes, fullPath);
+      const record = await getRouteRecordByRoute(routes, fullPath);
       expect(record.target).to.equal(buildTarget);
     });
   });

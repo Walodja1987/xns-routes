@@ -149,7 +149,7 @@ interface IXNSRoutes {
         string calldata routeLabel
     ) external view returns (RouteRecord memory record);
 
-    function getRouteRecord(string calldata registryXRL) external view returns (RouteRecord memory record);
+    function getRouteRecord(string calldata route) external view returns (RouteRecord memory record);
 
     function resolveRouteIfActive(
         string calldata xnsName,
@@ -158,7 +158,7 @@ interface IXNSRoutes {
     ) external view returns (address target, uint32 routeType);
 
     function resolveRouteIfActive(
-        string calldata registryXRL
+        string calldata route
     ) external view returns (address target, uint32 routeType);
 
     function resolveRoute(
@@ -168,11 +168,11 @@ interface IXNSRoutes {
     ) external view returns (address target, uint32 routeType);
 
     function resolveRoute(
-        string calldata registryXRL
+        string calldata route
     ) external view returns (address target, uint32 routeType);
 
-    function splitRegistryXRL(
-        string calldata registryXRL
+    function splitRoute(
+        string calldata route
     ) external pure returns (string memory xnsName, string memory routeScope, string memory routeLabel);
 
     function isValidRouteScope(string calldata routeScope) external pure returns (bool valid);

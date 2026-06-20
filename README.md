@@ -8,17 +8,18 @@ Instead of sharing raw calldata or relying on a single frontend, protocols and u
 
 ## ✨ What are Routes?
 
-Routes are registered under an XNS name using **XRL** (XNS Route Link) strings.
+Routes are registered under an XNS name using **route** and **parametrized route** strings.
 
 **Grammar:**
 
 ```text
-XRL           = xnsName "/" route [ "/" params… ]
-registry XRL  = xnsName "/" route          (no params; on-chain subset)
+route               = xnsName "/" routeIdentifier
+parametrized route  = route [ "/" params… ]
+routeIdentifier     = routeLabel | routeScope ":" routeLabel
 ```
 
-- **route** = `routeLabel` or `routeScope ":" routeLabel` (e.g. `eth:register-name` or `my-wallet`)
-- **params** (e.g. `/label=bro/namespace=og`) are off-chain; the contract only accepts **registry XRL**
+- **route identifier** = `routeLabel` or `routeScope ":" routeLabel` (e.g. `eth:register-name` or `my-wallet`)
+- **params** (e.g. `/label=bro/namespace=og`) are off-chain; the contract only accepts **route** strings (no params)
 
 ```
 xns.action/eth:register-name/label=bro/namespace=og
@@ -41,19 +42,19 @@ Validation rules:
 
 ---
 
-## 📖 XRL vocabulary
+## 📖 Route vocabulary
 
 | Term | Example | Notes |
 |------|---------|--------|
-| **XRL** | `ai.xns/eth:123/label=bro` | Full link; optional param path after the route |
-| **Registry XRL** | `ai.xns/eth:123` | On-chain subset of XRL: `xnsName "/" route` only (no params). Used by `splitRegistryXRL`, `routeKey`, and registry lookups |
+| **route** | `ai.xns/eth:123` | On-chain identity: `xnsName "/" routeIdentifier` (no params). Used by `splitRoute`, `routeKey`, and registry lookups |
+| **parametrized route** | `ai.xns/eth:123/label=bro` | Off-chain link: route plus optional `/params…` tail |
 | **xnsName** | `ai.xns` | Host / owner scope |
-| **route** | `eth:123` | Part after `/` in a registry XRL |
+| **route identifier** | `eth:123` | `[routeScope:]routeLabel` within an `xnsName` |
 | **route scope** | `eth` | Optional; before `:` |
 | **route label** | `123` | Required slug |
-| **route key** | `bytes32` | `keccak256(canonical registry XRL)`; params never included |
+| **route key** | `bytes32` | `keccak256(canonical route)`; params never included |
 
-Contract tuple APIs use `(xnsName, routeScope, routeLabel)` — equivalent to parsing a registry XRL. Path helpers: `splitRegistryXRL`, `getRouteRecord(string registryXRL)` (input must be a registry XRL).
+Contract tuple APIs use `(xnsName, routeScope, routeLabel)` — equivalent to parsing a route. String helpers: `splitRoute`, `getRouteRecord(string route)` (input must be a route, not a parametrized route).
 
 ---
 
@@ -162,7 +163,7 @@ Each route has:
 - `isActive` → usable or disabled (toggled by `activeController`)
 - `activeController` → sole account that may call `activateRoute` / `deactivateRoute`, start a two-step transfer, or `renounceActiveControl` (must not be `address(0)`; see `RENOUNCED_ACTIVE_CONTROLLER`)
 
-Routes cannot be updated or deleted. The binding from registry XRL to `target` is permanent.
+Routes cannot be updated or deleted. The binding from route to `target` is permanent.
 
 ---
 
@@ -267,11 +268,11 @@ The registry keeps a **list of route storage keys** (`bytes32`) per XNS name so 
 - `getRouteKeys(xnsName, start, end)` — page through keys (`end` **exclusive**; if `end` &gt; array length, it is clamped to the array length; if `start` is past that range, returns an empty array)
 - `getRouteRecord(routeKey)` — read one `RouteRecord` by key (no string tuple needed)
 - `getRouteRecord(xnsName, routeScope, routeLabel)` — read by components (stored fields only)
-- `getRouteRecord(registryXRL)` — read by **registry XRL** (parsed by `splitRegistryXRL`)
+- `getRouteRecord(route)` — read by **route** string (parsed by `splitRoute`)
 - `isRouteBookFrozen(xnsName)` — whether new routes can still be added under that name
 - `resolveRoute` — resolve `(target, routeType)` when the route exists (ignores `isActive`)
 - `resolveRouteIfActive` — same, but requires `isActive == true`
-- `splitRegistryXRL` — parse a registry XRL into `(xnsName, routeScope, routeLabel)` (not full XRL with params)
+- `splitRoute` — parse a route into `(xnsName, routeScope, routeLabel)` (not a parametrized route)
 
 Use **`resolveRouteIfActive`** for execution paths that must skip inactive routes; use **`resolveRoute`** when you need the binding regardless of active status. Use **`getRouteRecord`** for route metadata. Resolver overloads revert when the route is missing or (for `resolveRouteIfActive`) inactive. `getRouteRecord` returns an **empty record** (`target == address(0)`) when the route is missing.
 
