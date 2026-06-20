@@ -10,7 +10,6 @@ interface IXNSRoutes {
         address target;
         uint32 routeType;
         bool isActive;
-        bool isFrozen;
         address activeController;
     }
 
@@ -26,30 +25,9 @@ interface IXNSRoutes {
         string routeScope,
         string routeLabel,
         address indexed target,
-        bool isActive,
-        bool isFrozen,
         uint32 routeType,
+        bool isActive,
         address activeController
-    );
-
-    event RouteTargetUpdated(
-        bytes32 indexed nameHash,
-        bytes32 indexed routeKey,
-        string canonicalXNSName,
-        string routeScope,
-        string routeLabel,
-        address previousTarget,
-        address indexed newTarget
-    );
-
-    event RouteTypeUpdated(
-        bytes32 indexed nameHash,
-        bytes32 indexed routeKey,
-        string canonicalXNSName,
-        string routeScope,
-        string routeLabel,
-        uint32 previousRouteType,
-        uint32 newRouteType
     );
 
     event RouteActiveStatusUpdated(
@@ -61,24 +39,7 @@ interface IXNSRoutes {
         bool isActive
     );
 
-    /// Emitted when an existing route becomes frozen (`updateRoute` / `freezeRoute`). Initial freeze-at-create is only in `RouteCreated`.
-    event RouteFrozen(
-        bytes32 indexed nameHash,
-        bytes32 indexed routeKey,
-        string canonicalXNSName,
-        string routeScope,
-        string routeLabel
-    );
-
     event RouteBookFrozen(bytes32 indexed nameHash, string canonicalXNSName);
-
-    event RouteDeleted(
-        bytes32 indexed nameHash,
-        bytes32 indexed routeKey,
-        string canonicalXNSName,
-        string routeScope,
-        string routeLabel
-    );
 
     function XNS() external view returns (address);
 
@@ -89,9 +50,7 @@ interface IXNSRoutes {
         string calldata routeScope,
         string calldata routeLabel,
         address target,
-        uint32 routeType,
-        bool activate,
-        bool freeze
+        uint32 routeType
     ) external;
 
     function createRouteWithController(
@@ -100,18 +59,8 @@ interface IXNSRoutes {
         string calldata routeLabel,
         address target,
         uint32 routeType,
-        bool activate,
-        bool freeze,
+        bool isActive,
         address activeController
-    ) external;
-
-    function updateRoute(
-        string calldata xnsName,
-        string calldata routeScope,
-        string calldata routeLabel,
-        address target,
-        uint32 routeType,
-        bool freeze
     ) external;
 
     function activateRoute(
@@ -121,32 +70,6 @@ interface IXNSRoutes {
     ) external;
 
     function deactivateRoute(
-        string calldata xnsName,
-        string calldata routeScope,
-        string calldata routeLabel
-    ) external;
-
-    function deleteRoute(
-        string calldata xnsName,
-        string calldata routeScope,
-        string calldata routeLabel
-    ) external;
-
-    function updateTarget(
-        string calldata xnsName,
-        string calldata routeScope,
-        string calldata routeLabel,
-        address newTarget
-    ) external;
-
-    function updateRouteType(
-        string calldata xnsName,
-        string calldata routeScope,
-        string calldata routeLabel,
-        uint32 newRouteType
-    ) external;
-
-    function freezeRoute(
         string calldata xnsName,
         string calldata routeScope,
         string calldata routeLabel
@@ -184,13 +107,13 @@ interface IXNSRoutes {
         string calldata registryXRL
     ) external view returns (address target, uint32 routeType);
 
-    function resolveRouteIfActiveAndFrozen(
+    function resolveRoute(
         string calldata xnsName,
         string calldata routeScope,
         string calldata routeLabel
     ) external view returns (address target, uint32 routeType);
 
-    function resolveRouteIfActiveAndFrozen(
+    function resolveRoute(
         string calldata registryXRL
     ) external view returns (address target, uint32 routeType);
 

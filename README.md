@@ -102,12 +102,11 @@ createRoute(
   "eth",           // routeScope
   "register-name", // routeLabel
   address(builder),
-  0,      // routeType (offchain-defined parser hint)
-  true,   // activate → stored isActive
-  true    // freeze → set isFrozen in this tx
+  0                // routeType (offchain-defined parser hint)
 );
-// activeController defaults to the current XNS name owner.
-// Use createRouteWithController(...) to delegate toggling or lock isActive (address(0)).
+// Sets isActive = true and activeController = current XNS name owner.
+// target and routeType are immutable after creation.
+// Use createRouteWithController(...) to set isActive and activeController explicitly.
 ```
 
 ---
@@ -142,7 +141,7 @@ A wallet:
 
 1. Resolves `xns.action`
 2. Parses `eth` and `register-name` from `eth:register-name`
-3. Resolves `(xnsName, routeScope, routeLabel)` via `resolveRouteIfActive` or `resolveRouteIfActiveAndFrozen` (`routeScope` may be empty)
+3. Resolves `(xnsName, routeScope, routeLabel)` via `resolveRouteIfActive` (`routeScope` may be empty)
 4. Calls `build(...)`
 5. Gets:
    - target chain
@@ -158,51 +157,29 @@ A wallet:
 
 Each route has:
 
-- `target` → build contract
-- `isActive` → usable or disabled
-- `isFrozen` → per-route structural lock (`target` / `routeType` / delete); route-book freeze can lock structure even when `isFrozen` is false
-- `activeController` → sole account that may toggle `isActive`; set automatically to the XNS name owner by `createRoute`, or explicitly via `createRouteWithController` (`address(0)` locks it forever)
+- `target` → build contract (**immutable** after create)
+- `routeType` → off-chain parser hint (**immutable** after create)
+- `isActive` → usable or disabled (toggled by `activeController`)
+- `activeController` → sole account that may call `activateRoute` / `deactivateRoute` (must not be `address(0)`)
 
-### States
-
-| State               | Meaning                 |
-| ------------------- | ----------------------- |
-| Active + Editable   | Live, but can change    |
-| Inactive + Editable | Draft / paused          |
-| Active + Frozen     | Live and immutable      |
-| Inactive + Frozen   | Disabled, but immutable |
+Routes cannot be updated or deleted. The binding from registry XRL to `target` is permanent.
 
 ---
 
-## 🧊 Freezing
+## 🧊 Route book freeze
 
-### Route Freeze
-
-Locks a route forever:
-
-```solidity
-freezeRoute("xns.action", "eth", "register-name");
-```
-
-- Target can never change again and the route cannot be deleted
-- `activeController` can still toggle `isActive` (`activateRoute` / `deactivateRoute`)
-
----
-
-### Route book freeze
-
-Locks the entire route book under a name:
+The XNS name owner can close the route book permanently:
 
 ```solidity
 freezeRouteBook("xns.action");
 ```
 
-- No new routes can be added
-- No route targets can be changed
-- Routes cannot be deleted (`deleteRoute` reverts)
-- `activeController` may still toggle `isActive` (`activateRoute` / `deactivateRoute`)
+- No new routes can be added under that name
+- Existing routes are unchanged; `activeController` can still toggle `isActive`
 
-> This is useful for publishers who want to finalize their entire action set.
+> Useful for finalized app registries, audited contract maps, or limited route collections.
+
+Use `getRouteRecordWithBookStatus` to read a route plus `isRouteBookFrozen` in one call.
 
 ---
 
@@ -253,7 +230,7 @@ function suggestedRouteName() external pure returns (string memory);
 - **Composable** → builders are reusable
 - **Verifiable** → wallets can independently rebuild tx
 - **Human-readable** → no opaque calldata
-- **Immutable when needed** → freeze for trust
+- **Immutable by design** → `target` and `routeType` never change after create
 
 ---
 
@@ -292,21 +269,21 @@ The registry keeps an **append-only log** of **route storage keys** (`bytes32`) 
 - `getRouteRecord(xnsName, routeScope, routeLabel)` — read by components (stored fields only)
 - `getRouteRecord(registryXRL)` — read by **registry XRL** (parsed by `splitRegistryXRL`)
 - `getRouteRecordWithBookStatus(...)` — same as tuple/registry-XRL `getRouteRecord`, plus `isRouteBookFrozen` (one-shot UI read)
-- `resolveRouteIfActive` — resolve `(target, routeType)` when the route exists and `isActive`
-- `resolveRouteIfActiveAndFrozen` — same, and `record.isFrozen` or route book frozen for `xnsName`
+- `resolveRoute` — resolve `(target, routeType)` when the route exists (ignores `isActive`)
+- `resolveRouteIfActive` — same, but requires `isActive == true`
 - `splitRegistryXRL` — parse a registry XRL into `(xnsName, routeScope, routeLabel)` (not full XRL with params)
 
-Use **`resolveRouteIfActive`** / **`resolveRouteIfActiveAndFrozen`** for execution paths; use **`getRouteRecordWithBookStatus`** for trust/UI metadata in one call, or **`getRouteRecord`** for raw storage only. Resolver overloads revert when the route is missing, inactive, or (for the frozen variant) not structurally frozen. `getRouteRecord` returns an **empty record** (`target == address(0)`) when the route is missing.
+Use **`resolveRouteIfActive`** for execution paths that must skip inactive routes; use **`resolveRoute`** when you need the binding regardless of active status. Use **`getRouteRecordWithBookStatus`** for trust/UI metadata in one call, or **`getRouteRecord`** for raw storage only. Resolver overloads revert when the route is missing or (for `resolveRouteIfActive`) inactive. `getRouteRecord` returns an **empty record** (`target == address(0)`) when the route is missing.
 
-For structural immutability (`target` / `routeType` / delete locked): **`details.record.isFrozen || details.isRouteBookFrozen`**. That does **not** imply `isActive` is locked; only `activeController` (or `address(0)` at create) governs active status.
+`target` and `routeType` are **immutable** after create. Route book freeze blocks **new** routes only; `activeController` can still toggle `isActive` on existing routes.
 
 **Important semantics (don’t skip this)**
 
-1. **Log length ≠ number of live routes**  
-   `getRouteKeyCount` counts **append-only log entries**, not routes that still exist. After `deleteRoute`, the key **stays in the log**; storage for that key is cleared, so `getRouteRecord` returns **`target == address(0)`** for that slot. Treat **zero `target` as deleted / empty** and filter those out off-chain (or in your UI) when you only want **live** routes.
+1. **Append-only key log**  
+   `getRouteKeyCount` counts **log entries** for a name—one entry per successful `createRoute`. Routes are never deleted on-chain; each key maps to a permanent record.
 
-2. **Duplicate keys in the log**  
-   If a route is **deleted and later recreated** with the same `(xnsName, routeScope, routeLabel)`, **`createRoute` appends the same `bytes32` again**. That is **intentional**: duplicates hint at **churn** (tear-down and re-registration). If you only care about unique keys, **dedupe by hash** off-chain.
+2. **Existence check**  
+   Treat **`getRouteRecord(...).target == address(0)`** as "route not registered". The key log lists keys for routes that were successfully created.
 
 ---
 
@@ -342,19 +319,14 @@ npx hardhat run scripts/examples/<script_name>.ts --network <network_name>
 **Read-only**
 
 - [scripts/examples/routeExists.ts](scripts/examples/routeExists.ts) — check if a route is registered (`getRouteRecord(...).target != 0`)
-- [scripts/examples/getRouteRecord.ts](scripts/examples/getRouteRecord.ts) — read target, `isActive`, `isFrozen`, `routeType`, `activeController`, and route-book freeze
+- [scripts/examples/getRouteRecord.ts](scripts/examples/getRouteRecord.ts) — read target, `isActive`, `routeType`, `activeController`, and route-book freeze
 - [scripts/examples/isRouteBookFrozen.ts](scripts/examples/isRouteBookFrozen.ts) — route book freeze flag for a name
 
-**Write** (signer must be the address XNS currently resolves for the script’s `xnsName`)
+**Write** (signer must be the address XNS currently resolves for the script’s `xnsName`, except activate/deactivate which require `activeController`)
 
-- [scripts/examples/createRoute.ts](scripts/examples/createRoute.ts) — register a new route key
-- [scripts/examples/updateRoute.ts](scripts/examples/updateRoute.ts) — full update of an existing route
+- [scripts/examples/createRoute.ts](scripts/examples/createRoute.ts) — register a new route key (`createRoute` or `createRouteWithController`)
 - [scripts/examples/activateRoute.ts](scripts/examples/activateRoute.ts) — set `isActive` true as `activeController` (emit only on change)
 - [scripts/examples/deactivateRoute.ts](scripts/examples/deactivateRoute.ts) — set `isActive` false as `activeController` (emit only on change)
-- [scripts/examples/deleteRoute.ts](scripts/examples/deleteRoute.ts) — remove route if not frozen / route book open
-- [scripts/examples/updateTarget.ts](scripts/examples/updateTarget.ts) — change build `target` (emit only on change)
-- [scripts/examples/updateRouteType.ts](scripts/examples/updateRouteType.ts) — change `routeType` (emit only on change)
-- [scripts/examples/freezeRoute.ts](scripts/examples/freezeRoute.ts) — freeze one route forever
 - [scripts/examples/freezeRouteBook.ts](scripts/examples/freezeRouteBook.ts) — route book freeze for a name
 
 Each script has a `USER INPUTS` section at the top. Fill in [constants/addresses.ts](constants/addresses.ts) for `XNS_ROUTES_ADDRESS` on your network before running.

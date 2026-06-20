@@ -1,5 +1,5 @@
 /**
- * Register a new route under `(xnsName, routeScope, route)`. Reverts if that key already exists (`RouteAlreadyExists`).
+ * Register a new route under `(xnsName, routeScope, routeLabel)`. Reverts if that key already exists.
  * Caller must be the address XNS currently resolves for `xnsName`.
  *
  * USAGE:
@@ -36,17 +36,13 @@ const target = "0x0000000000000000000000000000000000000001";
 /** Parser hint; semantics are offchain (e.g. 0 = plain address, 1 = calldata builder) */
 const routeType = 0;
 
-/** Stored as `isActive` on the route record */
-const activate = true;
-
-/** If true, route target cannot be changed after this tx */
-const freeze = false;
-
 /**
- * Optional explicit `activeController`. When set, calls `createRouteWithController` instead of
- * `createRoute` (which defaults activeController to the XNS name owner).
+ * Optional explicit `activeController` and `isActive`. When set, calls `createRouteWithController`
+ * instead of `createRoute` (which defaults to isActive=true and activeController=XNS name owner).
  */
-const activeControllerOverride: string | null = null;
+const useControllerOverride = false;
+const isActive = true;
+const activeControllerOverride = "0x0000000000000000000000000000000000000002";
 
 /** Signer index (0 = first account from mnemonic) */
 const signerIndex = 0;
@@ -79,15 +75,15 @@ async function main() {
   console.log(`routeLabel: ${GREEN}${routeLabel}${RESET}`);
   console.log(`target: ${GREEN}${target}${RESET}`);
   console.log(`routeType: ${GREEN}${routeType}${RESET}`);
-  console.log(`activate: ${GREEN}${activate}${RESET}`);
-  console.log(`freeze: ${GREEN}${freeze}${RESET}`);
-  if (activeControllerOverride) {
+  if (useControllerOverride) {
+    console.log(`isActive: ${GREEN}${isActive}${RESET}`);
     console.log(`activeController: ${GREEN}${activeControllerOverride}${RESET} (override)\n`);
   } else {
+    console.log(`isActive: ${GREEN}true (default)${RESET}`);
     console.log(`activeController: ${GREEN}XNS name owner (default)${RESET}\n`);
   }
 
-  const tx = activeControllerOverride
+  const tx = useControllerOverride
     ? await routes
         .connect(signer)
         .createRouteWithController(
@@ -96,20 +92,17 @@ async function main() {
           routeLabel,
           target,
           routeType,
-          activate,
-          freeze,
+          isActive,
           activeControllerOverride,
         )
-    : await routes
-        .connect(signer)
-        .createRoute(xnsName, routeScope, routeLabel, target, routeType, activate, freeze);
+    : await routes.connect(signer).createRoute(xnsName, routeScope, routeLabel, target, routeType);
   console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
   const record = await routes.getRouteRecord(xnsName, routeScope, routeLabel);
   console.log(
-    `${GREEN}✓ Confirmed. getRouteRecord → target=${record.target} routeType=${record.routeType} isActive=${record.isActive} isFrozen=${record.isFrozen} activeController=${record.activeController}${RESET}\n`,
+    `${GREEN}✓ Confirmed. getRouteRecord → target=${record.target} routeType=${record.routeType} isActive=${record.isActive} activeController=${record.activeController}${RESET}\n`,
   );
 }
 
