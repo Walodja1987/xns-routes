@@ -33,7 +33,7 @@ const routeLabel = "register-name";
 /** Build contract address for this route */
 const target = "0x0000000000000000000000000000000000000001";
 
-/** Parser hint; semantics are offchain (e.g. 0 = plain address, 1 = calldata builder) */
+/** Parser hint; semantics are offchain (0 = target is the answer, 1 = query target, 2 = executable calldata) */
 const routeType = 0;
 
 /**

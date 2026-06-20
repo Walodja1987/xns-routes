@@ -17,9 +17,11 @@ XRL = `xnsName/[routeScope:]routeLabel[/params]`
 - **xnsName** — XNS name that owns the route book (e.g. `bob.xns`).
 - **routeScope** — optional segment before `:` (1–20 chars if present).
 - **routeLabel** — required slug (1–32 chars).
-- **params** — optional parameters for off-chain route parsers; not stored or validated on-chain.
+- **params** — optional parameters for off-chain route parsers; not stored or
+  validated on-chain.
 - The segment `[routeScope:]routeLabel` is referred to as **route**.
-- The segment `xnsName/[routeScope:]routeLabel` (XRL without the params tail) is referred to as **Registry XRL**.
+- The segment `xnsName/[routeScope:]routeLabel` (XRL without the params tail) is
+  referred to as **Registry XRL**.
 
 Examples XRLs:
 - `alice.og/my-sub-wallet` (without routeScope)
@@ -37,8 +39,11 @@ Route metadata and controls:
 
 **Route type**
 - Off-chain hint for route parsers on how to interpret `target`.
-- Examples: `0` = EOA, `1` = smart contract, `2` = calldata builder, `3` = Bitcoin address,
-  `4` = Solana address, etc.
+- Examples: 
+  - `0` = `target` is the answer (EOA/smart contract)
+  - `1` = `target` must be queried (e.g. for a Bitcoin or Solana address)
+  - `2` = `target` returns executable calldata
+  - ...
 
 **Immutable routes**
 - `target` and `routeType` cannot change after creation; routes cannot be deleted.
@@ -48,8 +53,10 @@ Route metadata and controls:
 - Routes can be active or inactive (`isActive`).
 - `activeController` is the only account that may call `activateRoute` / `deactivateRoute`.
 - Useful to tell off-chain parsers not to resolve a route (e.g. deprecated or paused).
-- Set at create (`createRoute` defaults to the XNS name owner; `createRouteWithController` for explicit choice).
+- Set at create (`createRoute` defaults to the XNS name owner and isActive = true;
+  `createRouteWithController` for explicit choice).
 - `activeController` must not be `address(0)`.
+- To make `isActive` permanently immutable, set `activeController` to a non-zero dead address.
 
 **Route book freeze**
 - The XNS name owner can freeze the entire route book for an XNS name (`freezeRouteBook`).
@@ -105,7 +112,7 @@ function createRoute(string xnsName, string routeScope, string routeLabel, addre
 | routeScope | string | Optional path segment before `:`; non-empty must pass local route scope rules ([a-z0-9-], max length 20); empty means `xnsName/routeLabel` only (no `:` in the route). |
 | routeLabel | string | Required route label ([a-z0-9-], max length 32). |
 | target | address | Target address for `routeType`; must be non-zero (`address(0)` is reserved for non-existent route). |
-| routeType | uint32 | Parser hint for how to interpret `target` (off-chain semantics), e.g. 0 = plain address, 2 = Bitcoin address, 3 = address exposing a html, etc. |
+| routeType | uint32 | Parser hint for how to interpret `target` (off-chain semantics). e.g. `0` = target is the answer, `1` = target must be queried, `2` = target returns executable calldata. |
 
 
 ### createRouteWithController
