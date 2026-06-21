@@ -653,19 +653,11 @@ describe("XNSRoutes", function () {
       await createDefaultRoute(fixture);
 
       await expect(routes.connect(owner).renounceActiveControl(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))
-        .to.emit(routes, "RouteActiveStatusUpdated")
-        .withArgs(
-          xnsNameKey(XNS_NAME),
-          routeStorageKey(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
-          XNS_NAME,
-          ROUTE_SCOPE,
-          ROUTE_LABEL,
-          false,
-        )
-        .and.to.emit(routes, "ActiveControllerRenounced");
+        .to.emit(routes, "ActiveControllerRenounced")
+        .and.not.to.emit(routes, "RouteActiveStatusUpdated");
 
       const record = await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
-      expect(record.isActive).to.equal(false);
+      expect(record.isActive).to.equal(true);
       expect(record.activeController).to.equal(RENOUNCED);
       expect(await routes.RENOUNCED_ACTIVE_CONTROLLER()).to.equal(RENOUNCED);
 
@@ -676,6 +668,22 @@ describe("XNSRoutes", function () {
       await expect(
         routes.connect(owner).initiateActiveControllerTransfer(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, owner.address),
       ).to.be.revertedWith(XR.activeControlRenounced);
+    });
+
+    it("Should keep isActive false when renouncing an inactive route", async function () {
+      const fixture = await loadFixture(deployFixture);
+      const { routes, owner } = fixture;
+      await createDefaultRoute(fixture);
+
+      await routes.connect(owner).deactivateRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
+
+      await expect(routes.connect(owner).renounceActiveControl(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL))
+        .to.emit(routes, "ActiveControllerRenounced")
+        .and.not.to.emit(routes, "RouteActiveStatusUpdated");
+
+      const record = await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
+      expect(record.isActive).to.equal(false);
+      expect(record.activeController).to.equal(RENOUNCED);
     });
 
     it("Should clear pending transfer on renounce", async function () {
@@ -707,16 +715,17 @@ describe("XNSRoutes", function () {
       ).to.be.revertedWith(XR.activeControlRenounced);
     });
 
-    it("Should revert resolveRouteIfActive after renounce", async function () {
+    it("Should still resolve via resolveRouteIfActive when renounced while active", async function () {
       const fixture = await loadFixture(deployFixture);
-      const { routes, owner } = fixture;
+      const { routes, owner, buildTarget } = fixture;
       await createDefaultRoute(fixture);
 
       await routes.connect(owner).renounceActiveControl(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
 
-      await expect(
-        routes.resolveRouteIfActive(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
-      ).to.be.revertedWith(XR.routeInactive);
+      expect(await routes.resolveRouteIfActive(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL)).to.deep.equal([
+        buildTarget,
+        RT0,
+      ]);
     });
   });
 

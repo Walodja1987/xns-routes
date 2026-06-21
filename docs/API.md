@@ -260,13 +260,13 @@ function cancelActiveControllerTransfer(string xnsName, string routeScope, strin
 
 
 Permanently renounce active control: sets `activeController` to
-`RENOUNCED_ACTIVE_CONTROLLER` and `isActive` to false.
+`RENOUNCED_ACTIVE_CONTROLLER`. `isActive` is left unchanged and can no longer be toggled.
 
 **Requirements:**
 - `msg.sender` must be the current `activeController`.
 - Active control must not already be renounced.
 
-Clears any pending transfer. Emits `RouteActiveStatusUpdated` if `isActive` changes.
+Clears any pending transfer.
 
 ```solidity
 function renounceActiveControl(string xnsName, string routeScope, string routeLabel) external
@@ -777,7 +777,7 @@ _Emitted in `renounceActiveControl`._
 
 
 Sentinel stored in `activeController` after `renounceActiveControl`.
-That account cannot toggle, transfer, or accept; `isActive` is forced false.
+That account cannot toggle, transfer, or accept; `isActive` stays frozen.
 
 ```solidity
 address RENOUNCED_ACTIVE_CONTROLLER

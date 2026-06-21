@@ -92,7 +92,7 @@ contract XNSRoutes {
     // -------------------------------------------------------------------------
 
     /// @notice Sentinel stored in `activeController` after `renounceActiveControl`.
-    /// That account cannot toggle, transfer, or accept; `isActive` is forced false.
+    /// That account cannot toggle, transfer, or accept; `isActive` stays frozen.
     address public constant RENOUNCED_ACTIVE_CONTROLLER =
         address(0x000000000000000000000000000000000000dEaD);
 
@@ -517,13 +517,13 @@ contract XNSRoutes {
     }
 
     /// @notice Permanently renounce active control: sets `activeController` to
-    /// `RENOUNCED_ACTIVE_CONTROLLER` and `isActive` to false.
+    /// `RENOUNCED_ACTIVE_CONTROLLER`. `isActive` is left unchanged and can no longer be toggled.
     ///
     /// **Requirements:**
     /// - `msg.sender` must be the current `activeController`.
     /// - Active control must not already be renounced.
     ///
-    /// Clears any pending transfer. Emits `RouteActiveStatusUpdated` if `isActive` changes.
+    /// Clears any pending transfer.
     function renounceActiveControl(
         string calldata xnsName,
         string calldata routeScope,
@@ -539,18 +539,6 @@ contract XNSRoutes {
         require(msg.sender == record.activeController, "XNSRoutes: not active controller");
 
         delete _pendingActiveController[routeKey];
-
-        if (record.isActive) {
-            record.isActive = false;
-            emit RouteActiveStatusUpdated(
-                nameKey,
-                routeKey,
-                canonicalXNSName,
-                routeScope,
-                routeLabel,
-                false
-            );
-        }
 
         record.activeController = RENOUNCED_ACTIVE_CONTROLLER;
 

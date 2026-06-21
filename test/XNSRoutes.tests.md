@@ -108,13 +108,13 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
-- Current `activeController` may permanently renounce control: sets `activeController` to `RENOUNCED_ACTIVE_CONTROLLER` and `isActive` to false.
-- Clears any pending transfer. Emits `RouteActiveStatusUpdated` only if `isActive` was true.
-- After renounce, toggles and transfers revert.
+- Current `activeController` may permanently renounce control: sets `activeController` to `RENOUNCED_ACTIVE_CONTROLLER`.
+- `isActive` is left unchanged and can no longer be toggled.
+- Clears any pending transfer. After renounce, toggles and transfers revert.
 
 #### Events
 
-- `ActiveControllerRenounced`; optionally `RouteActiveStatusUpdated`.
+- `ActiveControllerRenounced` only (no `RouteActiveStatusUpdated`).
 
 #### Reverts
 
