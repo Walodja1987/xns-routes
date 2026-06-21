@@ -72,7 +72,7 @@ interface IXNSRoutes {
         string routeLabel
     );
 
-    function RENOUNCED_ACTIVE_CONTROLLER() external view returns (address);
+    function NO_ACTIVE_CONTROLLER() external view returns (address);
 
     function XNS() external view returns (address);
 

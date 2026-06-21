@@ -19,8 +19,8 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// @notice Route registry for XNS names which enables XNS name owners to map URL-style
 /// identifiers, so-called **routes**, to any Ethereum address. Routes may point to EOAs and
 /// smart contracts, including helper/view contracts returning arbitrary data, such as Bitcoin
-/// or Solana addresses, calldata, or other information. Registration is free and unlimited;
-/// only the XNS name owner may create routes.
+/// or Solana addresses, calldata, or other information. Registration is free and reserved for
+/// the XNS name owner only.
 ///
 /// Route format: `xnsName/[routeScope:]routeLabel`
 ///
@@ -65,7 +65,7 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - At create: `createRoute` sets `activeController` to the XNS name owner;
 ///   `createRouteWithController` accepts an explicit controller; both default to `isActive = true`.
 /// - `activeController` must not be `address(0)`.
-/// - The `isActive`status may be locked by setting `activeController` equal to `RENOUNCED_ACTIVE_CONTROLLER`
+/// - The `isActive` status may be locked by setting `activeController` equal to `NO_ACTIVE_CONTROLLER`
 ///   address.
 ///
 /// **Route book freeze**
@@ -100,9 +100,8 @@ contract XNSRoutes {
     /// renouncement of control. When a route's `activeController` is set to this address,
     /// its `isActive` status is locked and cannot be changed.
     ///
-    /// The zero address (`address(0)`) is not used for this purpose because it already indicates the
-    /// absence of a controller and to avoid ambiguity with non-existent routes.
-    address public constant RENOUNCED_ACTIVE_CONTROLLER =
+    /// Uses `0x…dEaD` rather than `address(0)` because zero means invalid / unset at create.
+    address public constant NO_ACTIVE_CONTROLLER =
         address(0x000000000000000000000000000000000000dEaD);
 
     /// @notice XNS registry this contract calls for name resolution.
@@ -378,7 +377,7 @@ contract XNSRoutes {
         RouteRecord storage record = _routes[routeKey];
 
         require(record.target != address(0), "XNSRoutes: route not found");
-        require(record.activeController != RENOUNCED_ACTIVE_CONTROLLER, "XNSRoutes: active control renounced");
+        require(record.activeController != NO_ACTIVE_CONTROLLER, "XNSRoutes: active control renounced");
         require(msg.sender == record.activeController, "XNSRoutes: not active controller");
 
         if (record.isActive != active) {
@@ -400,7 +399,7 @@ contract XNSRoutes {
     /// - `msg.sender` must be the current `activeController`.
     /// - The route must exist and active control must not be renounced.
     /// - `newActiveController` must not be zero, the current controller, or
-    ///   `RENOUNCED_ACTIVE_CONTROLLER` (use `renounceActiveControl` instead).
+    ///   `NO_ACTIVE_CONTROLLER` (use `renounceActiveControl` instead).
     ///
     /// Replaces any existing pending transfer for this route.
     ///
@@ -420,7 +419,7 @@ contract XNSRoutes {
 
         require(newActiveController != address(0), "XNSRoutes: invalid active controller");
         require(
-            newActiveController != RENOUNCED_ACTIVE_CONTROLLER,
+            newActiveController != NO_ACTIVE_CONTROLLER,
             "XNSRoutes: use renounceActiveControl"
         );
         require(newActiveController != record.activeController, "XNSRoutes: same active controller");
@@ -508,7 +507,7 @@ contract XNSRoutes {
     }
 
     /// @notice Permanently renounce active control: sets `activeController` to
-    /// `RENOUNCED_ACTIVE_CONTROLLER`. `isActive` is left unchanged and can no longer be toggled.
+    /// `NO_ACTIVE_CONTROLLER`. `isActive` is left unchanged and can no longer be toggled.
     ///
     /// **Requirements:**
     /// - `msg.sender` must be the current `activeController`.
@@ -531,7 +530,7 @@ contract XNSRoutes {
 
         delete _pendingActiveController[routeKey];
 
-        record.activeController = RENOUNCED_ACTIVE_CONTROLLER;
+        record.activeController = NO_ACTIVE_CONTROLLER;
 
         emit ActiveControllerRenounced(
             nameKey,
@@ -812,7 +811,7 @@ contract XNSRoutes {
         record = _routes[routeKey];
         require(record.target != address(0), "XNSRoutes: route not found");
         require(
-            record.activeController != RENOUNCED_ACTIVE_CONTROLLER,
+            record.activeController != NO_ACTIVE_CONTROLLER,
             "XNSRoutes: active control renounced"
         );
     }

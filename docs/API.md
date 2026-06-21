@@ -8,19 +8,21 @@ This is an automatically generated documentation (using `solidity-docgen` packag
 Route registry for XNS names which enables XNS name owners to map URL-style
 identifiers, so-called **routes**, to any Ethereum address. Routes may point to EOAs and
 smart contracts, including helper/view contracts returning arbitrary data, such as Bitcoin
-or Solana addresses, calldata, or other information.
+or Solana addresses, calldata, or other information. Registration is free and reserved for
+the XNS name owner only.
 
 Route format: `xnsName/[routeScope:]routeLabel`
 
 - **xnsName** – XNS name that owns the route book (e.g. `bob.xns`, `contracts.aave`).
 - **routeScope** – optional segment before `:` (1–20 chars if present).
 - **routeLabel** – required slug (1–32 chars).
-- **route identifier** – `[routeScope:]routeLabel` within an `xnsName`.
 
 `routeScope` and `routeLabel` must follow the same character and hyphenation rules as XNS names:
 - Must consist only of [a-z0-9-] (lowercase letters, digits, and hyphens)
 - Cannot start or end with '-'
 - Cannot contain consecutive hyphens ('--')
+
+The segment `[routeScope:]routeLabel` is referred to as the **route identifier**.
 
 Routes may include an optional `/params…` suffix, intended for use by off-chain parsers.
 These parameters are ignored by the contract and are neither stored nor processed on-chain.
@@ -34,39 +36,38 @@ Examples:
 - `target` — EOA or contract the route resolves to.
 - `routeType` — off-chain parser hint (semantics agreed off-chain; examples below).
 - `isActive` — whether parsers should treat the route as usable.
-- `activeController` — account that may toggle `isActive` or transfer/renounce control.
+- `activeController` — account that may toggle `isActive`.
 - `target` and `routeType` are fixed at creation; routes cannot be deleted.
 
 **Route type examples**
 - `0` = `target` is the answer (EOA/smart contract)
-- `1` = query `target` (e.g. for a Bitcoin or Solana address)
+- `1` = `target` must be queried (e.g. for a Bitcoin or Solana address)
 - `2` = `target` returns executable calldata
 - ...
 
 **Active status & activeController**
-- `activeController` may call `activateRoute` / `deactivateRoute`, start or cancel a two-step
-  transfer (`initiateActiveControllerTransfer` / `acceptActiveController` /
-  `cancelActiveControllerTransfer`), or `renounceActiveControl` (irreversible; `isActive`
-  frozen at its current value).
+- The `activeController` is the account that controls whether a route is active or not.
+- The `activeController` can change the route's active status, transfer this control to someone else,
+  or give up control permanently (which locks the route's status).
 - Inactive routes (e.g. deprecated or paused) should not be resolved by off-chain parsers;
-  use `resolveRouteIfActive` on-chain for the same check.
+  use `resolveRouteIfActive` to resolve active routes only.
 - At create: `createRoute` sets `activeController` to the XNS name owner;
   `createRouteWithController` accepts an explicit controller; both default to `isActive = true`.
-- `activeController` must not be `address(0)`. It may be `RENOUNCED_ACTIVE_CONTROLLER` at
-  create to lock control from the start; after create use `renounceActiveControl`.
+- `activeController` must not be `address(0)`.
+- The `isActive` status may be locked by setting `activeController` equal to `NO_ACTIVE_CONTROLLER`
+  address.
 
 **Route book freeze**
-- The XNS name owner may `freezeRouteBook` (irreversible): no new routes can be
-  created under that name; existing routes remain unchanged. `activeController` can
-  still toggle `isActive` on existing routes.
-- Check `isRouteBookFrozen` before creating routes.
+- The XNS name owner may freeze the route book permanently by calling `freezeRouteBook`
+- Freezing a route book is irreversible
+- Under a frozen route book, no new routes can be created; existing routes remain unchanged;
+  `activeController` can still toggle `isActive` on existing routes.
 
 **Resolution & indexing**
 - Forward: route → `target` via `resolveRouteIfActive` (requires `isActive`) or
-  `resolveRoute` (ignores `isActive`). No reverse lookup (many routes may share a `target`).
-- Bare names like `bob` normalize to `bob.x`. `routeKey` = hash of canonical route.
-- List routes with `getRouteKeyCount` and `getRouteKeys`. Registration is free; only the
-  XNS name owner may create routes.
+  `resolveRoute` (ignores `isActive`). No reverse lookup because many routes may share a `target`.
+- Bare names like `bob` normalize to `bob.x` (canonical XNS name). `routeKey` = hash of canonical route.
+- The route list can be queried with `getRouteKeyCount` and `getRouteKeys`.
 
 
 
@@ -196,7 +197,7 @@ Start a two-step transfer of `activeController` to `newActiveController`.
 - `msg.sender` must be the current `activeController`.
 - The route must exist and active control must not be renounced.
 - `newActiveController` must not be zero, the current controller, or
-  `RENOUNCED_ACTIVE_CONTROLLER` (use `renounceActiveControl` instead).
+  `NO_ACTIVE_CONTROLLER` (use `renounceActiveControl` instead).
 
 Replaces any existing pending transfer for this route.
 
@@ -251,7 +252,7 @@ function cancelActiveControllerTransfer(string xnsName, string routeScope, strin
 
 
 Permanently renounce active control: sets `activeController` to
-`RENOUNCED_ACTIVE_CONTROLLER`. `isActive` is left unchanged and can no longer be toggled.
+`NO_ACTIVE_CONTROLLER`. `isActive` is left unchanged and can no longer be toggled.
 
 **Requirements:**
 - `msg.sender` must be the current `activeController`.
@@ -764,14 +765,17 @@ _Emitted in `renounceActiveControl`._
 
 ## State Variables
 
-### RENOUNCED_ACTIVE_CONTROLLER
+### NO_ACTIVE_CONTROLLER
 
 
-Sentinel stored in `activeController` after `renounceActiveControl`.
-That account cannot toggle, transfer, or accept; `isActive` stays frozen.
+Special sentinel value for `activeController` indicating permanent
+renouncement of control. When a route's `activeController` is set to this address,
+its `isActive` status is locked and cannot be changed.
+
+Uses `0x…dEaD` rather than `address(0)` because zero means invalid / unset at create.
 
 ```solidity
-address RENOUNCED_ACTIVE_CONTROLLER
+address NO_ACTIVE_CONTROLLER
 ```
 
 

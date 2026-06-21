@@ -14,7 +14,7 @@ describe("XNSRoutes", function () {
   const OTHER_BASE = "other.action";
   /** Default `routeType` in tests; semantics are offchain */
   const RT0 = 0;
-  const RENOUNCED = "0x000000000000000000000000000000000000dEaD";
+  const NO_ACTIVE_CONTROLLER = "0x000000000000000000000000000000000000dEaD";
 
   /** Matches `require(..., "XNSRoutes: ...")` in `XNSRoutes.sol`. */
   const XR = {
@@ -614,7 +614,7 @@ describe("XNSRoutes", function () {
       await expect(
         routes
           .connect(owner)
-          .initiateActiveControllerTransfer(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, RENOUNCED),
+          .initiateActiveControllerTransfer(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, NO_ACTIVE_CONTROLLER),
       ).to.be.revertedWith(XR.useRenounceActiveControl);
 
       await expect(
@@ -635,8 +635,8 @@ describe("XNSRoutes", function () {
 
       const record = await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
       expect(record.isActive).to.equal(true);
-      expect(record.activeController).to.equal(RENOUNCED);
-      expect(await routes.RENOUNCED_ACTIVE_CONTROLLER()).to.equal(RENOUNCED);
+      expect(record.activeController).to.equal(NO_ACTIVE_CONTROLLER);
+      expect(await routes.NO_ACTIVE_CONTROLLER()).to.equal(NO_ACTIVE_CONTROLLER);
 
       await expect(
         routes.connect(owner).activateRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL),
@@ -660,7 +660,7 @@ describe("XNSRoutes", function () {
 
       const record = await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
       expect(record.isActive).to.equal(false);
-      expect(record.activeController).to.equal(RENOUNCED);
+      expect(record.activeController).to.equal(NO_ACTIVE_CONTROLLER);
     });
 
     it("Should clear pending transfer on renounce", async function () {

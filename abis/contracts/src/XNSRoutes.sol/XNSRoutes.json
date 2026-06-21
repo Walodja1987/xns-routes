@@ -7,7 +7,7 @@
   "event RouteActiveStatusUpdated(bytes32 indexed,bytes32 indexed,string,string,string,bool)",
   "event RouteBookFrozen(bytes32 indexed,string)",
   "event RouteCreated(bytes32 indexed,bytes32 indexed,string,string,string,address indexed,uint32,bool,address)",
-  "function RENOUNCED_ACTIVE_CONTROLLER() view returns (address)",
+  "function NO_ACTIVE_CONTROLLER() view returns (address)",
   "function XNS() view returns (address)",
   "function acceptActiveController(string,string,string)",
   "function activateRoute(string,string,string)",

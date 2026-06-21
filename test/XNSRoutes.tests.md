@@ -92,7 +92,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 - Current `activeController` may initiate a transfer to a live non-zero address (`initiateActiveControllerTransfer`).
 - Pending recipient completes with `acceptActiveController`; current controller may `cancelActiveControllerTransfer`.
 - A new transfer replaces any existing pending transfer.
-- Cannot transfer to `RENOUNCED_ACTIVE_CONTROLLER` (use `renounceActiveControl`).
+- Cannot transfer to `NO_ACTIVE_CONTROLLER` (use `renounceActiveControl`).
 
 #### Events
 
@@ -108,7 +108,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
-- Current `activeController` may permanently renounce control: sets `activeController` to `RENOUNCED_ACTIVE_CONTROLLER`.
+- Current `activeController` may permanently renounce control: sets `activeController` to `NO_ACTIVE_CONTROLLER`.
 - `isActive` is left unchanged and can no longer be toggled.
 - Clears any pending transfer. After renounce, toggles and transfers revert.
 
