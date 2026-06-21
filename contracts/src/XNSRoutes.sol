@@ -41,49 +41,43 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - `contracts.aave/eth:v3-pool-contract` (route with routeScope)
 /// - `safe.uni/uniswap:approve-usdt/amount=10` (route with routeScope and params)
 ///
-/// Each route points to a `target`. Once created, `target` and `routeType` are immutable.
+/// **Route record**
+/// - `target` — EOA or contract the route resolves to.
+/// - `routeType` — off-chain parser hint (semantics agreed off-chain; examples below).
+/// - `isActive` — whether parsers should treat the route as usable.
+/// - `activeController` — account that may toggle `isActive` or transfer/renounce control.
+/// - `target` and `routeType` are fixed at creation; routes cannot be deleted.
 ///
-/// Route metadata and controls:
-///
-/// **Route type**
-/// - Off-chain hint for route parsers on how to interpret `target`.
-/// - Examples: 
-///   - `0` = `target` is the answer (EOA/smart contract)
-///   - `1` = `target` must be queried (e.g. for a Bitcoin or Solana address)
-///   - `2` = `target` returns executable calldata
-///   - ...
-///
-/// **Immutable routes**
-/// - `target` and `routeType` cannot change after creation; routes cannot be deleted.
-/// - Gives users a guarantee that the binding will not change.
+/// **Route type examples**
+/// - `0` = `target` is the answer (EOA/smart contract)
+/// - `1` = query `target` (e.g. for a Bitcoin or Solana address)
+/// - `2` = `target` returns executable calldata
+/// - ...
 ///
 /// **Active status & activeController**
-/// - Routes can be active or inactive (`isActive`).
-/// - `activeController` may call `activateRoute` / `deactivateRoute`, start or cancel a
-///   two-step transfer (`initiateActiveControllerTransfer` / `acceptActiveController`), or
-///   `renounceActiveControl` (irreversible).
-/// - Useful to tell off-chain parsers not to resolve a route (e.g. deprecated or paused).
-/// - Set at create (`createRoute` defaults to the XNS name owner; `createRouteWithController`
-///   for an explicit `activeController`; both default to `isActive = true`).
-/// - `activeController` must not be `address(0)`.
-/// - At create, `activeController` may be `RENOUNCED_ACTIVE_CONTROLLER` to lock `isActive`
-///   permanently; after create use `renounceActiveControl` for the same effect.
+/// - `activeController` may call `activateRoute` / `deactivateRoute`, start or cancel a two-step
+///   transfer (`initiateActiveControllerTransfer` / `acceptActiveController` /
+///   `cancelActiveControllerTransfer`), or `renounceActiveControl` (irreversible; `isActive`
+///   frozen at its current value).
+/// - Inactive routes (e.g. deprecated or paused) should not be resolved by off-chain parsers;
+///   use `resolveRouteIfActive` on-chain for the same check.
+/// - At create: `createRoute` sets `activeController` to the XNS name owner;
+///   `createRouteWithController` accepts an explicit controller; both default to `isActive = true`.
+/// - `activeController` must not be `address(0)`. It may be `RENOUNCED_ACTIVE_CONTROLLER` at
+///   create to lock control from the start; after create use `renounceActiveControl`.
 ///
 /// **Route book freeze**
-/// - The XNS name owner can freeze the entire route book for an XNS name (`freezeRouteBook`).
-/// - Prevents adding new routes under that name. Existing routes are unchanged.
-/// - Existing routes can still be activated or deactivated by their `activeController`.
-/// - Use `isRouteBookFrozen` to check whether new routes can still be added.
+/// - The XNS name owner may `freezeRouteBook` (irreversible): no new routes can be
+///   created under that name; existing routes remain unchanged. `activeController` can
+///   still toggle `isActive` on existing routes.
+/// - Check `isRouteBookFrozen` before creating routes.
 ///
-/// **Other**
-/// - Routes are owned by the XNS name owner; registration is free and unlimited.
-/// - Route record: `target`, `routeType`, `isActive`, `activeController`.
-/// - Forward resolution: route -> `target`. Use `resolveRouteIfActive` for safe reads
-///   or `resolveRoute` for raw resolution. Reverse lookup is not supported because many routes
-///   may point to the same `target`.
-/// - Bare names like `bob` are stored as `bob.x`.
-/// - `routeKey` = hash of canonical route.
-/// - List routes on-chain with `getRouteKeyCount` and `getRouteKeys`.
+/// **Resolution & indexing**
+/// - Forward: route → `target` via `resolveRouteIfActive` (requires `isActive`) or
+///   `resolveRoute` (ignores `isActive`). No reverse lookup (many routes may share a `target`).
+/// - Bare names like `bob` normalize to `bob.x`. `routeKey` = hash of canonical route.
+/// - List routes with `getRouteKeyCount` and `getRouteKeys`. Registration is free; only the
+///   XNS name owner may create routes.
 contract XNSRoutes {
     // -------------------------------------------------------------------------
     // Constants
