@@ -12,7 +12,7 @@
   "function activateRoute(string,string,string)",
   "function cancelActiveControllerTransfer(string,string,string)",
   "function createRoute(string,string,string,address,uint32)",
-  "function createRouteWithController(string,string,string,address,uint32,bool,address)",
+  "function createRouteWithController(string,string,string,address,uint32,address)",
   "function deactivateRoute(string,string,string)",
   "function freezeRouteBook(string)",
   "function getRouteKeyCount(string) view returns (uint256)",

@@ -98,7 +98,6 @@ interface IXNSRoutes {
         string calldata routeLabel,
         address target,
         uint32 routeType,
-        bool isActive,
         address activeController
     ) external;
 

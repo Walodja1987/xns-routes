@@ -107,7 +107,7 @@ createRoute(
 );
 // Sets isActive = true and activeController = current XNS name owner.
 // target and routeType are immutable after creation.
-// Use createRouteWithController(...) to set isActive and activeController explicitly.
+// Use createRouteWithController(...) to set activeController explicitly (isActive=true by default).
 ```
 
 ---

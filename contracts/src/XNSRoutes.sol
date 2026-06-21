@@ -63,8 +63,8 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 ///   two-step transfer (`initiateActiveControllerTransfer` / `acceptActiveController`), or
 ///   `renounceActiveControl` (irreversible).
 /// - Useful to tell off-chain parsers not to resolve a route (e.g. deprecated or paused).
-/// - Set at create (`createRoute` defaults to the XNS name owner and isActive = true;
-///   `createRouteWithController` for explicit choice).
+/// - Set at create (`createRoute` defaults to the XNS name owner; `createRouteWithController`
+///   for an explicit `activeController`; both default to `isActive = true`).
 /// - `activeController` must not be `address(0)`.
 /// - At create, `activeController` may be `RENOUNCED_ACTIVE_CONTROLLER` to lock `isActive`
 ///   permanently; after create use `renounceActiveControl` for the same effect.
@@ -257,13 +257,12 @@ contract XNSRoutes {
         );
     }
 
-    /// @notice Same as `createRoute` but with explicit `isActive` and `activeController`.
+    /// @notice Same as `createRoute` but with an explicit `activeController`.
     /// Use when toggling `isActive` should be delegated to another account.
     ///
     /// Same requirements as `createRoute`, plus:
     /// - `activeController` must not be `address(0)`.
     ///
-    /// @param isActive Initial value for stored `isActive`.
     /// @param activeController Account that may toggle `isActive` via `activateRoute` / `deactivateRoute`.
     function createRouteWithController(
         string calldata xnsName,
@@ -271,7 +270,6 @@ contract XNSRoutes {
         string calldata routeLabel,
         address target,
         uint32 routeType,
-        bool isActive,
         address activeController
     ) external {
         string memory canonicalXNSName = _requireXNSNameOwner(xnsName);
@@ -281,7 +279,7 @@ contract XNSRoutes {
             routeLabel,
             target,
             routeType,
-            isActive,
+            true, // isActive
             activeController
         );
     }

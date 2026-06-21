@@ -285,7 +285,6 @@ describe("XNSRoutes", function () {
         ROUTE_LABEL,
         t2,
         RT0,
-        false,
         other.address,
       );
 
@@ -306,7 +305,7 @@ describe("XNSRoutes", function () {
   });
 
   describe("createRouteWithController", function () {
-    it("Should create route with explicit isActive and activeController", async function () {
+    it("Should create route with explicit activeController", async function () {
       const { routes, owner, other, buildTarget } = await loadFixture(deployFixture);
 
       await expect(
@@ -318,7 +317,6 @@ describe("XNSRoutes", function () {
             ROUTE_LABEL,
             buildTarget,
             RT0,
-            false,
             other.address,
           ),
       )
@@ -331,13 +329,13 @@ describe("XNSRoutes", function () {
           ROUTE_LABEL,
           buildTarget,
           RT0,
-          false,
+          true,
           other.address,
         );
 
       const record = await routes.getRouteRecord(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
       expect(record.target).to.equal(buildTarget);
-      expect(record.isActive).to.equal(false);
+      expect(record.isActive).to.equal(true);
       expect(record.activeController).to.equal(other.address);
     });
 
@@ -353,25 +351,6 @@ describe("XNSRoutes", function () {
             ROUTE_LABEL,
             buildTarget,
             RT0,
-            true,
-            ethers.ZeroAddress,
-          ),
-      ).to.be.revertedWith(XR.invalidActiveController);
-    });
-
-    it("Should revert with InvalidActiveController when activeController is zero and isActive is false", async function () {
-      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
-
-      await expect(
-        routes
-          .connect(owner)
-          .createRouteWithController(
-            XNS_NAME,
-            ROUTE_SCOPE,
-            ROUTE_LABEL,
-            buildTarget,
-            RT0,
-            false,
             ethers.ZeroAddress,
           ),
       ).to.be.revertedWith(XR.invalidActiveController);
@@ -480,7 +459,6 @@ describe("XNSRoutes", function () {
           ROUTE_LABEL,
           buildTarget,
           RT0,
-          true,
           other.address,
         );
 
@@ -501,7 +479,6 @@ describe("XNSRoutes", function () {
           ROUTE_LABEL,
           buildTarget,
           RT0,
-          true,
           other.address,
         );
 
@@ -990,9 +967,9 @@ describe("XNSRoutes", function () {
           "other-route",
           buildTarget,
           RT0,
-          false,
           other.address,
         );
+      await routes.connect(other).deactivateRoute(XNS_NAME, ROUTE_SCOPE, "other-route");
 
       const k0 = routeStorageKey(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL);
       const k1 = routeStorageKey(XNS_NAME, ROUTE_SCOPE, "other-route");

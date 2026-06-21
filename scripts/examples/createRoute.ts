@@ -37,11 +37,10 @@ const target = "0x0000000000000000000000000000000000000001";
 const routeType = 0;
 
 /**
- * Optional explicit `activeController` and `isActive`. When set, calls `createRouteWithController`
- * instead of `createRoute` (which defaults to isActive=true and activeController=XNS name owner).
+ * Optional explicit `activeController`. When set, calls `createRouteWithController`
+ * instead of `createRoute` (which defaults to activeController=XNS name owner; both use isActive=true).
  */
 const useControllerOverride = false;
-const isActive = true;
 const activeControllerOverride = "0x0000000000000000000000000000000000000002";
 
 /** Signer index (0 = first account from mnemonic) */
@@ -76,7 +75,6 @@ async function main() {
   console.log(`target: ${GREEN}${target}${RESET}`);
   console.log(`routeType: ${GREEN}${routeType}${RESET}`);
   if (useControllerOverride) {
-    console.log(`isActive: ${GREEN}${isActive}${RESET}`);
     console.log(`activeController: ${GREEN}${activeControllerOverride}${RESET} (override)\n`);
   } else {
     console.log(`isActive: ${GREEN}true (default)${RESET}`);
@@ -92,7 +90,6 @@ async function main() {
           routeLabel,
           target,
           routeType,
-          isActive,
           activeControllerOverride,
         )
     : await routes.connect(signer).createRoute(xnsName, routeScope, routeLabel, target, routeType);

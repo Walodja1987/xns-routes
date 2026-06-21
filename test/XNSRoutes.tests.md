@@ -48,7 +48,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
-- Same as `createRoute`, but accepts explicit `isActive` and `activeController` (must not be `address(0)`).
+- Same as `createRoute`, but accepts an explicit `activeController` (`isActive = true`; must not be `address(0)`).
 
 #### Reverts
 
