@@ -17,31 +17,29 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// @title XNSRoutes
 /// @author Wladimir Weinbender (DIVA Technologies AG)
 /// @notice Route registry for XNS names which enables XNS name owners to map URL-style
-/// identifiers to any Ethereum address. Routes may point to EOAs and smart contracts,
-/// including helper/view contracts returning arbitrary data, such as Bitcoin or
-/// Solana addresses, calldata, or other information.
+/// identifiers, so-called **routes**, to any Ethereum address. Routes may point to EOAs and
+/// smart contracts, including helper/view contracts returning arbitrary data, such as Bitcoin
+/// or Solana addresses, calldata, or other information.
 ///
-/// Routes are addressed with **route** and **parametrized route** strings.
+/// Route format: `xnsName/[routeScope:]routeLabel`
 ///
-/// - **route** — `xnsName/[routeScope:]routeLabel` (on-chain identity; no params).
-/// - **parametrized route** — route plus optional `/params…` tail (off-chain parsers only).
-///
-/// - **xnsName** — XNS name that owns the route book (e.g. `bob.xns`).
-/// - **routeScope** — optional segment before `:` (1–20 chars if present).
-/// - **routeLabel** — required slug (1–32 chars).
-/// - **route identifier** — `[routeScope:]routeLabel` within an `xnsName`.
-/// - **params** — optional parameters for off-chain route parsers; not stored or
-///   validated on-chain.
-///
-/// Examples:
-/// - route: `alice.og/my-sub-wallet` (without routeScope)
-/// - route: `contracts.aave/eth:v3-pool-contract` (with routeScope)
-/// - parametrized route: `bob.xns/uniswap:approve-usdt/amount=10` (with routeScope and params)
+/// - **xnsName** – XNS name that owns the route book (e.g. `bob.xns`, `contracts.aave`).
+/// - **routeScope** – optional segment before `:` (1–20 chars if present).
+/// - **routeLabel** – required slug (1–32 chars).
+/// - **route identifier** – `[routeScope:]routeLabel` within an `xnsName`.
 ///
 /// `routeScope` and `routeLabel` must follow the same character and hyphenation rules as XNS names:
 /// - Must consist only of [a-z0-9-] (lowercase letters, digits, and hyphens)
 /// - Cannot start or end with '-'
 /// - Cannot contain consecutive hyphens ('--')
+///
+/// Routes may include an optional `/params…` suffix, intended for use by off-chain parsers.
+/// These parameters are ignored by the contract and are neither stored nor processed on-chain.
+///
+/// Examples:
+/// - `alice.og/my-sub-wallet` (route without routeScope)
+/// - `contracts.aave/eth:v3-pool-contract` (route with routeScope)
+/// - `safe.uni/uniswap:approve-usdt/amount=10` (route with routeScope and params)
 ///
 /// Each route points to a `target`. Once created, `target` and `routeType` are immutable.
 ///
