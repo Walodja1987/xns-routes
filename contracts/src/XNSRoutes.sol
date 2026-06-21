@@ -27,12 +27,13 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - **xnsName** – XNS name that owns the route book (e.g. `bob.xns`, `contracts.aave`).
 /// - **routeScope** – optional segment before `:` (1–20 chars if present).
 /// - **routeLabel** – required slug (1–32 chars).
-/// - **route identifier** – `[routeScope:]routeLabel` within an `xnsName`.
 ///
 /// `routeScope` and `routeLabel` must follow the same character and hyphenation rules as XNS names:
 /// - Must consist only of [a-z0-9-] (lowercase letters, digits, and hyphens)
 /// - Cannot start or end with '-'
 /// - Cannot contain consecutive hyphens ('--')
+///
+/// The segment `[routeScope:]routeLabel` is referred to as the **route identifier**.
 ///
 /// Routes may include an optional `/params…` suffix, intended for use by off-chain parsers.
 /// These parameters are ignored by the contract and are neither stored nor processed on-chain.
