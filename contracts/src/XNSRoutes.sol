@@ -57,12 +57,11 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - ...
 ///
 /// **Active status & activeController**
-/// - `activeController` may call `activateRoute` / `deactivateRoute`, start or cancel a two-step
-///   transfer (`initiateActiveControllerTransfer` / `acceptActiveController` /
-///   `cancelActiveControllerTransfer`), or `renounceActiveControl` (irreversible; `isActive`
-///   frozen at its current value).
+/// - The `activeController` is the account that controls whether a route is active or not.
+/// - The `activeController` can change the route's active status, transfer this control to someone else,
+///   or give up control permanently (which locks the route's status).
 /// - Inactive routes (e.g. deprecated or paused) should not be resolved by off-chain parsers;
-///   use `resolveRouteIfActive` on-chain for the same check.
+///   use `resolveRouteIfActive` to resolve active routes only.
 /// - At create: `createRoute` sets `activeController` to the XNS name owner;
 ///   `createRouteWithController` accepts an explicit controller; both default to `isActive = true`.
 /// - `activeController` must not be `address(0)`.
@@ -82,15 +81,6 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - The route list can be queried with `getRouteKeyCount` and `getRouteKeys`. 
 contract XNSRoutes {
     // -------------------------------------------------------------------------
-    // Constants
-    // -------------------------------------------------------------------------
-
-    /// @notice Sentinel stored in `activeController` after `renounceActiveControl`.
-    /// That account cannot toggle, transfer, or accept; `isActive` stays frozen.
-    address public constant RENOUNCED_ACTIVE_CONTROLLER =
-        address(0x000000000000000000000000000000000000dEaD);
-
-    // -------------------------------------------------------------------------
     // Types
     // -------------------------------------------------------------------------
 
@@ -103,8 +93,17 @@ contract XNSRoutes {
     }
 
     // -------------------------------------------------------------------------
-    // Storage variables
+    // Constants and storage variables
     // -------------------------------------------------------------------------
+
+    /// @notice Special sentinel value for `activeController` indicating permanent
+    /// renouncement of control. When a route's `activeController` is set to this address,
+    /// its `isActive` status is locked and cannot be changed.
+    ///
+    /// The zero address (`address(0)`) is not used for this purpose because it already indicates the
+    /// absence of a controller and to avoid ambiguity with non-existent routes.
+    address public constant RENOUNCED_ACTIVE_CONTROLLER =
+        address(0x000000000000000000000000000000000000dEaD);
 
     /// @notice XNS registry this contract calls for name resolution.
     IXNSMinimal public immutable XNS;
