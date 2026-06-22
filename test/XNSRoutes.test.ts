@@ -762,12 +762,11 @@ describe("XNSRoutes", function () {
       expect(record.target).to.equal(ethers.ZeroAddress);
     });
 
-    it("Should revert getRouteRecord with InvalidRouteLabel for colon in label when scope is empty", async function () {
+    it("Should return empty record for malformed routeLabel when scope is empty", async function () {
       const { routes } = await loadFixture(deployFixture);
       const aliasRoute = `${ROUTE_SCOPE}:${ROUTE_LABEL}`;
-      await expect(routes.getRouteRecord(XNS_NAME, "", aliasRoute)).to.be.revertedWith(
-        XR.invalidRouteLabel,
-      );
+      const record = await routes.getRouteRecord(XNS_NAME, "", aliasRoute);
+      expect(record.target).to.equal(ethers.ZeroAddress);
     });
 
     it("Should return getRouteRecord for an existing route string", async function () {

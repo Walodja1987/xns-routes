@@ -143,7 +143,6 @@ Mark an existing route as active.
 
 **Requirements:**
 - `msg.sender` must be `record.activeController`.
-- Non-empty `routeScope` and `routeLabel` must satisfy character rules.
 - The route must exist.
 
 Emits `RouteActiveStatusUpdated` only when `isActive` changes.
@@ -169,7 +168,6 @@ Mark an existing route as inactive.
 
 **Requirements:**
 - `msg.sender` must be `record.activeController`.
-- Non-empty `routeScope` and `routeLabel` must satisfy character rules.
 - The route must exist.
 
 Emits `RouteActiveStatusUpdated` only when `isActive` changes.
@@ -321,8 +319,6 @@ function getRouteRecord(bytes32 routeKey) external view returns (struct XNSRoute
 Reads stored route record data by `(xnsName, routeScope, routeLabel)`.
 `record.target == address(0)` means that record does not exist.
 
-Requires that `routeScope` and `routeLabel` are valid strings.
-
 ```solidity
 function getRouteRecord(string xnsName, string routeScope, string routeLabel) external view returns (struct XNSRoutes.RouteRecord record)
 ```
@@ -373,7 +369,6 @@ Resolves an active route to `(target, routeType)`.
 **Requirements:**
 - The route must exist (`target != address(0)`).
 - `isActive` must be true.
-- Non-empty `routeScope` and `routeLabel` must satisfy character rules.
 
 ```solidity
 function resolveRouteIfActive(string xnsName, string routeScope, string routeLabel) external view returns (address target, uint32 routeType)
@@ -427,7 +422,6 @@ Resolves a route to `(target, routeType)` regardless of `isActive`.
 
 **Requirements:**
 - The route must exist (`target != address(0)`).
-- Non-empty `routeScope` and `routeLabel` must satisfy character rules.
 
 ```solidity
 function resolveRoute(string xnsName, string routeScope, string routeLabel) external view returns (address target, uint32 routeType)
@@ -668,7 +662,7 @@ function isValidRouteScopeAndLabel(string routeScope, string routeLabel) externa
 
 
 ```solidity
-event RouteCreated(bytes32 xnsNameHash, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, address target, uint32 routeType, bool isActive, address activeController)
+event RouteCreated(bytes32 xnsNameKey, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, address target, uint32 routeType, bool isActive, address activeController)
 ```
 
 _Emitted in `createRoute` and `createRouteWithController`._
@@ -682,7 +676,7 @@ _Emitted in `createRoute` and `createRouteWithController`._
 
 
 ```solidity
-event RouteActiveStatusUpdated(bytes32 xnsNameHash, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, bool isActive)
+event RouteActiveStatusUpdated(bytes32 xnsNameKey, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, bool isActive)
 ```
 
 _Emitted in `activateRoute` and `deactivateRoute` when `isActive` changes._
@@ -696,7 +690,7 @@ _Emitted in `activateRoute` and `deactivateRoute` when `isActive` changes._
 
 
 ```solidity
-event RouteBookFrozen(bytes32 xnsNameHash, string canonicalXNSName)
+event RouteBookFrozen(bytes32 xnsNameKey, string canonicalXNSName)
 ```
 
 _Emitted in `freezeRouteBook` when the route book is frozen for an XNS name._
@@ -710,7 +704,7 @@ _Emitted in `freezeRouteBook` when the route book is frozen for an XNS name._
 
 
 ```solidity
-event ActiveControllerTransferInitiated(bytes32 xnsNameHash, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, address pendingActiveController)
+event ActiveControllerTransferInitiated(bytes32 xnsNameKey, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, address pendingActiveController)
 ```
 
 _Emitted in `initiateActiveControllerTransfer`._
@@ -724,7 +718,7 @@ _Emitted in `initiateActiveControllerTransfer`._
 
 
 ```solidity
-event ActiveControllerTransferAccepted(bytes32 xnsNameHash, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, address previousActiveController, address newActiveController)
+event ActiveControllerTransferAccepted(bytes32 xnsNameKey, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, address previousActiveController, address newActiveController)
 ```
 
 _Emitted in `acceptActiveController`._
@@ -738,7 +732,7 @@ _Emitted in `acceptActiveController`._
 
 
 ```solidity
-event ActiveControllerTransferCancelled(bytes32 xnsNameHash, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, address cancelledPendingActiveController)
+event ActiveControllerTransferCancelled(bytes32 xnsNameKey, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, address cancelledPendingActiveController)
 ```
 
 _Emitted in `cancelActiveControllerTransfer`._
@@ -752,7 +746,7 @@ _Emitted in `cancelActiveControllerTransfer`._
 
 
 ```solidity
-event ActiveControllerRenounced(bytes32 xnsNameHash, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel)
+event ActiveControllerRenounced(bytes32 xnsNameKey, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel)
 ```
 
 _Emitted in `renounceActiveControl`._

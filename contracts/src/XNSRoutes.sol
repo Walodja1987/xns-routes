@@ -125,7 +125,7 @@ contract XNSRoutes {
 
     /// @dev Emitted in `createRoute` and `createRouteWithController`.
     event RouteCreated(
-        bytes32 indexed xnsNameHash,
+        bytes32 indexed xnsNameKey,
         bytes32 indexed routeKey,
         string canonicalXNSName,
         string routeScope,
@@ -138,7 +138,7 @@ contract XNSRoutes {
 
     /// @dev Emitted in `activateRoute` and `deactivateRoute` when `isActive` changes.
     event RouteActiveStatusUpdated(
-        bytes32 indexed xnsNameHash,
+        bytes32 indexed xnsNameKey,
         bytes32 indexed routeKey,
         string canonicalXNSName,
         string routeScope,
@@ -147,11 +147,11 @@ contract XNSRoutes {
     );
 
     /// @dev Emitted in `freezeRouteBook` when the route book is frozen for an XNS name.
-    event RouteBookFrozen(bytes32 indexed xnsNameHash, string canonicalXNSName);
+    event RouteBookFrozen(bytes32 indexed xnsNameKey, string canonicalXNSName);
 
     /// @dev Emitted in `initiateActiveControllerTransfer`.
     event ActiveControllerTransferInitiated(
-        bytes32 indexed xnsNameHash,
+        bytes32 indexed xnsNameKey,
         bytes32 indexed routeKey,
         string canonicalXNSName,
         string routeScope,
@@ -161,7 +161,7 @@ contract XNSRoutes {
 
     /// @dev Emitted in `acceptActiveController`.
     event ActiveControllerTransferAccepted(
-        bytes32 indexed xnsNameHash,
+        bytes32 indexed xnsNameKey,
         bytes32 indexed routeKey,
         string canonicalXNSName,
         string routeScope,
@@ -172,7 +172,7 @@ contract XNSRoutes {
 
     /// @dev Emitted in `cancelActiveControllerTransfer`.
     event ActiveControllerTransferCancelled(
-        bytes32 indexed xnsNameHash,
+        bytes32 indexed xnsNameKey,
         bytes32 indexed routeKey,
         string canonicalXNSName,
         string routeScope,
@@ -182,7 +182,7 @@ contract XNSRoutes {
 
     /// @dev Emitted in `renounceActiveControl`.
     event ActiveControllerRenounced(
-        bytes32 indexed xnsNameHash,
+        bytes32 indexed xnsNameKey,
         bytes32 indexed routeKey,
         string canonicalXNSName,
         string routeScope,
@@ -293,8 +293,8 @@ contract XNSRoutes {
         require(target != address(0), "XNSRoutes: invalid target");
         require(activeController != address(0), "XNSRoutes: invalid active controller");
 
-        bytes32 nameKey = _xnsNameKey(canonicalXNSName);
-        require(!_routeBookFrozen[nameKey], "XNSRoutes: route book frozen");
+        bytes32 xnsNameKey = _xnsNameKey(canonicalXNSName);
+        require(!_routeBookFrozen[xnsNameKey], "XNSRoutes: route book frozen");
 
         bytes32 routeKey = _routeKey(canonicalXNSName, routeScope, routeLabel);
         require(_routes[routeKey].target == address(0), "XNSRoutes: route already exists");
@@ -306,10 +306,10 @@ contract XNSRoutes {
             activeController: activeController
         });
 
-        _routeKeysByXNSName[nameKey].push(routeKey);
+        _routeKeysByXNSName[xnsNameKey].push(routeKey);
 
         emit RouteCreated(
-            nameKey,
+            xnsNameKey,
             routeKey,
             canonicalXNSName,
             routeScope,
@@ -325,7 +325,6 @@ contract XNSRoutes {
     ///
     /// **Requirements:**
     /// - `msg.sender` must be `record.activeController`.
-    /// - Non-empty `routeScope` and `routeLabel` must satisfy character rules.
     /// - The route must exist.
     ///
     /// Emits `RouteActiveStatusUpdated` only when `isActive` changes.
@@ -345,7 +344,6 @@ contract XNSRoutes {
     ///
     /// **Requirements:**
     /// - `msg.sender` must be `record.activeController`.
-    /// - Non-empty `routeScope` and `routeLabel` must satisfy character rules.
     /// - The route must exist.
     ///
     /// Emits `RouteActiveStatusUpdated` only when `isActive` changes.
@@ -369,10 +367,7 @@ contract XNSRoutes {
         bool active
     ) private {
         string memory canonicalXNSName = _canonicalizeXNSName(xnsName);
-
-        _validateRouteScopeAndLabel(routeScope, routeLabel);
-
-        bytes32 nameKey = _xnsNameKey(canonicalXNSName);
+        bytes32 xnsNameKey = _xnsNameKey(canonicalXNSName);
         bytes32 routeKey = _routeKey(canonicalXNSName, routeScope, routeLabel);
         RouteRecord storage record = _routes[routeKey];
 
@@ -383,7 +378,7 @@ contract XNSRoutes {
         if (record.isActive != active) {
             record.isActive = active;
             emit RouteActiveStatusUpdated(
-                nameKey,
+                xnsNameKey,
                 routeKey,
                 canonicalXNSName,
                 routeScope,
@@ -410,13 +405,13 @@ contract XNSRoutes {
         string calldata routeLabel,
         address newActiveController
     ) external {
-        (
-            string memory canonicalXNSName,
-            bytes32 nameKey,
-            bytes32 routeKey,
-            RouteRecord storage record
-        ) = _requireMutableActiveControllerRoute(xnsName, routeScope, routeLabel);
+        string memory canonicalXNSName = _canonicalizeXNSName(xnsName);
+        bytes32 xnsNameKey = _xnsNameKey(canonicalXNSName);
+        bytes32 routeKey = _routeKey(canonicalXNSName, routeScope, routeLabel);
+        RouteRecord storage record = _routes[routeKey];
 
+        require(record.target != address(0), "XNSRoutes: route not found");
+        require(record.activeController != NO_ACTIVE_CONTROLLER, "XNSRoutes: active control renounced");
         require(newActiveController != address(0), "XNSRoutes: invalid active controller");
         require(
             newActiveController != NO_ACTIVE_CONTROLLER,
@@ -428,7 +423,7 @@ contract XNSRoutes {
         _pendingActiveController[routeKey] = newActiveController;
 
         emit ActiveControllerTransferInitiated(
-            nameKey,
+            xnsNameKey,
             routeKey,
             canonicalXNSName,
             routeScope,
@@ -447,14 +442,14 @@ contract XNSRoutes {
         string calldata routeScope,
         string calldata routeLabel
     ) external {
-        (
-            string memory canonicalXNSName,
-            bytes32 nameKey,
-            bytes32 routeKey,
-            RouteRecord storage record
-        ) = _requireMutableActiveControllerRoute(xnsName, routeScope, routeLabel);
-
+        string memory canonicalXNSName = _canonicalizeXNSName(xnsName);
+        bytes32 xnsNameKey = _xnsNameKey(canonicalXNSName);
+        bytes32 routeKey = _routeKey(canonicalXNSName, routeScope, routeLabel);
+        RouteRecord storage record = _routes[routeKey];
         address pending = _pendingActiveController[routeKey];
+
+        require(record.target != address(0), "XNSRoutes: route not found");
+        require(record.activeController != NO_ACTIVE_CONTROLLER, "XNSRoutes: active control renounced");
         require(pending != address(0), "XNSRoutes: no pending transfer");
         require(msg.sender == pending, "XNSRoutes: not pending active controller");
 
@@ -463,7 +458,7 @@ contract XNSRoutes {
         delete _pendingActiveController[routeKey];
 
         emit ActiveControllerTransferAccepted(
-            nameKey,
+            xnsNameKey,
             routeKey,
             canonicalXNSName,
             routeScope,
@@ -483,21 +478,21 @@ contract XNSRoutes {
         string calldata routeScope,
         string calldata routeLabel
     ) external {
-        (
-            string memory canonicalXNSName,
-            bytes32 nameKey,
-            bytes32 routeKey,
-            RouteRecord storage record
-        ) = _requireMutableActiveControllerRoute(xnsName, routeScope, routeLabel);
-
+        string memory canonicalXNSName = _canonicalizeXNSName(xnsName);
+        bytes32 xnsNameKey = _xnsNameKey(canonicalXNSName);
+        bytes32 routeKey = _routeKey(canonicalXNSName, routeScope, routeLabel);
+        RouteRecord storage record = _routes[routeKey];
         address pending = _pendingActiveController[routeKey];
+
+        require(record.target != address(0), "XNSRoutes: route not found");
+        require(record.activeController != NO_ACTIVE_CONTROLLER, "XNSRoutes: active control renounced");
         require(pending != address(0), "XNSRoutes: no pending transfer");
         require(msg.sender == record.activeController, "XNSRoutes: not active controller");
 
         delete _pendingActiveController[routeKey];
 
         emit ActiveControllerTransferCancelled(
-            nameKey,
+            xnsNameKey,
             routeKey,
             canonicalXNSName,
             routeScope,
@@ -519,13 +514,13 @@ contract XNSRoutes {
         string calldata routeScope,
         string calldata routeLabel
     ) external {
-        (
-            string memory canonicalXNSName,
-            bytes32 nameKey,
-            bytes32 routeKey,
-            RouteRecord storage record
-        ) = _requireMutableActiveControllerRoute(xnsName, routeScope, routeLabel);
+        string memory canonicalXNSName = _canonicalizeXNSName(xnsName);
+        bytes32 xnsNameKey = _xnsNameKey(canonicalXNSName);
+        bytes32 routeKey = _routeKey(canonicalXNSName, routeScope, routeLabel);
+        RouteRecord storage record = _routes[routeKey];
 
+        require(record.target != address(0), "XNSRoutes: route not found");
+        require(record.activeController != NO_ACTIVE_CONTROLLER, "XNSRoutes: active control renounced");
         require(msg.sender == record.activeController, "XNSRoutes: not active controller");
 
         delete _pendingActiveController[routeKey];
@@ -533,7 +528,7 @@ contract XNSRoutes {
         record.activeController = NO_ACTIVE_CONTROLLER;
 
         emit ActiveControllerRenounced(
-            nameKey,
+            xnsNameKey,
             routeKey,
             canonicalXNSName,
             routeScope,
@@ -555,10 +550,10 @@ contract XNSRoutes {
     function freezeRouteBook(string calldata xnsName) external {
         string memory canonicalXNSName = _requireXNSNameOwner(xnsName);
 
-        bytes32 nameKey = _xnsNameKey(canonicalXNSName);
-        if (!_routeBookFrozen[nameKey]) {
-            _routeBookFrozen[nameKey] = true;
-            emit RouteBookFrozen(nameKey, canonicalXNSName);
+        bytes32 xnsNameKey = _xnsNameKey(canonicalXNSName);
+        if (!_routeBookFrozen[xnsNameKey]) {
+            _routeBookFrozen[xnsNameKey] = true;
+            emit RouteBookFrozen(xnsNameKey, canonicalXNSName);
         }
     }
 
@@ -583,8 +578,6 @@ contract XNSRoutes {
 
     /// @notice Reads stored route record data by `(xnsName, routeScope, routeLabel)`.
     /// `record.target == address(0)` means that record does not exist.
-    ///
-    /// Requires that `routeScope` and `routeLabel` are valid strings.
     ///
     /// @param xnsName The XNS name that owns the route space.
     /// @param routeScope Route scope (may be empty).
@@ -614,7 +607,6 @@ contract XNSRoutes {
     /// **Requirements:**
     /// - The route must exist (`target != address(0)`).
     /// - `isActive` must be true.
-    /// - Non-empty `routeScope` and `routeLabel` must satisfy character rules.
     ///
     /// @param xnsName The XNS name that owns the route space.
     /// @param routeScope Route scope (may be empty).
@@ -648,7 +640,6 @@ contract XNSRoutes {
     ///
     /// **Requirements:**
     /// - The route must exist (`target != address(0)`).
-    /// - Non-empty `routeScope` and `routeLabel` must satisfy character rules.
     ///
     /// @param xnsName The XNS name that owns the route space.
     /// @param routeScope Route scope (may be empty).
@@ -693,7 +684,6 @@ contract XNSRoutes {
         string calldata routeLabel
     ) external view returns (address pending) {
         string memory canonicalXNSName = _canonicalizeXNSName(xnsName);
-        _validateRouteScopeAndLabel(routeScope, routeLabel);
         return _pendingActiveController[_routeKey(canonicalXNSName, routeScope, routeLabel)];
     }
 
@@ -789,40 +779,12 @@ contract XNSRoutes {
         return _isValidRouteLabel(routeLabel);
     }
 
-    /// @dev Validates scope/label, loads an existing route with mutable active control.
-    function _requireMutableActiveControllerRoute(
-        string calldata xnsName,
-        string calldata routeScope,
-        string calldata routeLabel
-    )
-        private
-        view
-        returns (
-            string memory canonicalXNSName,
-            bytes32 nameKey,
-            bytes32 routeKey,
-            RouteRecord storage record
-        )
-    {
-        canonicalXNSName = _canonicalizeXNSName(xnsName);
-        _validateRouteScopeAndLabel(routeScope, routeLabel);
-        nameKey = _xnsNameKey(canonicalXNSName);
-        routeKey = _routeKey(canonicalXNSName, routeScope, routeLabel);
-        record = _routes[routeKey];
-        require(record.target != address(0), "XNSRoutes: route not found");
-        require(
-            record.activeController != NO_ACTIVE_CONTROLLER,
-            "XNSRoutes: active control renounced"
-        );
-    }
-
-    /// @dev Validates scope/label, derives key and returns the route record.
+    /// @dev Derives key and returns the route record (no scope/label validation).
     function _getRouteRecord(
         string memory xnsName,
         string memory routeScope,
         string memory routeLabel
     ) private view returns (RouteRecord memory record) {
-        _validateRouteScopeAndLabel(routeScope, routeLabel);
         RouteRecord storage s = _routes[_routeKey(xnsName, routeScope, routeLabel)];
         record = RouteRecord({
             target: s.target,

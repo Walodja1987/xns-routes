@@ -14,7 +14,7 @@ interface IXNSRoutes {
     }
 
     event RouteCreated(
-        bytes32 indexed xnsNameHash,
+        bytes32 indexed xnsNameKey,
         bytes32 indexed routeKey,
         string canonicalXNSName,
         string routeScope,
@@ -26,7 +26,7 @@ interface IXNSRoutes {
     );
 
     event RouteActiveStatusUpdated(
-        bytes32 indexed xnsNameHash,
+        bytes32 indexed xnsNameKey,
         bytes32 indexed routeKey,
         string canonicalXNSName,
         string routeScope,
@@ -34,10 +34,10 @@ interface IXNSRoutes {
         bool isActive
     );
 
-    event RouteBookFrozen(bytes32 indexed xnsNameHash, string canonicalXNSName);
+    event RouteBookFrozen(bytes32 indexed xnsNameKey, string canonicalXNSName);
 
     event ActiveControllerTransferInitiated(
-        bytes32 indexed xnsNameHash,
+        bytes32 indexed xnsNameKey,
         bytes32 indexed routeKey,
         string canonicalXNSName,
         string routeScope,
@@ -46,7 +46,7 @@ interface IXNSRoutes {
     );
 
     event ActiveControllerTransferAccepted(
-        bytes32 indexed xnsNameHash,
+        bytes32 indexed xnsNameKey,
         bytes32 indexed routeKey,
         string canonicalXNSName,
         string routeScope,
@@ -56,7 +56,7 @@ interface IXNSRoutes {
     );
 
     event ActiveControllerTransferCancelled(
-        bytes32 indexed xnsNameHash,
+        bytes32 indexed xnsNameKey,
         bytes32 indexed routeKey,
         string canonicalXNSName,
         string routeScope,
@@ -65,7 +65,7 @@ interface IXNSRoutes {
     );
 
     event ActiveControllerRenounced(
-        bytes32 indexed xnsNameHash,
+        bytes32 indexed xnsNameKey,
         bytes32 indexed routeKey,
         string canonicalXNSName,
         string routeScope,

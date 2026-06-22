@@ -36,7 +36,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Events
 
-- Should emit `RouteCreated` with indexed `xnsNameHash` (`keccak256(bytes(canonicalXNSName))`), `routeKey` (same as `_routeKey`), and `target`, then `canonicalXNSName`, `routeScope`, routeLabel, `routeType`, `isActive`, and `activeController` (non-indexed, full values in log data).
+- Should emit `RouteCreated` with indexed `xnsNameKey` (`keccak256(bytes(canonicalXNSName))`), `routeKey` (same as `_routeKey`), and `target`, then `canonicalXNSName`, `routeScope`, routeLabel, `routeType`, `isActive`, and `activeController` (non-indexed, full values in log data).
 
 #### Reverts
 
@@ -66,7 +66,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Events
 
-- Should emit `RouteActiveStatusUpdated` with indexed `xnsNameHash` / `routeKey`, then `canonicalXNSName`, `routeScope`, routeLabel, and `isActive` when transitioning.
+- Should emit `RouteActiveStatusUpdated` with indexed `xnsNameKey` / `routeKey`, then `canonicalXNSName`, `routeScope`, routeLabel, and `isActive` when transitioning.
 
 #### Reverts
 
@@ -139,7 +139,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Events
 
-- Should emit `RouteBookFrozen` with indexed `xnsNameHash` and full `canonicalXNSName` the first time the route book is frozen.
+- Should emit `RouteBookFrozen` with indexed `xnsNameKey` and full `canonicalXNSName` the first time the route book is frozen.
 - Second call should not emit again (idempotent).
 
 #### Reverts
@@ -157,11 +157,10 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 - `getRouteRecord(string route)` parses a **route** via `splitRoute` then reads the same record.
 - `getRouteRecord(bytes32 routeKey)` reads storage directly by key.
 - Existence: `getRouteRecord(...).target != address(0)`.
-- Tuple overload applies the same local `routeScope` / routeLabel validation as mutating functions before deriving the key.
+- Malformed `routeScope` / routeLabel on read paths return an empty record (no validation revert).
 
 #### Reverts
 
-- Should revert with `"XNSRoutes: invalid route scope"` / `"XNSRoutes: invalid route label"` for malformed `routeScope` / routeLabel (e.g. `:` in routeLabel when `routeScope` is empty).
 - `getRouteRecord(string)` should revert with `"XNSRoutes: invalid route"` when no `/` is present.
 
 ---
@@ -179,7 +178,6 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 - `"XNSRoutes: route not found"` when the route does not exist.
 - `"XNSRoutes: route inactive"` for `resolveRouteIfActive` when `isActive == false`.
-- `"XNSRoutes: invalid route scope"` / `"XNSRoutes: invalid route label"` for malformed tuple inputs.
 - `"XNSRoutes: invalid route"` for route-string overloads without `/`.
 
 ---
