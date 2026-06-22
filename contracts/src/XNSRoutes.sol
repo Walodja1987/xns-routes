@@ -416,10 +416,7 @@ contract XNSRoutes {
         require(record.target != address(0), "XNSRoutes: route not found");
         require(record.activeController != NO_ACTIVE_CONTROLLER, "XNSRoutes: active control renounced");
         require(newActiveController != address(0), "XNSRoutes: invalid active controller");
-        require(
-            newActiveController != NO_ACTIVE_CONTROLLER,
-            "XNSRoutes: use renounceActiveControl"
-        );
+        require(newActiveController != NO_ACTIVE_CONTROLLER, "XNSRoutes: use renounceActiveControl");
         require(newActiveController != record.activeController, "XNSRoutes: same active controller");
         require(msg.sender == record.activeController, "XNSRoutes: not active controller");
 
