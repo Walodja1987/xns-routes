@@ -257,6 +257,9 @@ contract XNSRoutes {
     /// Same requirements as `createRoute`, plus:
     /// - `activeController` must not be `address(0)`.
     ///
+    /// Note: If `activeController` is set to `NO_ACTIVE_CONTROLLER`, the route's `isActive` status is locked
+    /// and cannot be changed after creation.
+    ///
     /// @param activeController Account that may toggle `isActive` via `activateRoute` / `deactivateRoute`.
     function createRouteWithController(
         string calldata xnsName,
