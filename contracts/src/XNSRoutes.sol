@@ -196,13 +196,13 @@ contract XNSRoutes {
     /// @notice Sets the XNS registry and registers the name `routes.xns` for this contract.
     ///
     /// **Requirements:**
-    /// - `_xns` must not be the zero address.
+    /// - `xnsContract` must not be the zero address.
     /// - `msg.value` must be exactly 0.001 ETH for the registration of `routes.xns`.
     ///
-    /// @param _xns XNS registry address.
-    constructor(address _xns) payable {
-        require(_xns != address(0), "XNSRoutes: 0x XNS address");
-        XNS = IXNSMinimal(_xns);
+    /// @param xnsContract XNS registry address.
+    constructor(address xnsContract) payable {
+        require(xnsContract != address(0), "XNSRoutes: 0x XNS address");
+        XNS = IXNSMinimal(xnsContract);
         XNS.registerName{value: msg.value}("routes", "xns");
     }
 

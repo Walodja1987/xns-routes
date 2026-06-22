@@ -142,7 +142,7 @@ describe("XNSRoutes", function () {
       expect(await routes.XNS()).to.equal(String(mockXns.target));
     });
 
-    it("Should revert with zero XNS address when xns_ is zero address", async function () {
+    it("Should revert with zero XNS address when xnsContract is zero address", async function () {
       const XNSRoutes = await ethers.getContractFactory("XNSRoutes");
       await expect(XNSRoutes.deploy(ethers.ZeroAddress, { value: 0n })).to.be.revertedWith(
         XR.zeroXnsAddress,

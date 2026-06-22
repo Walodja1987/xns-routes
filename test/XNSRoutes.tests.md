@@ -21,7 +21,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Reverts
 
-- Should revert with `"XNSRoutes: 0x XNS address"` when `_xns` is `address(0)`.
+- Should revert with `"XNSRoutes: 0x XNS address"` when `xnsContract` is `address(0)`.
 - Reverts if XNS rejects registration (e.g. insufficient `msg.value`, name taken, exclusivity rules on the real contract).
 
 ---
