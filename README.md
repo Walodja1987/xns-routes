@@ -13,12 +13,11 @@ Routes are registered under an XNS name using **route** and **parametrized route
 **Grammar:**
 
 ```text
-route               = xnsName "/" routeIdentifier
+route               = xnsName "/" routeLabel
+                    | xnsName "/" routeScope ":" routeLabel
 parametrized route  = route [ "/" params… ]
-routeIdentifier     = routeLabel | routeScope ":" routeLabel
 ```
 
-- **route identifier** = `routeLabel` or `routeScope ":" routeLabel` (e.g. `eth:register-name` or `my-wallet`)
 - **params** (e.g. `/label=bro/namespace=og`) are off-chain; the contract only accepts **route** strings (no params)
 
 ```
@@ -46,10 +45,9 @@ Validation rules:
 
 | Term | Example | Notes |
 |------|---------|--------|
-| **route** | `ai.xns/eth:123` | On-chain identity: `xnsName "/" routeIdentifier` (no params). Used by `splitRoute`, `routeKey`, and registry lookups |
+| **route** | `ai.xns/eth:123` | On-chain identity: `xnsName "/" [routeScope ":"] routeLabel` (no params). Used by `splitRoute`, `routeKey`, and registry lookups |
 | **parametrized route** | `ai.xns/eth:123/label=bro` | Off-chain link: route plus optional `/params…` tail |
 | **xnsName** | `ai.xns` | Host / owner scope |
-| **route identifier** | `eth:123` | `[routeScope:]routeLabel` within an `xnsName` |
 | **route scope** | `eth` | Optional; before `:` |
 | **route label** | `123` | Required slug |
 | **route key** | `bytes32` | `keccak256(canonical route)`; params never included |

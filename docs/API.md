@@ -22,8 +22,6 @@ Route format: `xnsName/[routeScope:]routeLabel`
 - Cannot start or end with '-'
 - Cannot contain consecutive hyphens ('--')
 
-The segment `[routeScope:]routeLabel` is referred to as the **route identifier**.
-
 Routes may include an optional `/params…` suffix, intended for use by off-chain parsers.
 These parameters are ignored by the contract and are neither stored nor processed on-chain.
 
@@ -37,13 +35,15 @@ Examples:
 - `routeType` — off-chain parser hint (semantics agreed off-chain; examples below).
 - `isActive` — whether parsers should treat the route as usable.
 - `activeController` — account that may toggle `isActive`.
-- `target` and `routeType` are fixed at creation; routes cannot be deleted.
+
+`target` and `routeType` are fixed at creation; routes cannot be deleted.
 
 **Route type examples**
 - `0` = `target` is the answer (EOA/smart contract)
 - `1` = `target` must be queried (e.g. for a Bitcoin or Solana address)
 - `2` = `target` returns executable calldata
-- ...
+
+The exact semantics of `routeType` are agreed off-chain and are not enforced by the contract.
 
 **Active status & activeController**
 - The `activeController` is the account that controls whether a route is active or not.
@@ -64,7 +64,7 @@ Examples:
   `activeController` can still toggle `isActive` on existing routes.
 
 **Resolution & indexing**
-- Forward: route → `target` via `resolveRouteIfActive` (requires `isActive`) or
+- Forward: route -> `target` via `resolveRouteIfActive` (requires `isActive`) or
   `resolveRoute` (ignores `isActive`). No reverse lookup because many routes may share a `target`.
 - Bare names like `bob` normalize to `bob.x` (canonical XNS name). `routeKey` = hash of canonical route.
 - The route list can be queried with `getRouteKeyCount` and `getRouteKeys`.
@@ -79,8 +79,8 @@ Examples:
 ### createRoute
 
 
-Create a route `[xnsName]/[routeScope:][routeLabel]` with `isActive = true` and
-`activeController` set to the current XNS name owner.
+Create a route `[xnsName]/[routeScope:][routeLabel]`. `isActive` is set to true and
+`activeController` to the current XNS name owner.
 
 **Requirements:**
 - `msg.sender` must be the owner for `xnsName`.
@@ -118,6 +118,9 @@ Use when toggling `isActive` should be delegated to another account.
 
 Same requirements as `createRoute`, plus:
 - `activeController` must not be `address(0)`.
+
+Note: If `activeController` is set to `NO_ACTIVE_CONTROLLER`, the route's `isActive` status is locked
+and cannot be changed after creation.
 
 ```solidity
 function createRouteWithController(string xnsName, string routeScope, string routeLabel, address target, uint32 routeType, address activeController) external
@@ -561,7 +564,7 @@ Parses a route into `(xnsName, routeScope, routeLabel)`.
 Example: `bro.xns/eth:my-wallet` -> `(bro.xns, eth, my-wallet)`.
 Useful when calling tuple-based mutating functions (`createRoute`, etc.).
 
-A route is `xnsName "/" routeIdentifier` — not a parametrized route (no `/params…` tail).
+A route is `xnsName/[routeScope:]routeLabel` — not a parametrized route (no `/params…` tail).
 Does not validate segments; malformed input may still parse but fail downstream.
 
 Requires `route` to contain at least one `/`.
@@ -582,8 +585,8 @@ function splitRoute(string route) external pure returns (string xnsName, string 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | xnsName | string | Segment before the first `/`. |
-| routeScope | string | Segment before the first `:` in the route identifier, or empty if there is no `:`. |
-| routeLabel | string | Segment after `:` if `routeScope` is present, else the whole route identifier after `/`. |
+| routeScope | string | Segment before the first `:` in the segment after `/`, or empty if there is no `:`. |
+| routeLabel | string | Segment after `:` if `routeScope` is present, else the whole segment after `/`. |
 
 ### isValidRouteScope
 
@@ -766,7 +769,8 @@ Special sentinel value for `activeController` indicating permanent
 renouncement of control. When a route's `activeController` is set to this address,
 its `isActive` status is locked and cannot be changed.
 
-Uses `0x…dEaD` rather than `address(0)` because zero means invalid / unset at create.
+Uses 0x…dEaD rather than `address(0)` because `address(0)` is rejected as an invalid
+`activeController` at create.
 
 ```solidity
 address NO_ACTIVE_CONTROLLER
