@@ -655,8 +655,7 @@ contract XNSRoutes {
 
     /// @notice Resolves a route to `(target, routeType)` regardless of `isActive`.
     ///
-    /// **Requirements:**
-    /// - The route must exist (`target != address(0)`).
+    /// Requires that the route exists (`target != address(0)`).
     ///
     /// @param xnsName The XNS name that owns the route space.
     /// @param routeScope Route scope (may be empty).
@@ -700,8 +699,7 @@ contract XNSRoutes {
         string calldata routeScope,
         string calldata routeLabel
     ) external view returns (address pending) {
-        string memory canonicalXNSName = _canonicalizeXNSName(xnsName);
-        return _pendingActiveController[_routeKey(canonicalXNSName, routeScope, routeLabel)];
+        return _pendingActiveController[_routeKey(xnsName, routeScope, routeLabel)];
     }
 
     /// @notice Number of route keys registered under `xnsName`.
@@ -745,7 +743,7 @@ contract XNSRoutes {
 
     /// @notice Parses a route into `(xnsName, routeScope, routeLabel)`.
     /// Example: `bro.xns/eth:my-wallet` -> `(bro.xns, eth, my-wallet)`.
-    /// Useful when calling tuple-based mutating functions (`createRoute`, etc.).
+    /// Useful when calling tuple-based mutating functions (e.g. `resolveRoute`, `activateRoute`).
     ///
     /// A route is `xnsName/[routeScope:]routeLabel` — not a parametrized route (no `/params…` tail).
     /// Does not validate segments; malformed input may still parse but fail downstream.
@@ -764,6 +762,54 @@ contract XNSRoutes {
         returns (string memory xnsName, string memory routeScope, string memory routeLabel)
     {
         return _splitRoute(route);
+    }
+
+    /// @dev Splits `route` at the first `/`, then at the first `:` in the segment after `/`.
+    function _splitRoute(
+        string calldata route
+    ) private pure returns (string memory xnsName, string memory routeScope, string memory routeLabel) {
+        bytes calldata b = bytes(route);
+        uint256 n = b.length;
+        uint256 slash;
+        bool foundSlash;
+        for (uint256 i = 0; i < n; ++i) {
+            if (b[i] == 0x2f) {
+                slash = i;
+                foundSlash = true;
+                break;
+            }
+        }
+        require(foundSlash, "XNSRoutes: invalid route");
+
+        xnsName = _calldataSubstringToString(b, 0, slash);
+
+        uint256 routePathStart = slash + 1;
+        if (routePathStart >= n) {
+            return (xnsName, "", "");
+        }
+
+        bytes calldata routePath = b[routePathStart:n];
+
+        uint256 colon;
+        bool foundColon;
+        for (uint256 j = 0; j < routePath.length; ++j) {
+            if (routePath[j] == 0x3a) {
+                colon = j;
+                foundColon = true;
+                break;
+            }
+        }
+        if (!foundColon) {
+            return (xnsName, "", _calldataSubstringToString(routePath, 0, routePath.length));
+        }
+
+        routeScope = _calldataSubstringToString(routePath, 0, colon);
+        uint256 routeStart = colon + 1;
+        if (routeStart >= routePath.length) {
+            routeLabel = "";
+        } else {
+            routeLabel = _calldataSubstringToString(routePath, routeStart, routePath.length);
+        }
     }
 
     /// @notice Returns whether `routeScope` satisfies local scope rules. Empty string is valid;
@@ -830,54 +876,6 @@ contract XNSRoutes {
         RouteRecord memory record = _getRouteRecord(xnsName, routeScope, routeLabel);
         require(record.target != address(0), "XNSRoutes: route not found");
         return (record.target, record.routeType);
-    }
-
-    /// @dev Splits `route` at the first `/`, then at the first `:` in the segment after `/`.
-    function _splitRoute(
-        string calldata route
-    ) private pure returns (string memory xnsName, string memory routeScope, string memory routeLabel) {
-        bytes calldata b = bytes(route);
-        uint256 n = b.length;
-        uint256 slash;
-        bool foundSlash;
-        for (uint256 i = 0; i < n; ++i) {
-            if (b[i] == 0x2f) {
-                slash = i;
-                foundSlash = true;
-                break;
-            }
-        }
-        require(foundSlash, "XNSRoutes: invalid route");
-
-        xnsName = _calldataSubstringToString(b, 0, slash);
-
-        uint256 routePathStart = slash + 1;
-        if (routePathStart >= n) {
-            return (xnsName, "", "");
-        }
-
-        bytes calldata routePath = b[routePathStart:n];
-
-        uint256 colon;
-        bool foundColon;
-        for (uint256 j = 0; j < routePath.length; ++j) {
-            if (routePath[j] == 0x3a) {
-                colon = j;
-                foundColon = true;
-                break;
-            }
-        }
-        if (!foundColon) {
-            return (xnsName, "", _calldataSubstringToString(routePath, 0, routePath.length));
-        }
-
-        routeScope = _calldataSubstringToString(routePath, 0, colon);
-        uint256 routeStart = colon + 1;
-        if (routeStart >= routePath.length) {
-            routeLabel = "";
-        } else {
-            routeLabel = _calldataSubstringToString(routePath, routeStart, routePath.length);
-        }
     }
 
     /// @dev Copies `data[start:end]` (end exclusive) into memory as a string; requires `end >= start`.
