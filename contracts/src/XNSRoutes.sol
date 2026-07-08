@@ -42,6 +42,7 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - `safe.uni/uniswap:approve-usdt/amount=10` (route with routeScope and params)
 ///
 /// **Route record**
+/// Each route is represented as a structured route record with the following fields:
 /// - `target` — EOA or contract the route resolves to.
 /// - `routeType` — off-chain parser hint (semantics agreed off-chain; examples below).
 /// - `isActive` — whether parsers should treat the route as usable.
@@ -66,7 +67,7 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 ///   `createRouteWithController` accepts an explicit controller; both default to `isActive = true`.
 /// - `activeController` must not be `address(0)`.
 /// - The `isActive` status may be locked by setting `activeController` equal to `NO_ACTIVE_CONTROLLER`
-///   address.
+///   address. This will permanently lock the route's `isActive` status.
 ///
 /// **Route book freeze**
 /// - The XNS name owner may freeze the route book permanently by calling `freezeRouteBook`
@@ -222,8 +223,11 @@ contract XNSRoutes {
     /// - The route book for `xnsName` must not be frozen.
     /// - The route key must not already exist.
     ///
-    /// On success, adds the route key to `_routeKeysByXNSName` for `xnsName`, queryable via
-    /// `getRouteKeys`.
+    /// On success:
+    /// - Adds the route key to `_routeKeysByXNSName` for `xnsName`, queryable via
+    ///   `getRouteKeys`.
+    /// - Emits `RouteCreated`.
+    ///
     /// Note: Bare names like `bob` are normalized/canonicalized to `bob.x` for storage.
     ///
     /// @param xnsName The XNS name that owns the route space, e.g. "xns.action".
@@ -402,6 +406,8 @@ contract XNSRoutes {
     ///
     /// Replaces any existing pending transfer for this route.
     ///
+    /// Emits `ActiveControllerTransferInitiated`.
+    ///
     /// @param newActiveController Account that must call `acceptActiveController` to complete the transfer.
     function initiateActiveControllerTransfer(
         string calldata xnsName,
@@ -438,6 +444,9 @@ contract XNSRoutes {
     /// **Requirements:**
     /// - `msg.sender` must be the pending `newActiveController` from `initiateActiveControllerTransfer`.
     /// - The route must exist and active control must not be renounced.
+    ///
+    /// Emits `ActiveControllerTransferAccepted`.
+    ///
     function acceptActiveController(
         string calldata xnsName,
         string calldata routeScope,
@@ -474,6 +483,9 @@ contract XNSRoutes {
     /// **Requirements:**
     /// - `msg.sender` must be the current `activeController`.
     /// - A pending transfer must exist.
+    ///
+    /// Emits `ActiveControllerTransferCancelled`.
+    ///
     function cancelActiveControllerTransfer(
         string calldata xnsName,
         string calldata routeScope,
@@ -510,6 +522,8 @@ contract XNSRoutes {
     /// - Active control must not already be renounced.
     ///
     /// Clears any pending transfer.
+    ///
+    /// Emits `ActiveControllerRenounced`.
     function renounceActiveControl(
         string calldata xnsName,
         string calldata routeScope,
