@@ -77,7 +77,7 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 ///
 /// **Resolution & indexing**
 /// - Forward: route -> `target` via `resolveRouteIfActive` (requires `isActive`) or
-///   `resolveRoute` (ignores `isActive`). No reverse lookup because many routes may share a `target`.
+///   `resolveRoute` (ignores `isActive`). No reverse lookup because many routes may point to the same `target`.
 /// - Bare names like `bob` normalize to `bob.x` (canonical XNS name). `routeKey` = hash of canonical route.
 /// - The route list can be queried with `getRouteKeyCount` and `getRouteKeys`. 
 contract XNSRoutes {
@@ -332,8 +332,8 @@ contract XNSRoutes {
     /// @notice Mark an existing route as active.
     ///
     /// **Requirements:**
-    /// - `msg.sender` must be `record.activeController`.
-    /// - The route must exist.
+    /// - `msg.sender` must be the current `activeController`.
+    /// - The route must exist and active control must not be renounced.
     ///
     /// Emits `RouteActiveStatusUpdated` only when `isActive` changes.
     ///
@@ -351,8 +351,8 @@ contract XNSRoutes {
     /// @notice Mark an existing route as inactive.
     ///
     /// **Requirements:**
-    /// - `msg.sender` must be `record.activeController`.
-    /// - The route must exist.
+    /// - `msg.sender` must be the current `activeController`.
+    /// - The route must exist and active control must not be renounced.
     ///
     /// Emits `RouteActiveStatusUpdated` only when `isActive` changes.
     ///
@@ -444,6 +444,7 @@ contract XNSRoutes {
     /// **Requirements:**
     /// - `msg.sender` must be the pending `newActiveController` from `initiateActiveControllerTransfer`.
     /// - The route must exist and active control must not be renounced.
+    /// - A pending transfer must exist.
     ///
     /// Emits `ActiveControllerTransferAccepted`.
     ///
@@ -482,6 +483,7 @@ contract XNSRoutes {
     ///
     /// **Requirements:**
     /// - `msg.sender` must be the current `activeController`.
+    /// - The route must exist and active control must not be renounced.
     /// - A pending transfer must exist.
     ///
     /// Emits `ActiveControllerTransferCancelled`.
@@ -519,7 +521,7 @@ contract XNSRoutes {
     ///
     /// **Requirements:**
     /// - `msg.sender` must be the current `activeController`.
-    /// - Active control must not already be renounced.
+    /// - The route must exist and active control must not be renounced.
     ///
     /// Clears any pending transfer.
     ///
