@@ -11,6 +11,13 @@ interface IXNSRoutes {
         uint32 routeType;
         bool isActive;
         address activeController;
+        string routeScope;
+        string routeLabel;
+    }
+
+    struct RouteEntry {
+        bytes32 routeKey;
+        RouteRecord record;
     }
 
     event RouteCreated(
@@ -190,4 +197,10 @@ interface IXNSRoutes {
         uint256 start,
         uint256 end
     ) external view returns (bytes32[] memory keys);
+
+    function getRouteEntries(
+        string calldata xnsName,
+        uint256 start,
+        uint256 end
+    ) external view returns (RouteEntry[] memory entries);
 }

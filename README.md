@@ -256,16 +256,17 @@ They enable:
 
 ---
 
-## 📇 On-chain route discovery (no indexer)
+## 📇 On-chain route discovery
 
-The registry keeps a **list of route storage keys** (`bytes32`) per XNS name so integrators can discover registered routes using only `eth_call`s—**no subgraph or indexer required** for that workflow.
+The registry stores each route's **`routeScope` and `routeLabel` on-chain** and keeps a per-name list so integrators can discover and reconstruct human-readable routes using only `eth_call`s—**no subgraph or indexer required**.
 
 **Views (see NatSpec / [docs/API.md](docs/API.md))**
 
 - `getRouteKeyCount(xnsName)` — number of routes for that name
-- `getRouteKeys(xnsName, start, end)` — page through keys (`end` **exclusive**; if `end` &gt; array length, it is clamped to the array length; if `start` is past that range, returns an empty array)
-- `getRouteRecord(routeKey)` — read one `RouteRecord` by key (no string tuple needed)
-- `getRouteRecord(xnsName, routeScope, routeLabel)` — read by components (stored fields only)
+- `getRouteEntries(xnsName, start, end)` — **preferred**: page through routes with key, `routeScope`, `routeLabel`, and full metadata (`end` **exclusive**; clamped to array length; empty slice when `start` is past the end)
+- `getRouteKeys(xnsName, start, end)` — page through storage keys only (same pagination rules as `getRouteEntries`)
+- `getRouteRecord(routeKey)` — read one `RouteRecord` by key (includes stored `routeScope` and `routeLabel`)
+- `getRouteRecord(xnsName, routeScope, routeLabel)` — read by components
 - `getRouteRecord(route)` — read by **route** string (parsed by `splitRoute`)
 - `isRouteBookFrozen(xnsName)` — whether new routes can still be added under that name
 - `resolveRoute` — resolve `(target, routeType)` when the route exists (ignores `isActive`)
@@ -278,8 +279,8 @@ Use **`resolveRouteIfActive`** for execution paths that must skip inactive route
 
 **Important semantics (don’t skip this)**
 
-1. **Route key list**  
-   `getRouteKeyCount` equals the number of routes registered under a name—one entry per successful `createRoute`. Routes are never deleted on-chain.
+1. **Route list**  
+   `getRouteKeyCount` equals the number of routes registered under a name—one entry per successful `createRoute`. Routes are never deleted on-chain. Use `getRouteEntries` to reconstruct human-readable routes (`routeScope`, `routeLabel`) without event history.
 
 2. **Existence check**  
    Treat **`getRouteRecord(...).target == address(0)`** as "route not registered".
