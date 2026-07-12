@@ -34,7 +34,9 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - Cannot contain consecutive hyphens ('--')
 ///
 /// Routes may include an optional `/params...` suffix, intended for use by off-chain parsers.
-/// These parameters are ignored by the contract and are neither stored nor processed on-chain.
+/// String helpers (`splitRoute`, `getRouteRecord(string)`, `resolveRoute(string)`,
+/// `resolveRouteIfActive(string)`) strip at the second `/` and ignore that tail. Params are
+/// neither stored nor processed on-chain.
 ///
 /// Examples:
 /// - `alice.og/my-sub-wallet` (route without routeScope)
@@ -627,7 +629,8 @@ contract XNSRoutes {
     /// @notice Reads stored route record data by route string (`splitRoute`).
     /// `record.target == address(0)` means that record does not exist.
     ///
-    /// @param route Route, e.g. `bob.xns/eth:my-wallet`, without a parametrized `/params…` tail.
+    /// @param route Route or parametrized route, e.g. `bob.xns/eth:my-wallet` or
+    /// `bob.xns/eth:my-wallet/amount=10` (tail after the second `/` is ignored).
     /// @return record The route record (target, routeType, isActive, activeController, routeScope, routeLabel).
     function getRouteRecord(string calldata route) external view returns (RouteRecord memory record) {
         (string memory xnsName, string memory routeScope, string memory routeLabel) =
@@ -658,7 +661,8 @@ contract XNSRoutes {
     ///
     /// **Requirements:** same as `resolveRouteIfActive(xnsName, routeScope, routeLabel)`.
     ///
-    /// @param route Route, e.g. `bob.xns/eth:my-wallet`, without a parametrized `/params…` tail.
+    /// @param route Route or parametrized route, e.g. `bob.xns/eth:my-wallet` or
+    /// `bob.xns/eth:my-wallet/amount=10` (tail after the second `/` is ignored).
     /// @return target Resolved target address.
     /// @return routeType Parser hint for how to interpret `target`.
     function resolveRouteIfActive(
@@ -690,7 +694,8 @@ contract XNSRoutes {
     ///
     /// **Requirements:** same as `resolveRoute(xnsName, routeScope, routeLabel)`.
     ///
-    /// @param route Route, e.g. `bob.xns/eth:my-wallet`, without a parametrized `/params…` tail.
+    /// @param route Route or parametrized route, e.g. `bob.xns/eth:my-wallet` or
+    /// `bob.xns/eth:my-wallet/amount=10` (tail after the second `/` is ignored).
     /// @return target Resolved target address.
     /// @return routeType Parser hint for how to interpret `target`.
     function resolveRoute(
@@ -785,15 +790,19 @@ contract XNSRoutes {
     /// Example: `bro.xns/eth:my-wallet` -> `(bro.xns, eth, my-wallet)`.
     /// Useful when calling tuple-based mutating functions (e.g. `resolveRoute`, `activateRoute`).
     ///
-    /// A route is `xnsName/[routeScope:]routeLabel` — not a parametrized route (no `/params…` tail).
+    /// A route is `xnsName/[routeScope:]routeLabel`. An optional `/params...` tail after a second
+    /// `/` is stripped and ignored (not validated or returned).
     /// Does not validate segments; malformed input may still parse but fail downstream.
     ///
     /// Requires `route` to contain at least one `/`.
     ///
-    /// @param route Route (not a parametrized route), e.g. `bob.xns/eth:transfer-usdt`.
+    /// @param route Route or parametrized route, e.g. `bob.xns/eth:transfer-usdt` or
+    /// `bob.xns/eth:transfer-usdt/amount=10`.
     /// @return xnsName Segment before the first `/`.
-    /// @return routeScope Segment before the first `:` in the segment after `/`, or empty if there is no `:`.
-    /// @return routeLabel Segment after `:` if `routeScope` is present, else the whole segment after `/`.
+    /// @return routeScope Segment before the first `:` in the path after the first `/` (before any
+    /// params `/`), or empty if there is no `:`.
+    /// @return routeLabel Segment after `:` if `routeScope` is present, else the whole path segment
+    /// after the first `/` (before any params `/`).
     function splitRoute(
         string calldata route
     )
@@ -804,7 +813,8 @@ contract XNSRoutes {
         return _splitRoute(route);
     }
 
-    /// @dev Splits `route` at the first `/`, then at the first `:` in the segment after `/`.
+    /// @dev Splits `route` at the first `/`, truncates any `/params...` tail at the second `/`,
+    /// then splits the remaining path at the first `:`.
     function _splitRoute(
         string calldata route
     ) private pure returns (string memory xnsName, string memory routeScope, string memory routeLabel) {
@@ -828,7 +838,20 @@ contract XNSRoutes {
             return (xnsName, "", "");
         }
 
-        bytes calldata routePath = b[routePathStart:n];
+        // Truncate at the second `/` (start of optional params tail).
+        uint256 routePathEnd = n;
+        for (uint256 i = routePathStart; i < n; ++i) {
+            if (b[i] == 0x2f) {
+                routePathEnd = i;
+                break;
+            }
+        }
+
+        if (routePathStart >= routePathEnd) {
+            return (xnsName, "", "");
+        }
+
+        bytes calldata routePath = b[routePathStart:routePathEnd];
 
         uint256 colon;
         bool foundColon;

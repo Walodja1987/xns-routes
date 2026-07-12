@@ -23,7 +23,9 @@ Route format: `xnsName/[routeScope:]routeLabel`
 - Cannot contain consecutive hyphens ('--')
 
 Routes may include an optional `/params…` suffix, intended for use by off-chain parsers.
-These parameters are ignored by the contract and are neither stored nor processed on-chain.
+String helpers (`splitRoute`, `getRouteRecord(string)`, `resolveRoute(string)`,
+`resolveRouteIfActive(string)`) strip at the second `/` and ignore that tail. Params are
+neither stored nor processed on-chain.
 
 Examples:
 - `alice.og/my-sub-wallet` (route without routeScope)
@@ -39,6 +41,7 @@ Each route is represented as a structured route record with the following fields
 - `routeScope` and `routeLabel` — immutable route path segments stored at creation.
 
 `target` and `routeType` are fixed at creation; routes cannot be deleted.
+but can be deactivated.
 
 **Route type examples**
 - `0` = `target` is the answer (EOA/smart contract)
@@ -63,7 +66,7 @@ The exact semantics of `routeType` are agreed off-chain and are not enforced by 
 - The XNS name owner may freeze the route book permanently by calling `freezeRouteBook`
 - Freezing a route book is irreversible
 - Under a frozen route book, no new routes can be created; existing routes remain unchanged;
-  `activeController` can still toggle `isActive` on existing routes.
+  `activeController` can still toggle `isActive` on existing routes unless renounced.
 
 **Resolution & indexing**
 - Forward: route -> `target` via `resolveRouteIfActive` (requires `isActive`) or
@@ -82,11 +85,11 @@ The exact semantics of `routeType` are agreed off-chain and are not enforced by 
 ### createRoute
 
 
-Create a route `[xnsName]/[routeScope:][routeLabel]`. `isActive` is set to true and
+Create a route `xnsName/[routeScope:]routeLabel`. `isActive` is set to true and
 `activeController` to the current XNS name owner.
 
 **Requirements:**
-- `msg.sender` must be the owner for `xnsName`.
+- `msg.sender` must be the owner of `xnsName`.
 - Non-empty `routeScope` and `routeLabel` must satisfy local character rules.
 - `routeLabel` must be a non-empty string.
 - `target` must not be the zero address.
@@ -95,7 +98,7 @@ Create a route `[xnsName]/[routeScope:][routeLabel]`. `isActive` is set to true 
 
 On success:
 - Adds the route key to `_routeKeysByXNSName` for `xnsName`, queryable via
-  `getRouteKeys`.
+  `getRouteKeys` and `getRouteEntries`.
 - Emits `RouteCreated`.
 
 Note: Bare names like `bob` are normalized/canonicalized to `bob.x` for storage.
@@ -372,7 +375,7 @@ function getRouteRecord(string route) external view returns (struct XNSRoutes.Ro
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| route | string | Route, e.g. `bob.xns/eth:my-wallet`, without a parametrized `/params…` tail. |
+| route | string | Route or parametrized route, e.g. `bob.xns/eth:my-wallet` or `bob.xns/eth:my-wallet/amount=10` (tail after the second `/` is ignored). |
 
 #### Return Values
 
@@ -425,7 +428,7 @@ function resolveRouteIfActive(string route) external view returns (address targe
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| route | string | Route, e.g. `bob.xns/eth:my-wallet`, without a parametrized `/params…` tail. |
+| route | string | Route or parametrized route, e.g. `bob.xns/eth:my-wallet` or `bob.xns/eth:my-wallet/amount=10` (tail after the second `/` is ignored). |
 
 #### Return Values
 
@@ -477,7 +480,7 @@ function resolveRoute(string route) external view returns (address target, uint3
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| route | string | Route, e.g. `bob.xns/eth:my-wallet`, without a parametrized `/params…` tail. |
+| route | string | Route or parametrized route, e.g. `bob.xns/eth:my-wallet` or `bob.xns/eth:my-wallet/amount=10` (tail after the second `/` is ignored). |
 
 #### Return Values
 
@@ -607,7 +610,8 @@ Parses a route into `(xnsName, routeScope, routeLabel)`.
 Example: `bro.xns/eth:my-wallet` -> `(bro.xns, eth, my-wallet)`.
 Useful when calling tuple-based mutating functions (e.g. `resolveRoute`, `activateRoute`).
 
-A route is `xnsName/[routeScope:]routeLabel` — not a parametrized route (no `/params…` tail).
+A route is `xnsName/[routeScope:]routeLabel`. An optional `/params…` tail after a second
+`/` is stripped and ignored (not validated or returned).
 Does not validate segments; malformed input may still parse but fail downstream.
 
 Requires `route` to contain at least one `/`.
@@ -621,15 +625,15 @@ function splitRoute(string route) external pure returns (string xnsName, string 
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| route | string | Route (not a parametrized route), e.g. `bob.xns/eth:transfer-usdt`. |
+| route | string | Route or parametrized route, e.g. `bob.xns/eth:transfer-usdt` or `bob.xns/eth:transfer-usdt/amount=10`. |
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | xnsName | string | Segment before the first `/`. |
-| routeScope | string | Segment before the first `:` in the segment after `/`, or empty if there is no `:`. |
-| routeLabel | string | Segment after `:` if `routeScope` is present, else the whole segment after `/`. |
+| routeScope | string | Segment before the first `:` in the path after the first `/` (before any params `/`), or empty if there is no `:`. |
+| routeLabel | string | Segment after `:` if `routeScope` is present, else the whole path segment after the first `/` (before any params `/`). |
 
 ### isValidRouteScope
 
@@ -812,8 +816,9 @@ Special sentinel value for `activeController` indicating permanent
 renouncement of control. When a route's `activeController` is set to this address,
 its `isActive` status is locked and cannot be changed.
 
-Uses 0x…dEaD rather than `address(0)` because `address(0)` is rejected as an invalid
-`activeController` at create.
+Uses 0x…dEaD rather than `address(0)` so `address(0)` can stay reserved as an
+invalid / unset controller (guards against accidentally passing Solidity's default
+`address` value at create or transfer).
 
 ```solidity
 address NO_ACTIVE_CONTROLLER

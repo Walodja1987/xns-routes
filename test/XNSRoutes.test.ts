@@ -821,6 +821,27 @@ describe("XNSRoutes", function () {
       expect(routeType).to.equal(RT0);
     });
 
+    it("Should resolve a parametrized route string by stripping the params tail", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes.connect(owner).createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0);
+
+      const parametrized = `${XNS_NAME}/${ROUTE_SCOPE}:${ROUTE_LABEL}/amount=10/to=0xabc`;
+      const [target, routeType] = await resolveRouteIfActiveByRoute(routes, parametrized);
+      expect(target).to.equal(buildTarget);
+      expect(routeType).to.equal(RT0);
+    });
+
+    it("Should resolve a parametrized route without scope by stripping the params tail", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      const label = "global-route";
+      await routes.connect(owner).createRoute(XNS_NAME, "", label, buildTarget, RT0);
+
+      const parametrized = `${XNS_NAME}/${label}/amount=10`;
+      const [target, routeType] = await resolveRouteIfActiveByRoute(routes, parametrized);
+      expect(target).to.equal(buildTarget);
+      expect(routeType).to.equal(RT0);
+    });
+
     it("Should resolve an inactive route by tuple via resolveRoute", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes.connect(owner).createRoute(XNS_NAME, ROUTE_SCOPE, ROUTE_LABEL, buildTarget, RT0);
@@ -892,6 +913,53 @@ describe("XNSRoutes", function () {
       await expect(
         resolveRouteByRoute(routes, `${ROUTE_SCOPE}:${ROUTE_LABEL}`),
       ).to.be.revertedWith(XR.invalidRoute);
+    });
+  });
+
+  describe("splitRoute", function () {
+    it("Should parse a scoped route", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      const [xnsName, routeScope, routeLabel] = await routes.splitRoute(
+        `${XNS_NAME}/${ROUTE_SCOPE}:${ROUTE_LABEL}`,
+      );
+      expect(xnsName).to.equal(XNS_NAME);
+      expect(routeScope).to.equal(ROUTE_SCOPE);
+      expect(routeLabel).to.equal(ROUTE_LABEL);
+    });
+
+    it("Should parse a route without scope", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      const [xnsName, routeScope, routeLabel] = await routes.splitRoute(`${XNS_NAME}/my-wallet`);
+      expect(xnsName).to.equal(XNS_NAME);
+      expect(routeScope).to.equal("");
+      expect(routeLabel).to.equal("my-wallet");
+    });
+
+    it("Should strip a parametrized tail after the second slash", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      const [xnsName, routeScope, routeLabel] = await routes.splitRoute(
+        `${XNS_NAME}/${ROUTE_SCOPE}:${ROUTE_LABEL}/amount=10/to=0xabc`,
+      );
+      expect(xnsName).to.equal(XNS_NAME);
+      expect(routeScope).to.equal(ROUTE_SCOPE);
+      expect(routeLabel).to.equal(ROUTE_LABEL);
+    });
+
+    it("Should strip params from a route without scope", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      const [xnsName, routeScope, routeLabel] = await routes.splitRoute(
+        `${XNS_NAME}/my-wallet/amount=10`,
+      );
+      expect(xnsName).to.equal(XNS_NAME);
+      expect(routeScope).to.equal("");
+      expect(routeLabel).to.equal("my-wallet");
+    });
+
+    it("Should revert when no slash is present", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      await expect(routes.splitRoute(`${ROUTE_SCOPE}:${ROUTE_LABEL}`)).to.be.revertedWith(
+        XR.invalidRoute,
+      );
     });
   });
 
