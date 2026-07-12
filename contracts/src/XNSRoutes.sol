@@ -33,8 +33,10 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - Cannot start or end with '-'
 /// - Cannot contain consecutive hyphens ('--')
 ///
-/// Routes may include an optional `/params…` suffix, intended for use by off-chain parsers.
-/// These parameters are ignored by the contract and are neither stored nor processed on-chain.
+/// Routes may include an optional `/params...` suffix, intended for use by off-chain parsers.
+/// String helpers (`splitRoute`, `getRouteRecord(string)`, `resolveRoute(string)`,
+/// `resolveRouteIfActive(string)`) strip at the second `/` and ignore that tail. Params are
+/// neither stored nor processed on-chain.
 ///
 /// Examples:
 /// - `alice.og/my-sub-wallet` (route without routeScope)
@@ -47,8 +49,10 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - `routeType` — off-chain parser hint (semantics agreed off-chain; examples below).
 /// - `isActive` — whether parsers should treat the route as usable.
 /// - `activeController` — account that may toggle `isActive`.
-/// 
+/// - `routeScope` and `routeLabel` — immutable route path segments stored at creation.
+///
 /// `target` and `routeType` are fixed at creation; routes cannot be deleted.
+/// but can be deactivated.
 ///
 /// **Route type examples**
 /// - `0` = `target` is the answer (EOA/smart contract)
@@ -73,13 +77,14 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - The XNS name owner may freeze the route book permanently by calling `freezeRouteBook`
 /// - Freezing a route book is irreversible
 /// - Under a frozen route book, no new routes can be created; existing routes remain unchanged;
-///   `activeController` can still toggle `isActive` on existing routes.
+///   `activeController` can still toggle `isActive` on existing routes unless renounced.
 ///
 /// **Resolution & indexing**
 /// - Forward: route -> `target` via `resolveRouteIfActive` (requires `isActive`) or
 ///   `resolveRoute` (ignores `isActive`). No reverse lookup because many routes may point to the same `target`.
 /// - Bare names like `bob` normalize to `bob.x` (canonical XNS name). `routeKey` = hash of canonical route.
-/// - The route list can be queried with `getRouteKeyCount` and `getRouteKeys`. 
+/// - The route list can be queried with `getRouteKeyCount`, `getRouteKeys`, and `getRouteEntries`.
+///   `getRouteEntries` returns each route's key plus stored `routeScope`, `routeLabel`, and metadata.
 contract XNSRoutes {
     // -------------------------------------------------------------------------
     // Types
@@ -91,6 +96,14 @@ contract XNSRoutes {
         uint32 routeType;
         bool isActive;
         address activeController;
+        string routeScope;
+        string routeLabel;
+    }
+
+    /// @notice Paginated route listing entry: storage key plus full stored route metadata.
+    struct RouteEntry {
+        bytes32 routeKey;
+        RouteRecord record;
     }
 
     // -------------------------------------------------------------------------
@@ -101,24 +114,25 @@ contract XNSRoutes {
     /// renouncement of control. When a route's `activeController` is set to this address,
     /// its `isActive` status is locked and cannot be changed.
     ///
-    /// Uses 0x…dEaD rather than `address(0)` because `address(0)` is rejected as an invalid
-    /// `activeController` at create.
+    /// Uses 0x…dEaD rather than `address(0)` so `address(0)` can stay reserved as an
+    /// invalid / unset controller (guards against accidentally passing Solidity's default
+    /// `address` value at create or transfer).
     address public constant NO_ACTIVE_CONTROLLER =
         address(0x000000000000000000000000000000000000dEaD);
 
     /// @notice XNS registry this contract calls for name resolution.
     IXNSMinimal public immutable XNS;
 
-    // keccak256(bytes(canonical xnsName)) => true if the route book for an XNS name is frozen
+    /// keccak256(bytes(canonical xnsName)) => true if the route book for an XNS name is frozen
     mapping(bytes32 => bool) private _routeBookFrozen;
 
-    // _routeKey(canonical xnsName, routeScope, routeLabel) => route record
+    /// route key => route record
     mapping(bytes32 => RouteRecord) private _routes;
 
-    // keccak256(bytes(canonical xnsName)) => route keys created under that XNS name
+    /// keccak256(bytes(canonical xnsName)) => route keys created under that XNS name
     mapping(bytes32 => bytes32[]) private _routeKeysByXNSName;
 
-    // _routeKey(...) => pending `acceptActiveController` recipient (0 = none)
+    /// route key => pending new `activeController` or `address(0)` if none
     mapping(bytes32 => address) private _pendingActiveController;
 
     // -------------------------------------------------------------------------
@@ -212,11 +226,11 @@ contract XNSRoutes {
     // State-modifying functions
     // -------------------------------------------------------------------------
 
-    /// @notice Create a route `[xnsName]/[routeScope:][routeLabel]`. `isActive` is set to true and
+    /// @notice Create a route `xnsName/[routeScope:]routeLabel`. `isActive` is set to true and
     /// `activeController` to the current XNS name owner.
     ///
     /// **Requirements:**
-    /// - `msg.sender` must be the owner for `xnsName`.
+    /// - `msg.sender` must be the owner of `xnsName`.
     /// - Non-empty `routeScope` and `routeLabel` must satisfy local character rules.
     /// - `routeLabel` must be a non-empty string.
     /// - `target` must not be the zero address.
@@ -225,7 +239,7 @@ contract XNSRoutes {
     ///
     /// On success:
     /// - Adds the route key to `_routeKeysByXNSName` for `xnsName`, queryable via
-    ///   `getRouteKeys`.
+    ///   `getRouteKeys` and `getRouteEntries`.
     /// - Emits `RouteCreated`.
     ///
     /// Note: Bare names like `bob` are normalized/canonicalized to `bob.x` for storage.
@@ -311,7 +325,9 @@ contract XNSRoutes {
             target: target,
             routeType: routeType,
             isActive: isActive,
-            activeController: activeController
+            activeController: activeController,
+            routeScope: routeScope,
+            routeLabel: routeLabel
         });
 
         _routeKeysByXNSName[xnsNameKey].push(routeKey);
@@ -582,14 +598,16 @@ contract XNSRoutes {
     /// `record.target == address(0)` means that record does not exist.
     ///
     /// @param routeKey Canonical route storage key.
-    /// @return record The route record (target, routeType, isActive, activeController).
+    /// @return record The route record (target, routeType, isActive, activeController, routeScope, routeLabel).
     function getRouteRecord(bytes32 routeKey) external view returns (RouteRecord memory record) {
         RouteRecord storage s = _routes[routeKey];
         record = RouteRecord({
             target: s.target,
             routeType: s.routeType,
             isActive: s.isActive,
-            activeController: s.activeController
+            activeController: s.activeController,
+            routeScope: s.routeScope,
+            routeLabel: s.routeLabel
         });
     }
 
@@ -599,7 +617,7 @@ contract XNSRoutes {
     /// @param xnsName The XNS name that owns the route space.
     /// @param routeScope Route scope (may be empty).
     /// @param routeLabel Route label.
-    /// @return record The route record (target, routeType, isActive, activeController).
+    /// @return record The route record (target, routeType, isActive, activeController, routeScope, routeLabel).
     function getRouteRecord(
         string calldata xnsName,
         string calldata routeScope,
@@ -611,8 +629,9 @@ contract XNSRoutes {
     /// @notice Reads stored route record data by route string (`splitRoute`).
     /// `record.target == address(0)` means that record does not exist.
     ///
-    /// @param route Route, e.g. `bob.xns/eth:my-wallet`, without a parametrized `/params…` tail.
-    /// @return record The route record (target, routeType, isActive, activeController).
+    /// @param route Route or parametrized route, e.g. `bob.xns/eth:my-wallet` or
+    /// `bob.xns/eth:my-wallet/amount=10` (tail after the second `/` is ignored).
+    /// @return record The route record (target, routeType, isActive, activeController, routeScope, routeLabel).
     function getRouteRecord(string calldata route) external view returns (RouteRecord memory record) {
         (string memory xnsName, string memory routeScope, string memory routeLabel) =
             _splitRoute(route);
@@ -642,7 +661,8 @@ contract XNSRoutes {
     ///
     /// **Requirements:** same as `resolveRouteIfActive(xnsName, routeScope, routeLabel)`.
     ///
-    /// @param route Route, e.g. `bob.xns/eth:my-wallet`, without a parametrized `/params…` tail.
+    /// @param route Route or parametrized route, e.g. `bob.xns/eth:my-wallet` or
+    /// `bob.xns/eth:my-wallet/amount=10` (tail after the second `/` is ignored).
     /// @return target Resolved target address.
     /// @return routeType Parser hint for how to interpret `target`.
     function resolveRouteIfActive(
@@ -674,7 +694,8 @@ contract XNSRoutes {
     ///
     /// **Requirements:** same as `resolveRoute(xnsName, routeScope, routeLabel)`.
     ///
-    /// @param route Route, e.g. `bob.xns/eth:my-wallet`, without a parametrized `/params…` tail.
+    /// @param route Route or parametrized route, e.g. `bob.xns/eth:my-wallet` or
+    /// `bob.xns/eth:my-wallet/amount=10` (tail after the second `/` is ignored).
     /// @return target Resolved target address.
     /// @return routeType Parser hint for how to interpret `target`.
     function resolveRoute(
@@ -727,17 +748,41 @@ contract XNSRoutes {
         uint256 start,
         uint256 end
     ) external view returns (bytes32[] memory keys) {
-        bytes32[] storage arr = _routeKeysByXNSName[_xnsNameKey(xnsName)];
-        uint256 len = arr.length;
-        require(start <= end, "XNSRoutes: invalid route key slice");
-        uint256 adjustedEnd = end > len ? len : end;
-        if (start > adjustedEnd) {
-            return new bytes32[](0);
-        }
-        uint256 n = adjustedEnd - start;
-        keys = new bytes32[](n);
+        return _sliceRouteKeys(_routeKeysByXNSName[_xnsNameKey(xnsName)], start, end);
+    }
+
+    /// @notice Returns `entries[start:end]` for routes registered under `xnsName` (`end` is
+    /// exclusive). Each entry includes the route key plus stored `routeScope`, `routeLabel`, and
+    /// metadata. Pagination rules match `getRouteKeys`.
+    ///
+    /// Requires `start <= end`.
+    ///
+    /// @param xnsName The XNS name to list routes for.
+    /// @param start The start index (inclusive).
+    /// @param end The end index (exclusive); may exceed array length.
+    /// @return entries The route entries.
+    function getRouteEntries(
+        string calldata xnsName,
+        uint256 start,
+        uint256 end
+    ) external view returns (RouteEntry[] memory entries) {
+        bytes32[] memory keys = _sliceRouteKeys(_routeKeysByXNSName[_xnsNameKey(xnsName)], start, end);
+        uint256 n = keys.length;
+        entries = new RouteEntry[](n);
         for (uint256 i = 0; i < n; ++i) {
-            keys[i] = arr[start + i];
+            bytes32 routeKey = keys[i];
+            RouteRecord storage s = _routes[routeKey];
+            entries[i] = RouteEntry({
+                routeKey: routeKey,
+                record: RouteRecord({
+                    target: s.target,
+                    routeType: s.routeType,
+                    isActive: s.isActive,
+                    activeController: s.activeController,
+                    routeScope: s.routeScope,
+                    routeLabel: s.routeLabel
+                })
+            });
         }
     }
 
@@ -745,15 +790,19 @@ contract XNSRoutes {
     /// Example: `bro.xns/eth:my-wallet` -> `(bro.xns, eth, my-wallet)`.
     /// Useful when calling tuple-based mutating functions (e.g. `resolveRoute`, `activateRoute`).
     ///
-    /// A route is `xnsName/[routeScope:]routeLabel` — not a parametrized route (no `/params…` tail).
+    /// A route is `xnsName/[routeScope:]routeLabel`. An optional `/params...` tail after a second
+    /// `/` is stripped and ignored (not validated or returned).
     /// Does not validate segments; malformed input may still parse but fail downstream.
     ///
     /// Requires `route` to contain at least one `/`.
     ///
-    /// @param route Route (not a parametrized route), e.g. `bob.xns/eth:transfer-usdt`.
+    /// @param route Route or parametrized route, e.g. `bob.xns/eth:transfer-usdt` or
+    /// `bob.xns/eth:transfer-usdt/amount=10`.
     /// @return xnsName Segment before the first `/`.
-    /// @return routeScope Segment before the first `:` in the segment after `/`, or empty if there is no `:`.
-    /// @return routeLabel Segment after `:` if `routeScope` is present, else the whole segment after `/`.
+    /// @return routeScope Segment before the first `:` in the path after the first `/` (before any
+    /// params `/`), or empty if there is no `:`.
+    /// @return routeLabel Segment after `:` if `routeScope` is present, else the whole path segment
+    /// after the first `/` (before any params `/`).
     function splitRoute(
         string calldata route
     )
@@ -764,7 +813,8 @@ contract XNSRoutes {
         return _splitRoute(route);
     }
 
-    /// @dev Splits `route` at the first `/`, then at the first `:` in the segment after `/`.
+    /// @dev Splits `route` at the first `/`, truncates any `/params...` tail at the second `/`,
+    /// then splits the remaining path at the first `:`.
     function _splitRoute(
         string calldata route
     ) private pure returns (string memory xnsName, string memory routeScope, string memory routeLabel) {
@@ -788,7 +838,20 @@ contract XNSRoutes {
             return (xnsName, "", "");
         }
 
-        bytes calldata routePath = b[routePathStart:n];
+        // Truncate at the second `/` (start of optional params tail).
+        uint256 routePathEnd = n;
+        for (uint256 i = routePathStart; i < n; ++i) {
+            if (b[i] == 0x2f) {
+                routePathEnd = i;
+                break;
+            }
+        }
+
+        if (routePathStart >= routePathEnd) {
+            return (xnsName, "", "");
+        }
+
+        bytes calldata routePath = b[routePathStart:routePathEnd];
 
         uint256 colon;
         bool foundColon;
@@ -853,8 +916,29 @@ contract XNSRoutes {
             target: s.target,
             routeType: s.routeType,
             isActive: s.isActive,
-            activeController: s.activeController
+            activeController: s.activeController,
+            routeScope: s.routeScope,
+            routeLabel: s.routeLabel
         });
+    }
+
+    /// @dev Returns `arr[start:end]` with the same clamping rules as `getRouteKeys`.
+    function _sliceRouteKeys(
+        bytes32[] storage arr,
+        uint256 start,
+        uint256 end
+    ) private view returns (bytes32[] memory keys) {
+        uint256 len = arr.length;
+        require(start <= end, "XNSRoutes: invalid route key slice");
+        uint256 adjustedEnd = end > len ? len : end;
+        if (start > adjustedEnd) {
+            return new bytes32[](0);
+        }
+        uint256 n = adjustedEnd - start;
+        keys = new bytes32[](n);
+        for (uint256 i = 0; i < n; ++i) {
+            keys[i] = arr[start + i];
+        }
     }
 
     function _resolveRouteIfActive(

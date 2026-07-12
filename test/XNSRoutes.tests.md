@@ -154,7 +154,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 - All overloads return an empty `RouteRecord` (`target == address(0)`) when the route does not exist (soft read).
 - `getRouteRecord(xnsName, routeScope, routeLabel)` returns fields consistent with `createRoute` / `createRouteWithController` / `activateRoute` / `deactivateRoute`.
-- `getRouteRecord(string route)` parses a **route** via `splitRoute` then reads the same record.
+- `getRouteRecord(string route)` parses a **route** (or parametrized route) via `splitRoute` then reads the same record; any `/params…` tail after the second `/` is stripped.
 - `getRouteRecord(bytes32 routeKey)` reads storage directly by key.
 - Existence: `getRouteRecord(...).target != address(0)`.
 - Malformed `routeScope` / routeLabel on read paths return an empty record (no validation revert).
@@ -162,6 +162,20 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 #### Reverts
 
 - `getRouteRecord(string)` should revert with `"XNSRoutes: invalid route"` when no `/` is present.
+
+---
+
+## `splitRoute`
+
+#### Functionality
+
+- Parses `xnsName/[routeScope:]routeLabel` into `(xnsName, routeScope, routeLabel)`.
+- An optional `/params…` tail after the second `/` is stripped and ignored (not returned).
+- Does not validate segment charset/length.
+
+#### Reverts
+
+- `"XNSRoutes: invalid route"` when no `/` is present.
 
 ---
 
@@ -173,6 +187,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 - `resolveRoute`: route exists (`target != address(0)`); ignores `isActive`.
 - `resolveRouteIfActive`: route exists and `isActive == true`.
 - Both succeed when the route book is frozen (existing routes unchanged).
+- Route-string overloads accept parametrized routes: the `/params…` tail after the second `/` is stripped before lookup.
 
 #### Reverts
 

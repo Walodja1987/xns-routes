@@ -18,7 +18,9 @@ route               = xnsName "/" routeLabel
 parametrized route  = route [ "/" params… ]
 ```
 
-- **params** (e.g. `/label=bro/namespace=og`) are off-chain; the contract only accepts **route** strings (no params)
+- **params** (e.g. `/label=bro/namespace=og`) are off-chain; registration stores only the **route**.
+  String helpers (`splitRoute`, `getRouteRecord(string)`, `resolveRoute*`) strip at the second `/`
+  and ignore that tail.
 
 ```
 xns.action/eth:register-name/label=bro/namespace=og
@@ -46,13 +48,13 @@ Validation rules:
 | Term | Example | Notes |
 |------|---------|--------|
 | **route** | `ai.xns/eth:123` | On-chain identity: `xnsName "/" [routeScope ":"] routeLabel` (no params). Used by `splitRoute`, `routeKey`, and registry lookups |
-| **parametrized route** | `ai.xns/eth:123/label=bro` | Off-chain link: route plus optional `/params…` tail |
+| **parametrized route** | `ai.xns/eth:123/label=bro` | Off-chain link: route plus optional `/params…` tail. String helpers strip the tail at the second `/` |
 | **xnsName** | `ai.xns` | Host / owner scope |
 | **route scope** | `eth` | Optional; before `:` |
 | **route label** | `123` | Required slug |
 | **route key** | `bytes32` | `keccak256(canonical route)`; params never included |
 
-Contract tuple APIs use `(xnsName, routeScope, routeLabel)` — equivalent to parsing a route. String helpers: `splitRoute`, `getRouteRecord(string route)` (input must be a route, not a parametrized route).
+Contract tuple APIs use `(xnsName, routeScope, routeLabel)` — equivalent to parsing a route. String helpers: `splitRoute`, `getRouteRecord(string route)` (accept a route or parametrized route; params after the second `/` are ignored).
 
 ---
 
@@ -256,21 +258,22 @@ They enable:
 
 ---
 
-## 📇 On-chain route discovery (no indexer)
+## 📇 On-chain route discovery
 
-The registry keeps a **list of route storage keys** (`bytes32`) per XNS name so integrators can discover registered routes using only `eth_call`s—**no subgraph or indexer required** for that workflow.
+The registry stores each route's **`routeScope` and `routeLabel` on-chain** and keeps a per-name list so integrators can discover and reconstruct human-readable routes using only `eth_call`s—**no subgraph or indexer required**.
 
 **Views (see NatSpec / [docs/API.md](docs/API.md))**
 
 - `getRouteKeyCount(xnsName)` — number of routes for that name
-- `getRouteKeys(xnsName, start, end)` — page through keys (`end` **exclusive**; if `end` &gt; array length, it is clamped to the array length; if `start` is past that range, returns an empty array)
-- `getRouteRecord(routeKey)` — read one `RouteRecord` by key (no string tuple needed)
-- `getRouteRecord(xnsName, routeScope, routeLabel)` — read by components (stored fields only)
-- `getRouteRecord(route)` — read by **route** string (parsed by `splitRoute`)
+- `getRouteEntries(xnsName, start, end)` — **preferred**: page through routes with key, `routeScope`, `routeLabel`, and full metadata (`end` **exclusive**; clamped to array length; empty slice when `start` is past the end)
+- `getRouteKeys(xnsName, start, end)` — page through storage keys only (same pagination rules as `getRouteEntries`)
+- `getRouteRecord(routeKey)` — read one `RouteRecord` by key (includes stored `routeScope` and `routeLabel`)
+- `getRouteRecord(xnsName, routeScope, routeLabel)` — read by components
+- `getRouteRecord(route)` — read by **route** or parametrized route string (parsed by `splitRoute`; params stripped)
 - `isRouteBookFrozen(xnsName)` — whether new routes can still be added under that name
 - `resolveRoute` — resolve `(target, routeType)` when the route exists (ignores `isActive`)
 - `resolveRouteIfActive` — same, but requires `isActive == true`
-- `splitRoute` — parse a route into `(xnsName, routeScope, routeLabel)` (not a parametrized route)
+- `splitRoute` — parse a route (or parametrized route) into `(xnsName, routeScope, routeLabel)`
 
 Use **`resolveRouteIfActive`** for execution paths that must skip inactive routes; use **`resolveRoute`** when you need the binding regardless of active status. Use **`getRouteRecord`** for route metadata. Resolver overloads revert when the route is missing or (for `resolveRouteIfActive`) inactive. `getRouteRecord` returns an **empty record** (`target == address(0)`) when the route is missing.
 
@@ -278,8 +281,8 @@ Use **`resolveRouteIfActive`** for execution paths that must skip inactive route
 
 **Important semantics (don’t skip this)**
 
-1. **Route key list**  
-   `getRouteKeyCount` equals the number of routes registered under a name—one entry per successful `createRoute`. Routes are never deleted on-chain.
+1. **Route list**  
+   `getRouteKeyCount` equals the number of routes registered under a name—one entry per successful `createRoute`. Routes are never deleted on-chain. Use `getRouteEntries` to reconstruct human-readable routes (`routeScope`, `routeLabel`) without event history.
 
 2. **Existence check**  
    Treat **`getRouteRecord(...).target == address(0)`** as "route not registered".
