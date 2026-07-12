@@ -33,7 +33,7 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - Cannot start or end with '-'
 /// - Cannot contain consecutive hyphens ('--')
 ///
-/// Routes may include an optional `/params…` suffix, intended for use by off-chain parsers.
+/// Routes may include an optional `/params...` suffix, intended for use by off-chain parsers.
 /// These parameters are ignored by the contract and are neither stored nor processed on-chain.
 ///
 /// Examples:
@@ -50,6 +50,7 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - `routeScope` and `routeLabel` — immutable route path segments stored at creation.
 ///
 /// `target` and `routeType` are fixed at creation; routes cannot be deleted.
+/// but can be deactivated.
 ///
 /// **Route type examples**
 /// - `0` = `target` is the answer (EOA/smart contract)
@@ -74,7 +75,7 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - The XNS name owner may freeze the route book permanently by calling `freezeRouteBook`
 /// - Freezing a route book is irreversible
 /// - Under a frozen route book, no new routes can be created; existing routes remain unchanged;
-///   `activeController` can still toggle `isActive` on existing routes.
+///   `activeController` can still toggle `isActive` on existing routes unless renounced.
 ///
 /// **Resolution & indexing**
 /// - Forward: route -> `target` via `resolveRouteIfActive` (requires `isActive`) or
@@ -111,24 +112,25 @@ contract XNSRoutes {
     /// renouncement of control. When a route's `activeController` is set to this address,
     /// its `isActive` status is locked and cannot be changed.
     ///
-    /// Uses 0x…dEaD rather than `address(0)` because `address(0)` is rejected as an invalid
-    /// `activeController` at create.
+    /// Uses 0x…dEaD rather than `address(0)` so `address(0)` can stay reserved as an
+    /// invalid / unset controller (guards against accidentally passing Solidity's default
+    /// `address` value at create or transfer).
     address public constant NO_ACTIVE_CONTROLLER =
         address(0x000000000000000000000000000000000000dEaD);
 
     /// @notice XNS registry this contract calls for name resolution.
     IXNSMinimal public immutable XNS;
 
-    // keccak256(bytes(canonical xnsName)) => true if the route book for an XNS name is frozen
+    /// keccak256(bytes(canonical xnsName)) => true if the route book for an XNS name is frozen
     mapping(bytes32 => bool) private _routeBookFrozen;
 
-    // _routeKey(canonical xnsName, routeScope, routeLabel) => route record
+    /// route key => route record
     mapping(bytes32 => RouteRecord) private _routes;
 
-    // keccak256(bytes(canonical xnsName)) => route keys created under that XNS name
+    /// keccak256(bytes(canonical xnsName)) => route keys created under that XNS name
     mapping(bytes32 => bytes32[]) private _routeKeysByXNSName;
 
-    // _routeKey(...) => pending `acceptActiveController` recipient (0 = none)
+    /// route key => pending new `activeController` or `address(0)` if none
     mapping(bytes32 => address) private _pendingActiveController;
 
     // -------------------------------------------------------------------------
@@ -222,11 +224,11 @@ contract XNSRoutes {
     // State-modifying functions
     // -------------------------------------------------------------------------
 
-    /// @notice Create a route `[xnsName]/[routeScope:][routeLabel]`. `isActive` is set to true and
+    /// @notice Create a route `xnsName/[routeScope:]routeLabel`. `isActive` is set to true and
     /// `activeController` to the current XNS name owner.
     ///
     /// **Requirements:**
-    /// - `msg.sender` must be the owner for `xnsName`.
+    /// - `msg.sender` must be the owner of `xnsName`.
     /// - Non-empty `routeScope` and `routeLabel` must satisfy local character rules.
     /// - `routeLabel` must be a non-empty string.
     /// - `target` must not be the zero address.
@@ -235,7 +237,7 @@ contract XNSRoutes {
     ///
     /// On success:
     /// - Adds the route key to `_routeKeysByXNSName` for `xnsName`, queryable via
-    ///   `getRouteKeys`.
+    ///   `getRouteKeys` and `getRouteEntries`.
     /// - Emits `RouteCreated`.
     ///
     /// Note: Bare names like `bob` are normalized/canonicalized to `bob.x` for storage.
