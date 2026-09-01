@@ -1,6 +1,6 @@
 /**
- * Register a new route under `(xnsName, routeScope, routeLabel)`. Reverts if that key already exists.
- * Caller must be the address XNS currently resolves for `xnsName`.
+ * Register a new route under `(label, namespace, routeLabel)`. Reverts if that key already exists.
+ * Caller must be the address XNS currently resolves for `label@namespace`.
  *
  * USAGE:
  * `npx hardhat run scripts/examples/createRoute.ts --network <network_name>`
@@ -25,9 +25,8 @@ const RED = "\x1b[31m";
                             USER INPUTS
 //////////////////////////////////////////////////////////////*/
 
-const xnsName = "xns.action";
-/** Optional route scope (path segment before `:`), e.g. `eth` in `xns.action/eth:register-name/...` */
-const routeScope = "eth";
+const label = "xns";
+const namespace = "action";
 const routeLabel = "register-name";
 
 /** Build contract address for this route */
@@ -64,13 +63,14 @@ async function main() {
   const signers = await hre.ethers.getSigners();
   const signer = signers[signerIndex];
 
+  const xnsName = `${label}@${namespace}`;
+
   console.log(`\nNetwork: ${GREEN}${networkName}${RESET}`);
   console.log(`XNSRoutes: ${GREEN}${contractAddress}${RESET}`);
   console.log(`Signer: ${GREEN}${signer.address}${RESET}`);
   const balance = await hre.ethers.provider.getBalance(signer.address);
   console.log(`Balance: ${GREEN}${formatEther(balance)} ETH${RESET}`);
   console.log(`xnsName: ${GREEN}${xnsName}${RESET}`);
-  console.log(`routeScope: ${GREEN}${routeScope}${RESET}`);
   console.log(`routeLabel: ${GREEN}${routeLabel}${RESET}`);
   console.log(`target: ${GREEN}${target}${RESET}`);
   console.log(`routeType: ${GREEN}${routeType}${RESET}`);
@@ -85,19 +85,19 @@ async function main() {
     ? await routes
         .connect(signer)
         .createRouteWithController(
-          xnsName,
-          routeScope,
+          label,
+          namespace,
           routeLabel,
           target,
           routeType,
           activeControllerOverride,
         )
-    : await routes.connect(signer).createRoute(xnsName, routeScope, routeLabel, target, routeType);
+    : await routes.connect(signer).createRoute(label, namespace, routeLabel, target, routeType);
   console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
-  const record = await routes.getRouteRecord(xnsName, routeScope, routeLabel);
+  const record = await routes.getRouteRecord(label, namespace, routeLabel);
   console.log(
     `${GREEN}✓ Confirmed. getRouteRecord → target=${record.target} routeType=${record.routeType} isActive=${record.isActive} activeController=${record.activeController}${RESET}\n`,
   );

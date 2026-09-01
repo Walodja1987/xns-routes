@@ -5,75 +5,102 @@ This is an automatically generated documentation (using `solidity-docgen` packag
 ## XNSRoutes
 
 
-Route registry for XNS names which enables XNS name owners to map URL-style
-identifiers, so-called **routes**, to any Ethereum address. Routes may point to EOAs and
-smart contracts, including helper/view contracts returning arbitrary data, such as Bitcoin
-or Solana addresses, calldata, or other information. Registration is free and reserved for
-the XNS name owner only.
+A simple immutable named-address endpoint registry attached to XNS names.
 
-Route format: `xnsName/[routeScope:]routeLabel`
+XNS name owners can create named routes under their XNS name which resolve to Ethereum
+addresses. Routes may point to EOAs or smart contracts.
 
-- **xnsName** – XNS name that owns the route book (e.g. `bob.xns`, `contracts.aave`).
-- **routeScope** – optional segment before `:` (1–20 chars if present).
-- **routeLabel** – required slug (1–32 chars).
+Route format:
 
-`routeScope` and `routeLabel` must follow the same character and hyphenation rules as XNS names:
-- Must consist only of [a-z0-9-] (lowercase letters, digits, and hyphens)
-- Cannot start or end with '-'
-- Cannot contain consecutive hyphens ('--')
-
-Routes may include an optional `/params…` suffix, intended for use by off-chain parsers.
-String helpers (`splitRoute`, `getRouteRecord(string)`, `resolveRoute(string)`,
-`resolveRouteIfActive(string)`) strip at the second `/` and ignore that tail. Params are
-neither stored nor processed on-chain.
+    label AT namespace/route
 
 Examples:
-- `alice.og/my-sub-wallet` (route without routeScope)
-- `contracts.aave/eth:v3-pool-contract` (route with routeScope)
-- `safe.uni/uniswap:approve-usdt/amount=10` (route with routeScope and params)
+- `alice AT pay/treasury`
+- `alice AT pay/treasury-eth`
+- `alice AT pay/treasury-arb`
+- `aave AT defi/v3-pool`
 
-**Route record**
-Each route is represented as a structured route record with the following fields:
-- `target` — EOA or contract the route resolves to.
-- `routeType` — off-chain parser hint (semantics agreed off-chain; examples below).
-- `isActive` — whether parsers should treat the route as usable.
-- `activeController` — account that may toggle `isActive`.
-- `routeScope` and `routeLabel` — immutable route path segments stored at creation.
+The route portion must:
+- Be 1–32 characters long.
+- Consist only of [a-z0-9-].
+- Not start or end with '-'.
+- Not contain consecutive hyphens ('--').
 
-`target` and `routeType` are fixed at creation; routes cannot be deleted.
-but can be deactivated.
+Routes may optionally include an application-layer `/params...` suffix when using the
+string-based view functions. Anything after the second `/` is ignored by this contract.
 
-**Route type examples**
-- `0` = `target` is the answer (EOA/smart contract)
-- `1` = `target` must be queried (e.g. for a Bitcoin or Solana address)
-- `2` = `target` returns executable calldata
+Example:
 
-The exact semantics of `routeType` are agreed off-chain and are not enforced by the contract.
+    alice AT pay/payment/amount=10
 
-**Active status & activeController**
-- The `activeController` is the account that controls whether a route is active or not.
-- The `activeController` can change the route's active status, transfer this control to someone else,
-  or give up control permanently (which locks the route's status).
-- Inactive routes (e.g. deprecated or paused) should not be resolved by off-chain parsers;
-  use `resolveRouteIfActive` to resolve active routes only.
-- At create: `createRoute` sets `activeController` to the XNS name owner;
-  `createRouteWithController` accepts an explicit controller; both default to `isActive = true`.
-- `activeController` must not be `address(0)`.
-- The `isActive` status may be locked by setting `activeController` equal to `NO_ACTIVE_CONTROLLER`
-  address. This will permanently lock the route's `isActive` status.
+resolves the stored route:
 
-**Route book freeze**
-- The XNS name owner may freeze the route book permanently by calling `freezeRouteBook`
-- Freezing a route book is irreversible
-- Under a frozen route book, no new routes can be created; existing routes remain unchanged;
-  `activeController` can still toggle `isActive` on existing routes unless renounced.
+    alice AT pay/payment
+
+Params are not validated, stored, interpreted, or processed on-chain.
+
+### Route record
+
+Each route stores:
+- `target` — immutable Ethereum address the route points to.
+- `routeType` — generic off-chain interpretation hint.
+- `isActive` — whether applications should currently treat the route as usable.
+- `activeController` — account authorized to toggle `isActive`.
+- `routeLabel` — immutable route label.
+
+`target`, `routeType`, and `routeLabel` are immutable after route creation.
+
+The exact semantics of `routeType` are intentionally not enforced by this contract.
+Applications may define their own interpretation conventions.
+
+Example route types:
+- `0` = target address is the endpoint.
+- `1` = target is a resolver/view contract.
+- `2` = target is interpreted according to another application-level convention.
+
+### Active status
+
+A route starts active by default.
+
+Its `activeController` may:
+- Activate or deactivate the route.
+- Transfer active control using a two-step process.
+- Permanently renounce active control.
+
+Renouncing active control sets `activeController` to `NO_ACTIVE_CONTROLLER` and permanently
+locks the current `isActive` state.
+
+### Route-book freeze
+
+The XNS name owner may permanently freeze the entire route book belonging to their XNS name.
+
+After freezing:
+- No new routes may be created.
+- Existing routes remain unchanged.
+- Existing active controllers may continue toggling their routes unless active control
+  has separately been renounced.
+
+### Resolution
+
+Efficient contract integrations should use the separate:
+
+    (label, namespace, routeLabel)
+
+parameters.
+
+Convenience view functions additionally support complete strings such as:
+
+    alice AT pay/treasury
+
+No reverse lookup is provided because multiple routes may point to the same target.
 
 **Resolution & indexing**
 - Forward: route -> `target` via `resolveRouteIfActive` (requires `isActive`) or
-  `resolveRoute` (ignores `isActive`). No reverse lookup because many routes may point to the same `target`.
-- Bare names like `bob` normalize to `bob.x` (canonical XNS name). `routeKey` = hash of canonical route.
+  `resolveRoute` (ignores `isActive`).
+- XNS name key: `keccak256(abi.encodePacked(label, " AT ", namespace))`.
+- Route key: `keccak256(abi.encode(xnsNameKey, keccak256(bytes(routeLabel))))`.
 - The route list can be queried with `getRouteKeyCount`, `getRouteKeys`, and `getRouteEntries`.
-  `getRouteEntries` returns each route's key plus stored `routeScope`, `routeLabel`, and metadata.
+  `getRouteEntries` returns each route's key plus stored `routeLabel` and metadata.
 
 
 
@@ -85,73 +112,58 @@ The exact semantics of `routeType` are agreed off-chain and are not enforced by 
 ### createRoute
 
 
-Create a route `xnsName/[routeScope:]routeLabel`. `isActive` is set to true and
-`activeController` to the current XNS name owner.
+Creates an immutable route under an XNS name.
 
-**Requirements:**
-- `msg.sender` must be the owner of `xnsName`.
-- Non-empty `routeScope` and `routeLabel` must satisfy local character rules.
-- `routeLabel` must be a non-empty string.
-- `target` must not be the zero address.
-- The route book for `xnsName` must not be frozen.
-- The route key must not already exist.
+The route starts active and `activeController` is set to the current XNS name owner.
 
-On success:
-- Adds the route key to `_routeKeysByXNSName` for `xnsName`, queryable via
-  `getRouteKeys` and `getRouteEntries`.
-- Emits `RouteCreated`.
+Example:
 
-Note: Bare names like `bob` are normalized/canonicalized to `bob.x` for storage.
+    createRoute("alice", "pay", "treasury", target, 0)
+
+creates:
+
+    alice AT pay/treasury
+
+Requirements:
+- `msg.sender` must own `label AT namespace`.
+- `routeLabel` must be valid.
+- `target` must not be address(0).
+- The route book must not be frozen.
+- The route must not already exist.
+
+Emits `RouteCreated`.
 
 ```solidity
-function createRoute(string xnsName, string routeScope, string routeLabel, address target, uint32 routeType) external
+function createRoute(string label, string namespace, string routeLabel, address target, uint32 routeType) external
 ```
 
 
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| xnsName | string | The XNS name that owns the route space, e.g. "xns.action". |
-| routeScope | string | Optional path segment before `:`; non-empty must pass local route scope rules ([a-z0-9-], max length 20); empty means `xnsName/routeLabel` only (no `:` in the route). |
-| routeLabel | string | Required route label ([a-z0-9-], max length 32). |
-| target | address | Target address for `routeType`; must be non-zero (`address(0)` is reserved for non-existent route). |
-| routeType | uint32 | Parser hint for how to interpret `target` (off-chain semantics). |
 
 
 ### createRouteWithController
 
 
-Same as `createRoute` but with an explicit `activeController`.
-Use when toggling `isActive` should be delegated to another account.
+Creates an immutable route with an explicitly specified active controller.
 
 Same requirements as `createRoute`, plus:
 - `activeController` must not be `address(0)`.
 
-Note: If `activeController` is set to `NO_ACTIVE_CONTROLLER`, the route's `isActive` status is locked
-and cannot be changed after creation.
+Note: If `activeController` is set to `NO_ACTIVE_CONTROLLER`, the route's `isActive` status is
+locked and cannot be changed after creation.
+
+Emits `RouteCreated`.
 
 ```solidity
-function createRouteWithController(string xnsName, string routeScope, string routeLabel, address target, uint32 routeType, address activeController) external
+function createRouteWithController(string label, string namespace, string routeLabel, address target, uint32 routeType, address activeController) external
 ```
 
 
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| xnsName | string |  |
-| routeScope | string |  |
-| routeLabel | string |  |
-| target | address |  |
-| routeType | uint32 |  |
-| activeController | address | Account that may toggle `isActive` via `activateRoute` / `deactivateRoute`. |
 
 
 ### activateRoute
 
 
-Mark an existing route as active.
+Activates an existing route.
 
 **Requirements:**
 - `msg.sender` must be the current `activeController`.
@@ -160,23 +172,16 @@ Mark an existing route as active.
 Emits `RouteActiveStatusUpdated` only when `isActive` changes.
 
 ```solidity
-function activateRoute(string xnsName, string routeScope, string routeLabel) external
+function activateRoute(string label, string namespace, string routeLabel) external
 ```
 
 
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| xnsName | string | The XNS name that owns the route space. |
-| routeScope | string | Route scope of the route path to be activated (may be empty). |
-| routeLabel | string | Route label of the route path to be activated. |
 
 
 ### deactivateRoute
 
 
-Mark an existing route as inactive.
+Deactivates an existing route.
 
 **Requirements:**
 - `msg.sender` must be the current `activeController`.
@@ -185,23 +190,16 @@ Mark an existing route as inactive.
 Emits `RouteActiveStatusUpdated` only when `isActive` changes.
 
 ```solidity
-function deactivateRoute(string xnsName, string routeScope, string routeLabel) external
+function deactivateRoute(string label, string namespace, string routeLabel) external
 ```
 
 
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| xnsName | string | The XNS name that owns the route space. |
-| routeScope | string | Route scope of the route path to be deactivated (may be empty). |
-| routeLabel | string | Route label of the route path to be deactivated. |
 
 
 ### initiateActiveControllerTransfer
 
 
-Start a two-step transfer of `activeController` to `newActiveController`.
+Starts a two-step active-controller transfer.
 
 **Requirements:**
 - `msg.sender` must be the current `activeController`.
@@ -214,24 +212,16 @@ Replaces any existing pending transfer for this route.
 Emits `ActiveControllerTransferInitiated`.
 
 ```solidity
-function initiateActiveControllerTransfer(string xnsName, string routeScope, string routeLabel, address newActiveController) external
+function initiateActiveControllerTransfer(string label, string namespace, string routeLabel, address newActiveController) external
 ```
 
 
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| xnsName | string |  |
-| routeScope | string |  |
-| routeLabel | string |  |
-| newActiveController | address | Account that must call `acceptActiveController` to complete the transfer. |
 
 
 ### acceptActiveController
 
 
-Complete a pending `activeController` transfer.
+Accepts a pending active-controller transfer.
 
 **Requirements:**
 - `msg.sender` must be the pending `newActiveController` from `initiateActiveControllerTransfer`.
@@ -241,7 +231,7 @@ Complete a pending `activeController` transfer.
 Emits `ActiveControllerTransferAccepted`.
 
 ```solidity
-function acceptActiveController(string xnsName, string routeScope, string routeLabel) external
+function acceptActiveController(string label, string namespace, string routeLabel) external
 ```
 
 
@@ -250,7 +240,7 @@ function acceptActiveController(string xnsName, string routeScope, string routeL
 ### cancelActiveControllerTransfer
 
 
-Cancel a pending `activeController` transfer.
+Cancels a pending active-controller transfer.
 
 **Requirements:**
 - `msg.sender` must be the current `activeController`.
@@ -260,7 +250,7 @@ Cancel a pending `activeController` transfer.
 Emits `ActiveControllerTransferCancelled`.
 
 ```solidity
-function cancelActiveControllerTransfer(string xnsName, string routeScope, string routeLabel) external
+function cancelActiveControllerTransfer(string label, string namespace, string routeLabel) external
 ```
 
 
@@ -269,8 +259,9 @@ function cancelActiveControllerTransfer(string xnsName, string routeScope, strin
 ### renounceActiveControl
 
 
-Permanently renounce active control: sets `activeController` to
-`NO_ACTIVE_CONTROLLER`. `isActive` is left unchanged and can no longer be toggled.
+Permanently renounces active control for a route.
+
+The current `isActive` status remains unchanged and becomes permanently locked.
 
 **Requirements:**
 - `msg.sender` must be the current `activeController`.
@@ -281,7 +272,7 @@ Clears any pending transfer.
 Emits `ActiveControllerRenounced`.
 
 ```solidity
-function renounceActiveControl(string xnsName, string routeScope, string routeLabel) external
+function renounceActiveControl(string label, string namespace, string routeLabel) external
 ```
 
 
@@ -290,13 +281,29 @@ function renounceActiveControl(string xnsName, string routeScope, string routeLa
 ### freezeRouteBook
 
 
-Freeze the entire route book under an XNS name forever.
+Permanently freezes the route book associated with an XNS name.
 
-**Effects (irreversible):**
-- No new routes may be added under `xnsName`.
-- Existing routes are unchanged; `activeController` can still toggle `isActive`.
+After freezing no additional routes may be created.
 
-Requires `msg.sender` to be the XNS name owner of `xnsName`.
+Existing routes and their active-controller mechanics remain unchanged.
+
+Requires `msg.sender` to own `label AT namespace`.
+
+Emits `RouteBookFrozen` only if the route book was not already frozen.
+
+```solidity
+function freezeRouteBook(string label, string namespace) external
+```
+
+
+
+
+### freezeRouteBook
+
+
+Permanently freezes the route book for `label AT namespace`.
+
+Same requirements and effects as `freezeRouteBook(label, namespace)`.
 
 Emits `RouteBookFrozen` only if the route book was not already frozen.
 
@@ -305,219 +312,143 @@ function freezeRouteBook(string xnsName) external
 ```
 
 
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| xnsName | string | The XNS name whose route book to freeze. |
 
 
 ### getRouteRecord
 
 
-Reads stored route record data by `routeKey`.
-`record.target == address(0)` means that record does not exist.
+Returns a route record directly by route key.
+
+`record.target == address(0)` means the route does not exist.
 
 ```solidity
 function getRouteRecord(bytes32 routeKey) external view returns (struct XNSRoutes.RouteRecord record)
 ```
 
 
-#### Parameters
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| routeKey | bytes32 | Canonical route storage key. |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| record | struct XNSRoutes.RouteRecord | The route record (target, routeType, isActive, activeController, routeScope, routeLabel). |
 
 ### getRouteRecord
 
 
-Reads stored route record data by `(xnsName, routeScope, routeLabel)`.
-`record.target == address(0)` means that record does not exist.
+Returns a route record using separate XNS components.
 
 ```solidity
-function getRouteRecord(string xnsName, string routeScope, string routeLabel) external view returns (struct XNSRoutes.RouteRecord record)
+function getRouteRecord(string label, string namespace, string routeLabel) external view returns (struct XNSRoutes.RouteRecord record)
 ```
 
 
-#### Parameters
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| xnsName | string | The XNS name that owns the route space. |
-| routeScope | string | Route scope (may be empty). |
-| routeLabel | string | Route label. |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| record | struct XNSRoutes.RouteRecord | The route record (target, routeType, isActive, activeController, routeScope, routeLabel). |
 
 ### getRouteRecord
 
 
-Reads stored route record data by route string (`splitRoute`).
-`record.target == address(0)` means that record does not exist.
+Returns a route record using a complete route string.
+
+Example:
+
+    alice AT pay/treasury
+
+An optional suffix after the second `/` is ignored.
 
 ```solidity
 function getRouteRecord(string route) external view returns (struct XNSRoutes.RouteRecord record)
 ```
 
 
-#### Parameters
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| route | string | Route or parametrized route, e.g. `bob.xns/eth:my-wallet` or `bob.xns/eth:my-wallet/amount=10` (tail after the second `/` is ignored). |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| record | struct XNSRoutes.RouteRecord | The route record (target, routeType, isActive, activeController, routeScope, routeLabel). |
 
 ### resolveRouteIfActive
 
 
-Resolves an active route to `(target, routeType)`.
-
-**Requirements:**
-- The route must exist (`target != address(0)`).
-- `isActive` must be true.
+Resolves an active route using separate XNS components.
 
 ```solidity
-function resolveRouteIfActive(string xnsName, string routeScope, string routeLabel) external view returns (address target, uint32 routeType)
+function resolveRouteIfActive(string label, string namespace, string routeLabel) external view returns (address target, uint32 routeType)
 ```
 
 
-#### Parameters
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| xnsName | string | The XNS name that owns the route space. |
-| routeScope | string | Route scope (may be empty). |
-| routeLabel | string | Route label. |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| target | address | Resolved target address. |
-| routeType | uint32 | Parser hint for how to interpret `target`. |
 
 ### resolveRouteIfActive
 
 
-Resolves an active route to `(target, routeType)` by route string (`splitRoute`).
+Resolves an active route using a complete route string.
 
-**Requirements:** same as `resolveRouteIfActive(xnsName, routeScope, routeLabel)`.
+Example:
+
+    resolveRouteIfActive("alice AT pay/treasury")
 
 ```solidity
 function resolveRouteIfActive(string route) external view returns (address target, uint32 routeType)
 ```
 
 
-#### Parameters
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| route | string | Route or parametrized route, e.g. `bob.xns/eth:my-wallet` or `bob.xns/eth:my-wallet/amount=10` (tail after the second `/` is ignored). |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| target | address | Resolved target address. |
-| routeType | uint32 | Parser hint for how to interpret `target`. |
 
 ### resolveRoute
 
 
-Resolves a route to `(target, routeType)` regardless of `isActive`.
-
-Requires that the route exists (`target != address(0)`).
+Resolves a route regardless of its active status.
 
 ```solidity
-function resolveRoute(string xnsName, string routeScope, string routeLabel) external view returns (address target, uint32 routeType)
+function resolveRoute(string label, string namespace, string routeLabel) external view returns (address target, uint32 routeType)
 ```
 
 
-#### Parameters
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| xnsName | string | The XNS name that owns the route space. |
-| routeScope | string | Route scope (may be empty). |
-| routeLabel | string | Route label. |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| target | address | Resolved target address. |
-| routeType | uint32 | Parser hint for how to interpret `target`. |
 
 ### resolveRoute
 
 
-Resolves a route to `(target, routeType)` by route string (`splitRoute`).
+Resolves a route regardless of active status using a complete route string.
 
-**Requirements:** same as `resolveRoute(xnsName, routeScope, routeLabel)`.
+Example:
+
+    resolveRoute("alice AT pay/treasury")
 
 ```solidity
 function resolveRoute(string route) external view returns (address target, uint32 routeType)
 ```
 
 
-#### Parameters
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| route | string | Route or parametrized route, e.g. `bob.xns/eth:my-wallet` or `bob.xns/eth:my-wallet/amount=10` (tail after the second `/` is ignored). |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| target | address | Resolved target address. |
-| routeType | uint32 | Parser hint for how to interpret `target`. |
 
 ### isRouteBookFrozen
 
 
-Returns whether the entire route book under `xnsName` is frozen.
+Returns whether the route book belonging to an XNS name is frozen.
+
+```solidity
+function isRouteBookFrozen(string label, string namespace) external view returns (bool frozen)
+```
+
+
+
+
+### isRouteBookFrozen
+
+
+Convenience overload accepting a complete XNS name.
+
+Example:
+
+    isRouteBookFrozen("alice AT pay")
 
 ```solidity
 function isRouteBookFrozen(string xnsName) external view returns (bool frozen)
 ```
 
 
-#### Parameters
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| xnsName | string | The XNS name that owns the route space. |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| frozen | bool | True if the route book is frozen. |
 
 ### pendingActiveController
 
 
-Pending `acceptActiveController` recipient for a route, or `address(0)` if none.
+Returns a route's pending active controller, or address(0) if none.
 
 ```solidity
-function pendingActiveController(string xnsName, string routeScope, string routeLabel) external view returns (address pending)
+function pendingActiveController(string label, string namespace, string routeLabel) external view returns (address pending)
 ```
 
 
@@ -526,182 +457,130 @@ function pendingActiveController(string xnsName, string routeScope, string route
 ### getRouteKeyCount
 
 
-Number of route keys registered under `xnsName`.
+Returns the number of routes ever created under an XNS name.
+
+```solidity
+function getRouteKeyCount(string label, string namespace) external view returns (uint256 count)
+```
+
+
+
+
+### getRouteKeyCount
+
+
+Convenience overload accepting `label AT namespace`.
 
 ```solidity
 function getRouteKeyCount(string xnsName) external view returns (uint256 count)
 ```
 
 
-#### Parameters
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| xnsName | string | The XNS name to get the route key count for. |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| count | uint256 | The number of route keys. |
 
 ### getRouteKeys
 
 
-Returns `keys[start:end]` from the route keys array associated with
-`xnsName` (`end` is exclusive). If `end` is greater than the array length, behaves
-like `end == length` (caller may pass any large upper bound to fetch "the rest"
-without needing to know the exact array length). If `start` lies past the end of
-the array, returns an empty array.
+Returns route keys `[start:end]` for an XNS name.
 
-Requires `start <= end`.
+`end` is exclusive and is clamped to the array length.
+
+```solidity
+function getRouteKeys(string label, string namespace, uint256 start, uint256 end) external view returns (bytes32[] keys)
+```
+
+
+
+
+### getRouteKeys
+
+
+Convenience overload accepting `label AT namespace`.
 
 ```solidity
 function getRouteKeys(string xnsName, uint256 start, uint256 end) external view returns (bytes32[] keys)
 ```
 
 
-#### Parameters
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| xnsName | string | The XNS name to get the route keys for. |
-| start | uint256 | The start index (inclusive). |
-| end | uint256 | The end index (exclusive); may exceed array length. |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| keys | bytes32[] | The route keys. |
 
 ### getRouteEntries
 
 
-Returns `entries[start:end]` for routes registered under `xnsName` (`end` is
-exclusive). Each entry includes the route key plus stored `routeScope`, `routeLabel`, and
-metadata. Pagination rules match `getRouteKeys`.
+Returns full route entries `[start:end]` for an XNS name.
 
-Requires `start <= end`.
+```solidity
+function getRouteEntries(string label, string namespace, uint256 start, uint256 end) external view returns (struct XNSRoutes.RouteEntry[] entries)
+```
+
+
+
+
+### getRouteEntries
+
+
+Convenience overload accepting `label AT namespace`.
 
 ```solidity
 function getRouteEntries(string xnsName, uint256 start, uint256 end) external view returns (struct XNSRoutes.RouteEntry[] entries)
 ```
 
 
-#### Parameters
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| xnsName | string | The XNS name to list routes for. |
-| start | uint256 | The start index (inclusive). |
-| end | uint256 | The end index (exclusive); may exceed array length. |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| entries | struct XNSRoutes.RouteEntry[] | The route entries. |
 
 ### splitRoute
 
 
-Parses a route into `(xnsName, routeScope, routeLabel)`.
-Example: `bro.xns/eth:my-wallet` -> `(bro.xns, eth, my-wallet)`.
-Useful when calling tuple-based mutating functions (e.g. `resolveRoute`, `activateRoute`).
+Parses a complete route string into:
 
-A route is `xnsName/[routeScope:]routeLabel`. An optional `/params…` tail after a second
-`/` is stripped and ignored (not validated or returned).
-Does not validate segments; malformed input may still parse but fail downstream.
+    (label, namespace, routeLabel)
 
-Requires `route` to contain at least one `/`.
+Example:
+
+    alice AT pay/treasury
+
+becomes:
+
+    ("alice", "pay", "treasury")
+
+An optional `/params...` suffix is ignored:
+
+    alice AT pay/payment/amount=10
+
+also returns:
+
+    ("alice", "pay", "payment")
 
 ```solidity
-function splitRoute(string route) external pure returns (string xnsName, string routeScope, string routeLabel)
+function splitRoute(string route) external pure returns (string label, string namespace, string routeLabel)
 ```
 
 
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| route | string | Route or parametrized route, e.g. `bob.xns/eth:transfer-usdt` or `bob.xns/eth:transfer-usdt/amount=10`. |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| xnsName | string | Segment before the first `/`. |
-| routeScope | string | Segment before the first `:` in the path after the first `/` (before any params `/`), or empty if there is no `:`. |
-| routeLabel | string | Segment after `:` if `routeScope` is present, else the whole path segment after the first `/` (before any params `/`). |
-
-### isValidRouteScope
 
 
-Returns whether `routeScope` satisfies local scope rules. Empty string is valid;
-non-empty must be 1–20 chars and match the slug charset/hyphen rules.
+### splitXNSName
+
+
+Parses `label AT namespace`.
 
 ```solidity
-function isValidRouteScope(string routeScope) external pure returns (bool valid)
+function splitXNSName(string xnsName) external pure returns (string label, string namespace)
 ```
 
 
-#### Parameters
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| routeScope | string | Candidate route scope (may be empty). |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| valid | bool | True if empty or a valid slug (1–20 chars). |
 
 ### isValidRouteLabel
 
 
-Returns whether `routeLabel` satisfies local label rules (1–32 chars, slug rules).
+Returns whether a route label satisfies the XNS Routes label rules.
 
 ```solidity
 function isValidRouteLabel(string routeLabel) external pure returns (bool valid)
 ```
 
 
-#### Parameters
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| routeLabel | string | Candidate route label. |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| valid | bool | True if a valid slug (1–32 chars). |
-
-### isValidRouteScopeAndLabel
-
-
-Returns whether `routeScope` and `routeLabel` pass validation rules.
-
-```solidity
-function isValidRouteScopeAndLabel(string routeScope, string routeLabel) external pure returns (bool valid)
-```
-
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| routeScope | string | Candidate route scope (may be empty). |
-| routeLabel | string | Candidate route label. |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| valid | bool | True if both inputs are valid slugs. |
 
 
 ## Events
@@ -712,10 +591,9 @@ function isValidRouteScopeAndLabel(string routeScope, string routeLabel) externa
 
 
 ```solidity
-event RouteCreated(bytes32 xnsNameKey, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, address target, uint32 routeType, bool isActive, address activeController)
+event RouteCreated(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel, address target, uint32 routeType, bool isActive, address activeController)
 ```
 
-_Emitted in `createRoute` and `createRouteWithController`._
 
 
 
@@ -726,10 +604,9 @@ _Emitted in `createRoute` and `createRouteWithController`._
 
 
 ```solidity
-event RouteActiveStatusUpdated(bytes32 xnsNameKey, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, bool isActive)
+event RouteActiveStatusUpdated(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel, bool isActive)
 ```
 
-_Emitted in `activateRoute` and `deactivateRoute` when `isActive` changes._
 
 
 
@@ -740,10 +617,9 @@ _Emitted in `activateRoute` and `deactivateRoute` when `isActive` changes._
 
 
 ```solidity
-event RouteBookFrozen(bytes32 xnsNameKey, string canonicalXNSName)
+event RouteBookFrozen(bytes32 xnsNameKey, string label, string namespace)
 ```
 
-_Emitted in `freezeRouteBook` when the route book is frozen for an XNS name._
 
 
 
@@ -754,10 +630,9 @@ _Emitted in `freezeRouteBook` when the route book is frozen for an XNS name._
 
 
 ```solidity
-event ActiveControllerTransferInitiated(bytes32 xnsNameKey, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, address pendingActiveController)
+event ActiveControllerTransferInitiated(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel, address pendingActiveController)
 ```
 
-_Emitted in `initiateActiveControllerTransfer`._
 
 
 
@@ -768,10 +643,9 @@ _Emitted in `initiateActiveControllerTransfer`._
 
 
 ```solidity
-event ActiveControllerTransferAccepted(bytes32 xnsNameKey, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, address previousActiveController, address newActiveController)
+event ActiveControllerTransferAccepted(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel, address previousActiveController, address newActiveController)
 ```
 
-_Emitted in `acceptActiveController`._
 
 
 
@@ -782,10 +656,9 @@ _Emitted in `acceptActiveController`._
 
 
 ```solidity
-event ActiveControllerTransferCancelled(bytes32 xnsNameKey, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel, address cancelledPendingActiveController)
+event ActiveControllerTransferCancelled(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel, address cancelledPendingActiveController)
 ```
 
-_Emitted in `cancelActiveControllerTransfer`._
 
 
 
@@ -796,10 +669,9 @@ _Emitted in `cancelActiveControllerTransfer`._
 
 
 ```solidity
-event ActiveControllerRenounced(bytes32 xnsNameKey, bytes32 routeKey, string canonicalXNSName, string routeScope, string routeLabel)
+event ActiveControllerRenounced(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel)
 ```
 
-_Emitted in `renounceActiveControl`._
 
 
 
@@ -812,13 +684,9 @@ _Emitted in `renounceActiveControl`._
 ### NO_ACTIVE_CONTROLLER
 
 
-Special sentinel value for `activeController` indicating permanent
-renouncement of control. When a route's `activeController` is set to this address,
-its `isActive` status is locked and cannot be changed.
+Sentinel indicating that active control has been permanently renounced.
 
-Uses 0x…dEaD rather than `address(0)` so `address(0)` can stay reserved as an
-invalid / unset controller (guards against accidentally passing Solidity's default
-`address` value at create or transfer).
+`address(0)` remains reserved for invalid/unset controller values.
 
 ```solidity
 address NO_ACTIVE_CONTROLLER
@@ -831,7 +699,7 @@ address NO_ACTIVE_CONTROLLER
 ### XNS
 
 
-XNS registry this contract calls for name resolution.
+XNSv2 registry used for name ownership resolution.
 
 ```solidity
 contract IXNSMinimal XNS
@@ -852,14 +720,12 @@ struct RouteRecord {
   uint32 routeType;
   bool isActive;
   address activeController;
-  string routeScope;
   string routeLabel;
 ```
 
+Metadata associated with a route.
 
 
-
-_Data structure to store route metadata._
 
 
 
@@ -872,7 +738,7 @@ struct RouteEntry {
   struct XNSRoutes.RouteRecord record;
 ```
 
-Paginated route listing entry: storage key plus full stored route metadata.
+Paginated route listing entry.
 
 
 

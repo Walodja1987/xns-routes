@@ -1,5 +1,5 @@
 /**
- * Check whether a route exists under a base XNS name.
+ * Check whether a route exists under an XNS name.
  *
  * Existence: `getRouteRecord(...).target != address(0)`.
  *
@@ -26,12 +26,8 @@ const RED = "\x1b[31m";
                             USER INPUTS
 //////////////////////////////////////////////////////////////*/
 
-/** XNS name that owns the route space (e.g. "xns.action") */
-const xnsName = "xns.action";
-
-const routeScope = "eth";
-
-/** Route label (e.g. "register-name") */
+const label = "xns";
+const namespace = "action";
 const routeLabel = "register-name";
 
 async function main() {
@@ -44,14 +40,14 @@ async function main() {
   }
 
   const routes = await hre.ethers.getContractAt("XNSRoutes", contractAddress);
+  const xnsName = `${label}@${namespace}`;
 
   console.log(`\nNetwork: ${GREEN}${networkName}${RESET}`);
   console.log(`XNSRoutes: ${GREEN}${contractAddress}${RESET}`);
   console.log(`xnsName: ${GREEN}${xnsName}${RESET}`);
-  console.log(`routeScope: ${GREEN}${routeScope}${RESET}`);
   console.log(`routeLabel: ${GREEN}${routeLabel}${RESET}\n`);
 
-  const record = await routes.getRouteRecord(xnsName, routeScope, routeLabel);
+  const record = await routes.getRouteRecord(label, namespace, routeLabel);
   const exists = record.target !== hre.ethers.ZeroAddress;
 
   if (exists) {

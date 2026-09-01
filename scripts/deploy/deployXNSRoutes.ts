@@ -16,7 +16,7 @@
  *
  * After deployment, record the address in constants/addresses.ts (XNS_ROUTES_ADDRESS).
  *
- * The constructor is payable: it forwards `msg.value` to XNS `registerName("routes","xns")` so `routes.xns`
+ * The constructor is payable: it forwards `msg.value` to XNS `registerName("routes","xns")` so `routes@xns`
  * resolves to the new registry. The script queries `getNamespacePrice("xns")` on the XNS contract and
  * uses that as the deployment transaction value (excess is refunded by XNS).
  */

@@ -11,7 +11,7 @@ interface IXNSForRegisterNameBuilder {
 
 /// @title XNSRegisterNameBuilder
 /// @notice Build contract for the route path:
-///         xns.action/eth:register-name/label=bro/namespace=og
+///         xns AT action/register-name/label=bro/namespace=og
 ///
 /// It returns the tx template for calling:
 ///         XNS.registerName(label, namespace)

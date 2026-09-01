@@ -2,16 +2,13 @@
 pragma solidity 0.8.28;
 
 /// @title IXNSRoutes
-/// @notice Interface for the `XNSRoutes` route registry. Dotless `xnsName` arguments are
-///         normalized to `label.x` for auth, storage keys, and views. Events emit the
-///         canonical form as `canonicalXNSName`.
+/// @notice Interface for the `XNSRoutes` route registry (XNSv2 `label AT namespace/route` format).
 interface IXNSRoutes {
     struct RouteRecord {
         address target;
         uint32 routeType;
         bool isActive;
         address activeController;
-        string routeScope;
         string routeLabel;
     }
 
@@ -23,8 +20,8 @@ interface IXNSRoutes {
     event RouteCreated(
         bytes32 indexed xnsNameKey,
         bytes32 indexed routeKey,
-        string canonicalXNSName,
-        string routeScope,
+        string label,
+        string namespace,
         string routeLabel,
         address indexed target,
         uint32 routeType,
@@ -35,19 +32,19 @@ interface IXNSRoutes {
     event RouteActiveStatusUpdated(
         bytes32 indexed xnsNameKey,
         bytes32 indexed routeKey,
-        string canonicalXNSName,
-        string routeScope,
+        string label,
+        string namespace,
         string routeLabel,
         bool isActive
     );
 
-    event RouteBookFrozen(bytes32 indexed xnsNameKey, string canonicalXNSName);
+    event RouteBookFrozen(bytes32 indexed xnsNameKey, string label, string namespace);
 
     event ActiveControllerTransferInitiated(
         bytes32 indexed xnsNameKey,
         bytes32 indexed routeKey,
-        string canonicalXNSName,
-        string routeScope,
+        string label,
+        string namespace,
         string routeLabel,
         address indexed pendingActiveController
     );
@@ -55,8 +52,8 @@ interface IXNSRoutes {
     event ActiveControllerTransferAccepted(
         bytes32 indexed xnsNameKey,
         bytes32 indexed routeKey,
-        string canonicalXNSName,
-        string routeScope,
+        string label,
+        string namespace,
         string routeLabel,
         address previousActiveController,
         address indexed newActiveController
@@ -65,8 +62,8 @@ interface IXNSRoutes {
     event ActiveControllerTransferCancelled(
         bytes32 indexed xnsNameKey,
         bytes32 indexed routeKey,
-        string canonicalXNSName,
-        string routeScope,
+        string label,
+        string namespace,
         string routeLabel,
         address indexed cancelledPendingActiveController
     );
@@ -74,8 +71,8 @@ interface IXNSRoutes {
     event ActiveControllerRenounced(
         bytes32 indexed xnsNameKey,
         bytes32 indexed routeKey,
-        string canonicalXNSName,
-        string routeScope,
+        string label,
+        string namespace,
         string routeLabel
     );
 
@@ -83,25 +80,17 @@ interface IXNSRoutes {
 
     function XNS() external view returns (address);
 
-    function isRouteBookFrozen(string calldata xnsName) external view returns (bool);
-
-    function pendingActiveController(
-        string calldata xnsName,
-        string calldata routeScope,
-        string calldata routeLabel
-    ) external view returns (address pending);
-
     function createRoute(
-        string calldata xnsName,
-        string calldata routeScope,
+        string calldata label,
+        string calldata namespace,
         string calldata routeLabel,
         address target,
         uint32 routeType
     ) external;
 
     function createRouteWithController(
-        string calldata xnsName,
-        string calldata routeScope,
+        string calldata label,
+        string calldata namespace,
         string calldata routeLabel,
         address target,
         uint32 routeType,
@@ -109,57 +98,59 @@ interface IXNSRoutes {
     ) external;
 
     function activateRoute(
-        string calldata xnsName,
-        string calldata routeScope,
+        string calldata label,
+        string calldata namespace,
         string calldata routeLabel
     ) external;
 
     function deactivateRoute(
-        string calldata xnsName,
-        string calldata routeScope,
+        string calldata label,
+        string calldata namespace,
         string calldata routeLabel
     ) external;
 
     function initiateActiveControllerTransfer(
-        string calldata xnsName,
-        string calldata routeScope,
+        string calldata label,
+        string calldata namespace,
         string calldata routeLabel,
         address newActiveController
     ) external;
 
     function acceptActiveController(
-        string calldata xnsName,
-        string calldata routeScope,
+        string calldata label,
+        string calldata namespace,
         string calldata routeLabel
     ) external;
 
     function cancelActiveControllerTransfer(
-        string calldata xnsName,
-        string calldata routeScope,
+        string calldata label,
+        string calldata namespace,
         string calldata routeLabel
     ) external;
 
     function renounceActiveControl(
-        string calldata xnsName,
-        string calldata routeScope,
+        string calldata label,
+        string calldata namespace,
         string calldata routeLabel
     ) external;
+
+    function freezeRouteBook(string calldata label, string calldata namespace) external;
 
     function freezeRouteBook(string calldata xnsName) external;
 
     function getRouteRecord(bytes32 routeKey) external view returns (RouteRecord memory record);
 
     function getRouteRecord(
-        string calldata xnsName,
-        string calldata routeScope,
+        string calldata label,
+        string calldata namespace,
         string calldata routeLabel
     ) external view returns (RouteRecord memory record);
 
     function getRouteRecord(string calldata route) external view returns (RouteRecord memory record);
 
     function resolveRouteIfActive(
-        string calldata xnsName,
-        string calldata routeScope,
+        string calldata label,
+        string calldata namespace,
         string calldata routeLabel
     ) external view returns (address target, uint32 routeType);
 
@@ -168,8 +159,8 @@ interface IXNSRoutes {
     ) external view returns (address target, uint32 routeType);
 
     function resolveRoute(
-        string calldata xnsName,
-        string calldata routeScope,
+        string calldata label,
+        string calldata namespace,
         string calldata routeLabel
     ) external view returns (address target, uint32 routeType);
 
@@ -177,20 +168,32 @@ interface IXNSRoutes {
         string calldata route
     ) external view returns (address target, uint32 routeType);
 
-    function splitRoute(
-        string calldata route
-    ) external pure returns (string memory xnsName, string memory routeScope, string memory routeLabel);
+    function isRouteBookFrozen(
+        string calldata label,
+        string calldata namespace
+    ) external view returns (bool frozen);
 
-    function isValidRouteScope(string calldata routeScope) external pure returns (bool valid);
+    function isRouteBookFrozen(string calldata xnsName) external view returns (bool frozen);
 
-    function isValidRouteLabel(string calldata routeLabel) external pure returns (bool valid);
-
-    function isValidRouteScopeAndLabel(
-        string calldata routeScope,
+    function pendingActiveController(
+        string calldata label,
+        string calldata namespace,
         string calldata routeLabel
-    ) external pure returns (bool valid);
+    ) external view returns (address pending);
+
+    function getRouteKeyCount(
+        string calldata label,
+        string calldata namespace
+    ) external view returns (uint256 count);
 
     function getRouteKeyCount(string calldata xnsName) external view returns (uint256 count);
+
+    function getRouteKeys(
+        string calldata label,
+        string calldata namespace,
+        uint256 start,
+        uint256 end
+    ) external view returns (bytes32[] memory keys);
 
     function getRouteKeys(
         string calldata xnsName,
@@ -199,8 +202,25 @@ interface IXNSRoutes {
     ) external view returns (bytes32[] memory keys);
 
     function getRouteEntries(
+        string calldata label,
+        string calldata namespace,
+        uint256 start,
+        uint256 end
+    ) external view returns (RouteEntry[] memory entries);
+
+    function getRouteEntries(
         string calldata xnsName,
         uint256 start,
         uint256 end
     ) external view returns (RouteEntry[] memory entries);
+
+    function splitRoute(
+        string calldata route
+    ) external pure returns (string memory label, string memory namespace, string memory routeLabel);
+
+    function splitXNSName(
+        string calldata xnsName
+    ) external pure returns (string memory label, string memory namespace);
+
+    function isValidRouteLabel(string calldata routeLabel) external pure returns (bool valid);
 }

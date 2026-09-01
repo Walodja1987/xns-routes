@@ -1,6 +1,6 @@
 /**
- * Permanently base-freeze all routes under a name (no new routes, no target updates).
- * Caller must be the address XNS currently resolves for `xnsName`.
+ * Permanently freeze the route book under an XNS name (no new routes).
+ * Caller must be the address XNS currently resolves for `label@namespace`.
  * Route activation may still be toggled.
  *
  * USAGE:
@@ -15,7 +15,7 @@
  */
 
 import hre from "hardhat";
-import { formatEther, keccak256, toUtf8Bytes } from "ethers";
+import { formatEther } from "ethers";
 import { XNS_ROUTES_ADDRESS } from "../../constants/addresses";
 
 const RESET = "\x1b[0m";
@@ -26,7 +26,8 @@ const RED = "\x1b[31m";
                             USER INPUTS
 //////////////////////////////////////////////////////////////*/
 
-const xnsName = "xns.action";
+const label = "xns";
+const namespace = "action";
 const signerIndex = 0;
 
 async function main() {
@@ -41,6 +42,7 @@ async function main() {
   const routes = await hre.ethers.getContractAt("XNSRoutes", contractAddress);
   const signers = await hre.ethers.getSigners();
   const signer = signers[signerIndex];
+  const xnsName = `${label}@${namespace}`;
 
   console.log(`\nNetwork: ${GREEN}${networkName}${RESET}`);
   console.log(`XNSRoutes: ${GREEN}${contractAddress}${RESET}`);

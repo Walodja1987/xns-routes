@@ -1,6 +1,6 @@
 /**
- * Check whether the entire route book under a base XNS name is frozen
- * (no new routes / no target updates; activation may still toggle).
+ * Check whether the entire route book under an XNS name is frozen
+ * (no new routes; activation may still toggle).
  *
  * USAGE:
  * `npx hardhat run scripts/examples/isRouteBookFrozen.ts --network <network_name>`
@@ -14,7 +14,7 @@
  */
 
 import hre from "hardhat";
-import { keccak256, toUtf8Bytes } from "ethers";
+import { solidityPackedKeccak256 } from "ethers";
 import { XNS_ROUTES_ADDRESS } from "../../constants/addresses";
 
 const RESET = "\x1b[0m";
@@ -26,8 +26,8 @@ const RED = "\x1b[31m";
                             USER INPUTS
 //////////////////////////////////////////////////////////////*/
 
-/** Full XNS name whose route book to inspect (e.g. "xns.action") */
-const xnsName = "xns.action";
+const label = "xns";
+const namespace = "action";
 
 async function main() {
   const networkName = hre.network.name;
@@ -39,7 +39,8 @@ async function main() {
   }
 
   const routes = await hre.ethers.getContractAt("XNSRoutes", contractAddress);
-  const xnsNameKey = keccak256(toUtf8Bytes(xnsName));
+  const xnsName = `${label}@${namespace}`;
+  const xnsNameKey = solidityPackedKeccak256(["string", "string", "string"], [label, "@", namespace]);
   const frozen = await routes.isRouteBookFrozen(xnsName);
 
   console.log(`\nNetwork: ${GREEN}${networkName}${RESET}`);
@@ -49,7 +50,7 @@ async function main() {
 
   if (frozen) {
     console.log(
-      `${YELLOW}⚠${RESET} Route book is ${YELLOW}frozen${RESET} for this name (targets locked; new routes disabled).\n`,
+      `${YELLOW}⚠${RESET} Route book is ${YELLOW}frozen${RESET} for this name (new routes disabled).\n`,
     );
   } else {
     console.log(`${GREEN}✓${RESET} Route book is ${GREEN}not${RESET} frozen.\n`);
