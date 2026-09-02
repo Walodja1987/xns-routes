@@ -31,7 +31,7 @@ yarn test:hh
 
 ## Deploy Scripts
 
-Set `XNS_CONTRACT_ADDRESS` (Hardhat var or env) to your XNS registry. The deploy script sends `getNamespacePrice("xns")` as the deployment tx value so the constructor can call XNS `registerName("routes","xns")` (see `XNSRoutes` NatSpec).
+Set `XNS_CONTRACT_ADDRESS` (Hardhat var or env) only when overriding the default. For Ethereum mainnet and Sepolia, the deploy script uses `XNS_ADDRESS` in `constants/addresses.ts` (`0xA235c204bf85BB8952720A64801992F883c9072E`). The deployment tx sends `getNamespacePrice("xns")` as value so the constructor can call XNS `registerName("routes","xns")` (see `XNSRoutes` NatSpec).
 
 ```bash
 yarn deploy:xns-routes:hh
@@ -77,4 +77,5 @@ npx hardhat run scripts/examples/<script_name>.ts --network <network_name>
 
 Before running examples, set deployed addresses in `constants/addresses.ts`:
 
+- `XNS_ADDRESS` — XNSv2 registry (`ethMain` / `sepolia`: `0xA235c204bf85BB8952720A64801992F883c9072E`)
 - `XNS_ROUTES_ADDRESS.hardhat` / `localhost` / `ethMain` / `sepolia`

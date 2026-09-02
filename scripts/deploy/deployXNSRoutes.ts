@@ -10,9 +10,8 @@
  * - Network RPC, e.g. ETH_SEPOLIA_TESTNET_URL
  *
  * XNS registry (constructor arg):
- * - Preferred: `npx hardhat vars set XNS_CONTRACT_ADDRESS` (deployed XNS / resolver contract
- *   implementing IXNSMinimal: getAddress, registerName)
- * - Override for one-off runs: `XNS_CONTRACT_ADDRESS=0x... npx hardhat run ...`
+ * - Default for `ethMain` / `sepolia`: `constants/addresses.ts` (`XNS_ADDRESS`)
+ * - Override: `npx hardhat vars set XNS_CONTRACT_ADDRESS` or `XNS_CONTRACT_ADDRESS=0x...`
  *
  * After deployment, record the address in constants/addresses.ts (XNS_ROUTES_ADDRESS).
  *
@@ -24,6 +23,7 @@
 import { vars } from "hardhat/config";
 import hre from "hardhat";
 import { getAddress, isAddress } from "ethers";
+import { XNS_ADDRESS } from "../../constants/addresses";
 
 const RESET = "\x1b[0m";
 const GREEN = "\x1b[32m";
@@ -35,10 +35,17 @@ function delay(ms: number) {
 
 function resolveXnsContractAddress(): string {
   const fromEnv = process.env.XNS_CONTRACT_ADDRESS?.trim();
-  const raw = fromEnv && fromEnv.length > 0 ? fromEnv : vars.get("XNS_CONTRACT_ADDRESS");
+  const fromVar = vars.has("XNS_CONTRACT_ADDRESS") ? vars.get("XNS_CONTRACT_ADDRESS").trim() : "";
+  const fromConstants = XNS_ADDRESS[hre.network.name]?.trim() ?? "";
+  const raw =
+    fromEnv && fromEnv.length > 0
+      ? fromEnv
+      : fromVar.length > 0
+        ? fromVar
+        : fromConstants;
   if (!isAddress(raw)) {
     throw new Error(
-      "Set a valid XNS registry address via hardhat var XNS_CONTRACT_ADDRESS or env XNS_CONTRACT_ADDRESS.",
+      "Set a valid XNS registry address via constants/addresses.ts (XNS_ADDRESS), hardhat var XNS_CONTRACT_ADDRESS, or env XNS_CONTRACT_ADDRESS.",
     );
   }
   return getAddress(raw);
