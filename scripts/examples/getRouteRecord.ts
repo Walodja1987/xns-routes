@@ -46,14 +46,17 @@ async function main() {
   console.log(`routeLabel: ${GREEN}${routeLabel}${RESET}\n`);
 
   const record = await routes.getRouteRecord(label, namespace, routeLabel);
-  if (record.target === hre.ethers.ZeroAddress) {
+  // Existence: empty bytes (`target.length == 0` / `"0x"`).
+  if (record.target === "0x" || hre.ethers.getBytes(record.target).length === 0) {
     console.log(`${YELLOW}⚠${RESET} Route not found (empty record).\n`);
     return;
   }
 
   const bookFrozen = await routes.isRouteBookFrozen(xnsName);
 
-  console.log(`target:    ${GREEN}${record.target}${RESET}`);
+  console.log(
+    `target:    ${GREEN}${record.target}${RESET} (${hre.ethers.getBytes(record.target).length} bytes)`,
+  );
   console.log(`isActive:  ${GREEN}${record.isActive}${RESET}`);
   console.log(`isRouteBookFrozen: ${GREEN}${bookFrozen}${RESET}`);
   console.log(`routeType: ${GREEN}${record.routeType}${RESET}`);

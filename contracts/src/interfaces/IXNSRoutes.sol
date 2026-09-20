@@ -5,7 +5,7 @@ pragma solidity 0.8.28;
 /// @notice Interface for the `XNSRoutes` route registry (XNSv2 `label AT namespace/route` format).
 interface IXNSRoutes {
     struct RouteRecord {
-        address target;
+        bytes target;
         uint32 routeType;
         bool isActive;
         bool isFrozen;
@@ -24,7 +24,7 @@ interface IXNSRoutes {
         string label,
         string namespace,
         string routeLabel,
-        address indexed target,
+        bytes target,
         uint32 routeType,
         bool isActive,
         address activeController
@@ -45,7 +45,7 @@ interface IXNSRoutes {
         string label,
         string namespace,
         string routeLabel,
-        address indexed target,
+        bytes target,
         uint32 routeType
     );
 
@@ -97,13 +97,15 @@ interface IXNSRoutes {
 
     function NO_ACTIVE_CONTROLLER() external view returns (address);
 
+    function MAX_TARGET_LENGTH() external view returns (uint256);
+
     function XNS() external view returns (address);
 
     function createRoute(
         string calldata label,
         string calldata namespace,
         string calldata routeLabel,
-        address target,
+        bytes calldata target,
         uint32 routeType
     ) external;
 
@@ -111,7 +113,7 @@ interface IXNSRoutes {
         string calldata label,
         string calldata namespace,
         string calldata routeLabel,
-        address target,
+        bytes calldata target,
         uint32 routeType,
         address activeController
     ) external;
@@ -157,7 +159,7 @@ interface IXNSRoutes {
         string calldata label,
         string calldata namespace,
         string calldata routeLabel,
-        address newTarget,
+        bytes calldata newTarget,
         uint32 newRouteType
     ) external;
 
@@ -185,21 +187,21 @@ interface IXNSRoutes {
         string calldata label,
         string calldata namespace,
         string calldata routeLabel
-    ) external view returns (address target, uint32 routeType);
+    ) external view returns (bytes memory target, uint32 routeType);
 
     function resolveRouteIfActive(
         string calldata route
-    ) external view returns (address target, uint32 routeType);
+    ) external view returns (bytes memory target, uint32 routeType);
 
     function resolveRoute(
         string calldata label,
         string calldata namespace,
         string calldata routeLabel
-    ) external view returns (address target, uint32 routeType);
+    ) external view returns (bytes memory target, uint32 routeType);
 
     function resolveRoute(
         string calldata route
-    ) external view returns (address target, uint32 routeType);
+    ) external view returns (bytes memory target, uint32 routeType);
 
     function isRouteBookFrozen(
         string calldata label,
@@ -262,4 +264,6 @@ interface IXNSRoutes {
     ) external pure returns (string memory label, string memory namespace);
 
     function isValidRouteLabel(string calldata routeLabel) external pure returns (bool valid);
+
+    function isValidTarget(bytes calldata target) external pure returns (bool valid);
 }

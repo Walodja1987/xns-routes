@@ -16,10 +16,11 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 
 /// @title XNSRoutes
 /// @author Wladimir Weinbender (DIVA Technologies AG)
-/// @notice A simple immutable named-address endpoint registry attached to XNS names.
+/// @notice A simple immutable named-endpoint registry attached to XNS names.
 ///
-/// XNS name owners can create named routes under their XNS name which resolve to Ethereum
-/// addresses. Routes may point to EOAs or smart contracts.
+/// XNS name owners can create named routes under their XNS name which resolve to opaque
+/// endpoint payloads (`bytes`). Routes may represent EVM addresses, other-chain addresses,
+/// identifiers, or other application-defined data — interpreted via `routeType`.
 ///
 /// Route format:
 ///
@@ -53,7 +54,7 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// ### Route record
 ///
 /// Each route stores:
-/// - `target` — Ethereum address the route points to (mutable until frozen).
+/// - `target` — opaque endpoint payload (mutable until frozen); 1–256 bytes.
 /// - `routeType` — generic off-chain interpretation hint (mutable until frozen).
 /// - `isActive` — whether applications should currently treat the route as usable.
 /// - `isFrozen` — whether this route's `target` / `routeType` are permanently locked.
@@ -67,9 +68,12 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// Applications may define their own interpretation conventions.
 ///
 /// Example route types:
-/// - `0` = target address is the endpoint.
-/// - `1` = target is a resolver/view contract.
-/// - `2` = target is interpreted according to another application-level convention.
+/// - `0` = `target` is a 20-byte EVM address.
+/// - `1` = `target` is a resolver/view contract address (20 bytes).
+/// - `2` = `target` is interpreted according to another application-level convention
+///   (e.g. Bitcoin address UTF-8, Solana pubkey, etc.).
+///
+/// This contract does not validate `target` contents beyond non-empty and max length.
 ///
 /// ### Active status
 ///
@@ -128,7 +132,7 @@ contract XNSRoutes {
 
     /// @notice Metadata associated with a route.
     struct RouteRecord {
-        address target;
+        bytes target;
         uint32 routeType;
         bool isActive;
         bool isFrozen;
@@ -145,6 +149,9 @@ contract XNSRoutes {
     // -------------------------------------------------------------------------
     // Constants and storage
     // -------------------------------------------------------------------------
+
+    /// @notice Maximum allowed `target` payload length (bytes).
+    uint256 public constant MAX_TARGET_LENGTH = 256;
 
     /// @notice Sentinel indicating that active control has been permanently renounced.
     ///
@@ -181,7 +188,7 @@ contract XNSRoutes {
         string label,
         string namespace,
         string routeLabel,
-        address indexed target,
+        bytes target,
         uint32 routeType,
         bool isActive,
         address activeController
@@ -202,7 +209,7 @@ contract XNSRoutes {
         string label,
         string namespace,
         string routeLabel,
-        address indexed target,
+        bytes target,
         uint32 routeType
     );
 
@@ -301,7 +308,7 @@ contract XNSRoutes {
     /// Requirements:
     /// - `msg.sender` must own `label AT namespace`.
     /// - `routeLabel` must be valid.
-    /// - `target` must not be address(0).
+    /// - `target` must be non-empty and at most `MAX_TARGET_LENGTH` bytes.
     /// - The route book must not be frozen.
     /// - The route must not already exist.
     ///
@@ -310,7 +317,7 @@ contract XNSRoutes {
         string calldata label,
         string calldata namespace,
         string calldata routeLabel,
-        address target,
+        bytes calldata target,
         uint32 routeType
     ) external {
         bytes32 xnsNameKey = _requireXNSNameOwner(label, namespace);
@@ -339,7 +346,7 @@ contract XNSRoutes {
         string calldata label,
         string calldata namespace,
         string calldata routeLabel,
-        address target,
+        bytes calldata target,
         uint32 routeType,
         address activeController
     ) external {
@@ -362,19 +369,19 @@ contract XNSRoutes {
         string calldata label,
         string calldata namespace,
         string calldata routeLabel,
-        address target,
+        bytes calldata target,
         uint32 routeType,
         address activeController
     ) private {
         require(_isValidRouteLabel(routeLabel), "XNSRoutes: invalid route label");
-        require(target != address(0), "XNSRoutes: invalid target");
+        require(_isValidTarget(target), "XNSRoutes: invalid target");
         require(activeController != address(0), "XNSRoutes: invalid active controller");
         require(!_routeBookFrozen[xnsNameKey], "XNSRoutes: route book frozen");
 
         bytes32 routeKey = _routeKey(xnsNameKey, routeLabel);
 
         require(
-            _routes[routeKey].target == address(0),
+            _routes[routeKey].target.length == 0,
             "XNSRoutes: route already exists"
         );
 
@@ -458,7 +465,7 @@ contract XNSRoutes {
 
         RouteRecord storage record = _routes[routeKey];
 
-        require(record.target != address(0), "XNSRoutes: route not found");
+        require(record.target.length > 0, "XNSRoutes: route not found");
         require(
             record.activeController != NO_ACTIVE_CONTROLLER,
             "XNSRoutes: active control renounced"
@@ -508,7 +515,7 @@ contract XNSRoutes {
 
         RouteRecord storage record = _routes[routeKey];
 
-        require(record.target != address(0), "XNSRoutes: route not found");
+        require(record.target.length > 0, "XNSRoutes: route not found");
 
         require(
             record.activeController != NO_ACTIVE_CONTROLLER,
@@ -566,7 +573,7 @@ contract XNSRoutes {
         RouteRecord storage record = _routes[routeKey];
         address pending = _pendingActiveController[routeKey];
 
-        require(record.target != address(0), "XNSRoutes: route not found");
+        require(record.target.length > 0, "XNSRoutes: route not found");
 
         require(
             record.activeController != NO_ACTIVE_CONTROLLER,
@@ -618,7 +625,7 @@ contract XNSRoutes {
         RouteRecord storage record = _routes[routeKey];
         address pending = _pendingActiveController[routeKey];
 
-        require(record.target != address(0), "XNSRoutes: route not found");
+        require(record.target.length > 0, "XNSRoutes: route not found");
 
         require(
             record.activeController != NO_ACTIVE_CONTROLLER,
@@ -668,7 +675,7 @@ contract XNSRoutes {
 
         RouteRecord storage record = _routes[routeKey];
 
-        require(record.target != address(0), "XNSRoutes: route not found");
+        require(record.target.length > 0, "XNSRoutes: route not found");
 
         require(
             record.activeController != NO_ACTIVE_CONTROLLER,
@@ -703,14 +710,14 @@ contract XNSRoutes {
     /// - `msg.sender` must own `label AT namespace`.
     /// - The route must exist.
     /// - The route must not be effectively frozen (`isFrozen` or route-book freeze).
-    /// - `newTarget` must not be address(0).
+    /// - `newTarget` must be non-empty and at most `MAX_TARGET_LENGTH` bytes.
     ///
     /// Emits `RouteUpdated` only when `target` or `routeType` actually changes.
     function updateRoute(
         string calldata label,
         string calldata namespace,
         string calldata routeLabel,
-        address newTarget,
+        bytes calldata newTarget,
         uint32 newRouteType
     ) external {
         bytes32 xnsNameKey = _requireXNSNameOwner(label, namespace);
@@ -718,14 +725,17 @@ contract XNSRoutes {
 
         RouteRecord storage record = _routes[routeKey];
 
-        require(record.target != address(0), "XNSRoutes: route not found");
+        require(record.target.length > 0, "XNSRoutes: route not found");
         require(
             !_isEffectivelyFrozen(xnsNameKey, record),
             "XNSRoutes: route frozen"
         );
-        require(newTarget != address(0), "XNSRoutes: invalid target");
+        require(_isValidTarget(newTarget), "XNSRoutes: invalid target");
 
-        if (record.target != newTarget || record.routeType != newRouteType) {
+        if (
+            keccak256(record.target) != keccak256(newTarget) ||
+            record.routeType != newRouteType
+        ) {
             record.target = newTarget;
             record.routeType = newRouteType;
 
@@ -760,7 +770,7 @@ contract XNSRoutes {
 
         RouteRecord storage record = _routes[routeKey];
 
-        require(record.target != address(0), "XNSRoutes: route not found");
+        require(record.target.length > 0, "XNSRoutes: route not found");
 
         if (!record.isFrozen) {
             record.isFrozen = true;
@@ -837,7 +847,7 @@ contract XNSRoutes {
 
     /// @notice Returns a route record directly by route key.
     ///
-    /// `record.target == address(0)` means the route does not exist.
+    /// `record.target.length == 0` means the route does not exist.
     function getRouteRecord(
         bytes32 routeKey
     ) external view returns (RouteRecord memory record) {
@@ -890,7 +900,7 @@ contract XNSRoutes {
         string calldata namespace,
         string calldata routeLabel
     ) external view returns (
-        address target,
+        bytes memory target,
         uint32 routeType
     ) {
         return _resolveRouteIfActive(
@@ -908,7 +918,7 @@ contract XNSRoutes {
     function resolveRouteIfActive(
         string calldata route
     ) external view returns (
-        address target,
+        bytes memory target,
         uint32 routeType
     ) {
         (
@@ -930,7 +940,7 @@ contract XNSRoutes {
         string calldata namespace,
         string calldata routeLabel
     ) external view returns (
-        address target,
+        bytes memory target,
         uint32 routeType
     ) {
         return _resolveRoute(
@@ -948,7 +958,7 @@ contract XNSRoutes {
     function resolveRoute(
         string calldata route
     ) external view returns (
-        address target,
+        bytes memory target,
         uint32 routeType
     ) {
         (
@@ -1008,7 +1018,7 @@ contract XNSRoutes {
         bytes32 xnsNameKey = _xnsNameKey(label, namespace);
         RouteRecord storage record = _routes[_routeKey(xnsNameKey, routeLabel)];
 
-        if (record.target == address(0)) {
+        if (record.target.length == 0) {
             return false;
         }
 
@@ -1200,6 +1210,13 @@ contract XNSRoutes {
         return _isValidRouteLabel(routeLabel);
     }
 
+    /// @notice Returns whether a target payload is non-empty and within `MAX_TARGET_LENGTH`.
+    function isValidTarget(
+        bytes calldata target
+    ) external pure returns (bool valid) {
+        return _isValidTarget(target);
+    }
+
     // =========================================================================
     // INTERNAL VIEW HELPERS
     // =========================================================================
@@ -1210,7 +1227,7 @@ contract XNSRoutes {
         string memory namespace,
         string memory routeLabel
     ) private view returns (
-        address target,
+        bytes memory target,
         uint32 routeType
     ) {
         RouteRecord storage record = _routes[
@@ -1221,7 +1238,7 @@ contract XNSRoutes {
         ];
 
         require(
-            record.target != address(0),
+            record.target.length > 0,
             "XNSRoutes: route not found"
         );
 
@@ -1242,7 +1259,7 @@ contract XNSRoutes {
         string memory namespace,
         string memory routeLabel
     ) private view returns (
-        address target,
+        bytes memory target,
         uint32 routeType
     ) {
         RouteRecord storage record = _routes[
@@ -1253,7 +1270,7 @@ contract XNSRoutes {
         ];
 
         require(
-            record.target != address(0),
+            record.target.length > 0,
             "XNSRoutes: route not found"
         );
 
@@ -1627,5 +1644,13 @@ contract XNSRoutes {
         }
 
         return true;
+    }
+
+    /// @dev Non-empty and at most `MAX_TARGET_LENGTH` bytes. Contents are not validated.
+    function _isValidTarget(
+        bytes calldata target
+    ) private pure returns (bool isValid) {
+        uint256 len = target.length;
+        return len > 0 && len <= MAX_TARGET_LENGTH;
     }
 }

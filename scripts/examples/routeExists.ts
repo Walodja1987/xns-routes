@@ -1,7 +1,7 @@
 /**
  * Check whether a route exists under an XNS name.
  *
- * Existence: `getRouteRecord(...).target != address(0)`.
+ * Existence: `getRouteRecord(...).target.length == 0` (empty bytes / `"0x"`).
  *
  * USAGE:
  * `npx hardhat run scripts/examples/routeExists.ts --network <network_name>`
@@ -48,7 +48,7 @@ async function main() {
   console.log(`routeLabel: ${GREEN}${routeLabel}${RESET}\n`);
 
   const record = await routes.getRouteRecord(label, namespace, routeLabel);
-  const exists = record.target !== hre.ethers.ZeroAddress;
+  const exists = hre.ethers.getBytes(record.target).length > 0;
 
   if (exists) {
     console.log(`${GREEN}✓${RESET} Route exists.\n`);

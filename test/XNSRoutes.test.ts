@@ -17,6 +17,10 @@ describe("XNSRoutes", function () {
   /** Default `routeType` in tests; semantics are offchain */
   const RT0 = 0;
   const NO_ACTIVE_CONTROLLER = "0x000000000000000000000000000000000000dEaD";
+  /** Matches `XNSRoutes.MAX_TARGET_LENGTH`. */
+  const MAX_TARGET_LENGTH = 256;
+  /** Empty `bytes` — missing-route sentinel (`target.length == 0`). */
+  const EMPTY_TARGET = "0x";
 
   /** Matches `require(..., "XNSRoutes: ...")` in `XNSRoutes.sol`. */
   const XR = {
@@ -127,8 +131,14 @@ describe("XNSRoutes", function () {
     return [r.target, r.routeType, r.isActive, r.activeController] as const;
   }
 
+  /** True when `target` is a non-empty bytes payload (route exists). */
   function isLiveTarget(target: string): boolean {
-    return target !== ethers.ZeroAddress;
+    return ethers.getBytes(target).length > 0;
+  }
+
+  /** 20-byte EVM-address payload as hex (ABI `bytes`). */
+  function addressTarget(addr: string): string {
+    return ethers.hexlify(ethers.getBytes(addr));
   }
 
   interface Fixture {
@@ -152,7 +162,7 @@ describe("XNSRoutes", function () {
     await mockXns.setResolution(LABEL, NAMESPACE, owner.address);
     await mockXns.setResolution(OTHER_LABEL, OTHER_NAMESPACE, other.address);
 
-    const buildTarget = ethers.Wallet.createRandom().address;
+    const buildTarget = addressTarget(ethers.Wallet.createRandom().address);
 
     return {
       routes,
@@ -249,11 +259,20 @@ describe("XNSRoutes", function () {
       ).to.be.revertedWith(XR.invalidRouteLabel);
     });
 
-    it("Should revert with InvalidTarget when target is zero", async function () {
+    it("Should revert with InvalidTarget when target is empty", async function () {
       const { routes, owner } = await loadFixture(deployFixture);
 
       await expect(
-        routes.connect(owner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, ethers.ZeroAddress, RT0),
+        routes.connect(owner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, EMPTY_TARGET, RT0),
+      ).to.be.revertedWith(XR.invalidTarget);
+    });
+
+    it("Should revert with InvalidTarget when target exceeds MAX_TARGET_LENGTH", async function () {
+      const { routes, owner } = await loadFixture(deployFixture);
+      const tooLong = ethers.hexlify(new Uint8Array(MAX_TARGET_LENGTH + 1));
+
+      await expect(
+        routes.connect(owner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, tooLong, RT0),
       ).to.be.revertedWith(XR.invalidTarget);
     });
 
@@ -269,7 +288,7 @@ describe("XNSRoutes", function () {
     it("Should keep routes independent per label, namespace, and routeLabel", async function () {
       const { routes, mockXns, owner, other, buildTarget } = await loadFixture(deployFixture);
       const t1 = buildTarget;
-      const t2 = other.address;
+      const t2 = addressTarget(other.address);
 
       await mockXns.setResolution(LABEL, "pay", owner.address);
       await routes.connect(owner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, t1, RT0);
@@ -709,7 +728,7 @@ describe("XNSRoutes", function () {
       const { routes, owner } = fixture;
       await createDefaultRoute(fixture);
 
-      const updatedTarget = ethers.getAddress("0x00000000000000000000000000000000000000AA");
+      const updatedTarget = addressTarget("0x00000000000000000000000000000000000000AA");
       const newType = 2;
 
       await expect(
@@ -774,13 +793,24 @@ describe("XNSRoutes", function () {
       ).to.be.revertedWith(XR.routeNotFound);
     });
 
-    it("Should revert with InvalidTarget when newTarget is zero", async function () {
+    it("Should revert with InvalidTarget when newTarget is empty", async function () {
       const fixture = await loadFixture(deployFixture);
       const { routes, owner } = fixture;
       await createDefaultRoute(fixture);
 
       await expect(
-        routes.connect(owner).updateRoute(LABEL, NAMESPACE, ROUTE_LABEL, ethers.ZeroAddress, RT0),
+        routes.connect(owner).updateRoute(LABEL, NAMESPACE, ROUTE_LABEL, EMPTY_TARGET, RT0),
+      ).to.be.revertedWith(XR.invalidTarget);
+    });
+
+    it("Should revert with InvalidTarget when newTarget exceeds MAX_TARGET_LENGTH", async function () {
+      const fixture = await loadFixture(deployFixture);
+      const { routes, owner } = fixture;
+      await createDefaultRoute(fixture);
+      const tooLong = ethers.hexlify(new Uint8Array(MAX_TARGET_LENGTH + 1));
+
+      await expect(
+        routes.connect(owner).updateRoute(LABEL, NAMESPACE, ROUTE_LABEL, tooLong, RT0),
       ).to.be.revertedWith(XR.invalidTarget);
     });
 
@@ -941,7 +971,7 @@ describe("XNSRoutes", function () {
 
       const record = await routes.getRouteRecord(LABEL, NAMESPACE, ROUTE_LABEL);
       expect(isLiveTarget(record.target)).to.equal(false);
-      expect(record.target).to.equal(ethers.ZeroAddress);
+      expect(record.target).to.equal(EMPTY_TARGET);
     });
 
     it("Should return getRouteRecord for an existing route string", async function () {
@@ -966,7 +996,7 @@ describe("XNSRoutes", function () {
       const { routes } = await loadFixture(deployFixture);
       const fullPath = formatRoute(LABEL, NAMESPACE, ROUTE_LABEL);
       const record = await getRouteRecordByRoute(routes, fullPath);
-      expect(record.target).to.equal(ethers.ZeroAddress);
+      expect(record.target).to.equal(EMPTY_TARGET);
     });
   });
 
@@ -1215,7 +1245,7 @@ describe("XNSRoutes", function () {
       expect(r1.isActive).to.equal(false);
       expect(r1.activeController).to.equal(other.address);
       expect(r1.routeLabel).to.equal("other-route");
-      expect(rAbsent.target).to.equal(ethers.ZeroAddress);
+      expect(rAbsent.target).to.equal(EMPTY_TARGET);
       expect(rAbsent.routeLabel).to.equal("");
     });
 

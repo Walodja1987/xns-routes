@@ -29,10 +29,13 @@ const label = "xns";
 const namespace = "action";
 const routeLabel = "register-name";
 
-/** Build contract address for this route */
-const target = "0x0000000000000000000000000000000000000001";
+/**
+ * Opaque `bytes` target (1–256 bytes). For a 20-byte EVM address payload, pass the address
+ * hex and convert with `ethers.getBytes` / `ethers.hexlify`.
+ */
+const targetAddress = "0x0000000000000000000000000000000000000001";
 
-/** Parser hint; semantics are offchain (0 = target is the answer, 1 = query target, 2 = executable calldata) */
+/** Parser hint; semantics are offchain (0 = EVM address, 1 = resolver, 2 = app-defined) */
 const routeType = 0;
 
 /**
@@ -47,10 +50,12 @@ const signerIndex = 0;
 
 async function main() {
   const networkName = hre.network.name;
+  const { ethers } = hre;
 
-  if (!hre.ethers.isAddress(target)) {
-    throw new Error(`Invalid target address: ${target}`);
+  if (!ethers.isAddress(targetAddress)) {
+    throw new Error(`Invalid target address: ${targetAddress}`);
   }
+  const target = ethers.hexlify(ethers.getBytes(targetAddress));
 
   const contractAddress = XNS_ROUTES_ADDRESS[networkName];
   if (!contractAddress) {
@@ -59,8 +64,8 @@ async function main() {
     );
   }
 
-  const routes = await hre.ethers.getContractAt("XNSRoutes", contractAddress);
-  const signers = await hre.ethers.getSigners();
+  const routes = await ethers.getContractAt("XNSRoutes", contractAddress);
+  const signers = await ethers.getSigners();
   const signer = signers[signerIndex];
 
   const xnsName = `${label}@${namespace}`;
@@ -68,11 +73,11 @@ async function main() {
   console.log(`\nNetwork: ${GREEN}${networkName}${RESET}`);
   console.log(`XNSRoutes: ${GREEN}${contractAddress}${RESET}`);
   console.log(`Signer: ${GREEN}${signer.address}${RESET}`);
-  const balance = await hre.ethers.provider.getBalance(signer.address);
+  const balance = await ethers.provider.getBalance(signer.address);
   console.log(`Balance: ${GREEN}${formatEther(balance)} ETH${RESET}`);
   console.log(`xnsName: ${GREEN}${xnsName}${RESET}`);
   console.log(`routeLabel: ${GREEN}${routeLabel}${RESET}`);
-  console.log(`target: ${GREEN}${target}${RESET}`);
+  console.log(`target: ${GREEN}${target}${RESET} (${ethers.getBytes(target).length} bytes)`);
   console.log(`routeType: ${GREEN}${routeType}${RESET}`);
   if (useControllerOverride) {
     console.log(`activeController: ${GREEN}${activeControllerOverride}${RESET} (override)\n`);

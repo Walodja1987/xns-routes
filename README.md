@@ -30,7 +30,7 @@ Each route:
 
 - belongs to an **XNS name** (`label@namespace`, e.g. `xns@action`)
 - has a required **route label** (e.g. `transfer-usdt`)
-- points to a **build contract** (`target`)
+- points to an opaque **endpoint payload** (`bytes target`, interpreted via `routeType`)
 - produces transaction calldata off-chain
 
 Validation rules:
@@ -99,8 +99,8 @@ createRoute(
   "xns",           // label
   "action",        // namespace
   "register-name", // routeLabel
-  address(builder),
-  0                // routeType (offchain-defined parser hint)
+  abi.encodePacked(address(builder)), // target (bytes; e.g. 20-byte EVM address)
+  0                // routeType (offchain-defined; 0 = EVM address payload)
 );
 // Sets isActive = true and activeController = current XNS name owner.
 // target and routeType are mutable until the route or route book is frozen.
@@ -111,7 +111,7 @@ createRoute(
 
 ### 2. Build Contract
 
-Each route points to a build contract that returns a transaction template:
+For EVM builder-style routes, `target` is typically a 20-byte contract address (`routeType = 0` or `1`). That contract can return a transaction template:
 
 ```solidity
 function build(...)
@@ -125,6 +125,7 @@ function build(...)
     );
 ```
 
+Non-EVM endpoints (e.g. Bitcoin) can store the destination directly in `bytes target` under another `routeType`. Large calldata should live in a contract; keep `target` as a short pointer (≤ 256 bytes).
 ---
 
 ### 3. Wallet Flow
@@ -155,8 +156,8 @@ A wallet:
 
 Each route has:
 
-- `target` → build contract (**mutable** until effectively frozen)
-- `routeType` → off-chain parser hint (**mutable** until effectively frozen)
+- `target` → opaque endpoint payload, 1–256 bytes (**mutable** until effectively frozen; e.g. 20-byte EVM address for `routeType = 0`)
+- `routeType` → off-chain interpretation hint (**mutable** until effectively frozen)
 - `isActive` → usable or disabled (toggled by `activeController`)
 - `isFrozen` → permanently locks `target` / `routeType` for that route
 - `activeController` → sole account that may call `activateRoute` / `deactivateRoute`, start a two-step transfer, or `renounceActiveControl` (must not be `address(0)`; see `NO_ACTIVE_CONTROLLER`)
@@ -292,7 +293,7 @@ The registry stores each route's **`routeLabel` on-chain** and keeps a per-name 
 - `splitRoute` — parse a route (or parametrized route) into `(label, namespace, routeLabel)`
 - `splitXNSName` — parse `label@namespace` into components
 
-Use **`resolveRouteIfActive`** for execution paths that must skip inactive routes; use **`resolveRoute`** when you need the binding regardless of active status. Use **`getRouteRecord`** for route metadata. Resolver overloads revert when the route is missing or (for `resolveRouteIfActive`) inactive. `getRouteRecord` returns an **empty record** (`target == address(0)`) when the route is missing.
+Use **`resolveRouteIfActive`** for execution paths that must skip inactive routes; use **`resolveRoute`** when you need the binding regardless of active status. Use **`getRouteRecord`** for route metadata. Resolver overloads revert when the route is missing or (for `resolveRouteIfActive`) inactive. `getRouteRecord` returns an **empty record** (`target.length == 0`) when the route is missing.
 
 `target` and `routeType` are **mutable until effectively frozen**. Route book freeze blocks **new** routes and treats existing routes as frozen for updates; `activeController` can still toggle `isActive` on existing routes.
 
@@ -302,7 +303,7 @@ Use **`resolveRouteIfActive`** for execution paths that must skip inactive route
    `getRouteKeyCount` equals the number of routes registered under a name—one entry per successful `createRoute`. Routes are never deleted on-chain. Use `getRouteEntries` to reconstruct human-readable routes (`routeLabel`) without event history.
 
 2. **Existence check**  
-   Treat **`getRouteRecord(...).target == address(0)`** as "route not registered".
+   Treat **`getRouteRecord(...).target.length == 0`** as "route not registered".
 
 ---
 
@@ -337,7 +338,7 @@ npx hardhat run scripts/examples/<script_name>.ts --network <network_name>
 
 **Read-only**
 
-- [scripts/examples/routeExists.ts](scripts/examples/routeExists.ts) — check if a route is registered (`getRouteRecord(...).target != 0`)
+- [scripts/examples/routeExists.ts](scripts/examples/routeExists.ts) — check if a route is registered (`getRouteRecord(...).target.length != 0`)
 - [scripts/examples/getRouteRecord.ts](scripts/examples/getRouteRecord.ts) — read target, `isActive`, `routeType`, `activeController`, and route-book freeze
 - [scripts/examples/isRouteBookFrozen.ts](scripts/examples/isRouteBookFrozen.ts) — route book freeze flag for a name
 

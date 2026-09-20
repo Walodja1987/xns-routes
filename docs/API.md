@@ -5,10 +5,11 @@ This is an automatically generated documentation (using `solidity-docgen` packag
 ## XNSRoutes
 
 
-A simple immutable named-address endpoint registry attached to XNS names.
+A simple immutable named-endpoint registry attached to XNS names.
 
-XNS name owners can create named routes under their XNS name which resolve to Ethereum
-addresses. Routes may point to EOAs or smart contracts.
+XNS name owners can create named routes under their XNS name which resolve to opaque
+endpoint payloads (`bytes`). Routes may represent EVM addresses, other-chain addresses,
+identifiers, or other application-defined data — interpreted via `routeType`.
 
 Route format:
 
@@ -42,7 +43,7 @@ Params are not validated, stored, interpreted, or processed on-chain.
 ### Route record
 
 Each route stores:
-- `target` — Ethereum address the route points to (mutable until frozen).
+- `target` — opaque endpoint payload (mutable until frozen); 1–256 bytes.
 - `routeType` — generic off-chain interpretation hint (mutable until frozen).
 - `isActive` — whether applications should currently treat the route as usable.
 - `isFrozen` — whether this route's `target` / `routeType` are permanently locked.
@@ -56,9 +57,12 @@ The exact semantics of `routeType` are intentionally not enforced by this contra
 Applications may define their own interpretation conventions.
 
 Example route types:
-- `0` = target address is the endpoint.
-- `1` = target is a resolver/view contract.
-- `2` = target is interpreted according to another application-level convention.
+- `0` = `target` is a 20-byte EVM address.
+- `1` = `target` is a resolver/view contract address (20 bytes).
+- `2` = `target` is interpreted according to another application-level convention
+  (e.g. Bitcoin address UTF-8, Solana pubkey, etc.).
+
+This contract does not validate `target` contents beyond non-empty and max length.
 
 ### Active status
 
@@ -137,14 +141,14 @@ creates:
 Requirements:
 - `msg.sender` must own `label AT namespace`.
 - `routeLabel` must be valid.
-- `target` must not be address(0).
+- `target` must be non-empty and at most `MAX_TARGET_LENGTH` bytes.
 - The route book must not be frozen.
 - The route must not already exist.
 
 Emits `RouteCreated`.
 
 ```solidity
-function createRoute(string label, string namespace, string routeLabel, address target, uint32 routeType) external
+function createRoute(string label, string namespace, string routeLabel, bytes target, uint32 routeType) external
 ```
 
 
@@ -164,7 +168,7 @@ locked and cannot be changed after creation.
 Emits `RouteCreated`.
 
 ```solidity
-function createRouteWithController(string label, string namespace, string routeLabel, address target, uint32 routeType, address activeController) external
+function createRouteWithController(string label, string namespace, string routeLabel, bytes target, uint32 routeType, address activeController) external
 ```
 
 
@@ -297,12 +301,12 @@ Updates `target` and `routeType` for an existing route.
 - `msg.sender` must own `label AT namespace`.
 - The route must exist.
 - The route must not be effectively frozen (`isFrozen` or route-book freeze).
-- `newTarget` must not be address(0).
+- `newTarget` must be non-empty and at most `MAX_TARGET_LENGTH` bytes.
 
 Emits `RouteUpdated` only when `target` or `routeType` actually changes.
 
 ```solidity
-function updateRoute(string label, string namespace, string routeLabel, address newTarget, uint32 newRouteType) external
+function updateRoute(string label, string namespace, string routeLabel, bytes newTarget, uint32 newRouteType) external
 ```
 
 
@@ -371,7 +375,7 @@ function freezeRouteBook(string xnsName) external
 
 Returns a route record directly by route key.
 
-`record.target == address(0)` means the route does not exist.
+`record.target.length == 0` means the route does not exist.
 
 ```solidity
 function getRouteRecord(bytes32 routeKey) external view returns (struct XNSRoutes.RouteRecord record)
@@ -416,7 +420,7 @@ function getRouteRecord(string route) external view returns (struct XNSRoutes.Ro
 Resolves an active route using separate XNS components.
 
 ```solidity
-function resolveRouteIfActive(string label, string namespace, string routeLabel) external view returns (address target, uint32 routeType)
+function resolveRouteIfActive(string label, string namespace, string routeLabel) external view returns (bytes target, uint32 routeType)
 ```
 
 
@@ -432,7 +436,7 @@ Example:
     resolveRouteIfActive("alice AT pay/treasury")
 
 ```solidity
-function resolveRouteIfActive(string route) external view returns (address target, uint32 routeType)
+function resolveRouteIfActive(string route) external view returns (bytes target, uint32 routeType)
 ```
 
 
@@ -444,7 +448,7 @@ function resolveRouteIfActive(string route) external view returns (address targe
 Resolves a route regardless of its active status.
 
 ```solidity
-function resolveRoute(string label, string namespace, string routeLabel) external view returns (address target, uint32 routeType)
+function resolveRoute(string label, string namespace, string routeLabel) external view returns (bytes target, uint32 routeType)
 ```
 
 
@@ -460,7 +464,7 @@ Example:
     resolveRoute("alice AT pay/treasury")
 
 ```solidity
-function resolveRoute(string route) external view returns (address target, uint32 routeType)
+function resolveRoute(string route) external view returns (bytes target, uint32 routeType)
 ```
 
 
@@ -649,6 +653,18 @@ function isValidRouteLabel(string routeLabel) external pure returns (bool valid)
 
 
 
+### isValidTarget
+
+
+Returns whether a target payload is non-empty and within `MAX_TARGET_LENGTH`.
+
+```solidity
+function isValidTarget(bytes target) external pure returns (bool valid)
+```
+
+
+
+
 
 ## Events
 
@@ -658,7 +674,7 @@ function isValidRouteLabel(string routeLabel) external pure returns (bool valid)
 
 
 ```solidity
-event RouteCreated(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel, address target, uint32 routeType, bool isActive, address activeController)
+event RouteCreated(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel, bytes target, uint32 routeType, bool isActive, address activeController)
 ```
 
 
@@ -684,7 +700,7 @@ event RouteActiveStatusUpdated(bytes32 xnsNameKey, bytes32 routeKey, string labe
 
 
 ```solidity
-event RouteUpdated(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel, address target, uint32 routeType)
+event RouteUpdated(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel, bytes target, uint32 routeType)
 ```
 
 
@@ -774,6 +790,19 @@ event ActiveControllerRenounced(bytes32 xnsNameKey, bytes32 routeKey, string lab
 
 ## State Variables
 
+### MAX_TARGET_LENGTH
+
+
+Maximum allowed `target` payload length (bytes).
+
+```solidity
+uint256 MAX_TARGET_LENGTH
+```
+
+
+
+
+
 ### NO_ACTIVE_CONTROLLER
 
 
@@ -809,7 +838,7 @@ contract IXNSMinimal XNS
 
 ```solidity
 struct RouteRecord {
-  address target;
+  bytes target;
   uint32 routeType;
   bool isActive;
   bool isFrozen;
