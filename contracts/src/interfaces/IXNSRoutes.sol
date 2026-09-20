@@ -8,6 +8,7 @@ interface IXNSRoutes {
         address target;
         uint32 routeType;
         bool isActive;
+        bool isFrozen;
         address activeController;
         string routeLabel;
     }
@@ -36,6 +37,24 @@ interface IXNSRoutes {
         string namespace,
         string routeLabel,
         bool isActive
+    );
+
+    event RouteUpdated(
+        bytes32 indexed xnsNameKey,
+        bytes32 indexed routeKey,
+        string label,
+        string namespace,
+        string routeLabel,
+        address indexed target,
+        uint32 routeType
+    );
+
+    event RouteFrozen(
+        bytes32 indexed xnsNameKey,
+        bytes32 indexed routeKey,
+        string label,
+        string namespace,
+        string routeLabel
     );
 
     event RouteBookFrozen(bytes32 indexed xnsNameKey, string label, string namespace);
@@ -134,6 +153,20 @@ interface IXNSRoutes {
         string calldata routeLabel
     ) external;
 
+    function updateRoute(
+        string calldata label,
+        string calldata namespace,
+        string calldata routeLabel,
+        address newTarget,
+        uint32 newRouteType
+    ) external;
+
+    function freezeRoute(
+        string calldata label,
+        string calldata namespace,
+        string calldata routeLabel
+    ) external;
+
     function freezeRouteBook(string calldata label, string calldata namespace) external;
 
     function freezeRouteBook(string calldata xnsName) external;
@@ -174,6 +207,12 @@ interface IXNSRoutes {
     ) external view returns (bool frozen);
 
     function isRouteBookFrozen(string calldata xnsName) external view returns (bool frozen);
+
+    function isRouteFrozen(
+        string calldata label,
+        string calldata namespace,
+        string calldata routeLabel
+    ) external view returns (bool frozen);
 
     function pendingActiveController(
         string calldata label,

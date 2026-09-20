@@ -42,13 +42,15 @@ Params are not validated, stored, interpreted, or processed on-chain.
 ### Route record
 
 Each route stores:
-- `target` — immutable Ethereum address the route points to.
-- `routeType` — generic off-chain interpretation hint.
+- `target` — Ethereum address the route points to (mutable until frozen).
+- `routeType` — generic off-chain interpretation hint (mutable until frozen).
 - `isActive` — whether applications should currently treat the route as usable.
+- `isFrozen` — whether this route's `target` / `routeType` are permanently locked.
 - `activeController` — account authorized to toggle `isActive`.
 - `routeLabel` — immutable route label.
 
-`target`, `routeType`, and `routeLabel` are immutable after route creation.
+`routeLabel` is immutable after route creation. `target` and `routeType` may be updated by
+the XNS name owner until the route is effectively frozen (`isFrozen` or route-book freeze).
 
 The exact semantics of `routeType` are intentionally not enforced by this contract.
 Applications may define their own interpretation conventions.
@@ -70,15 +72,22 @@ Its `activeController` may:
 Renouncing active control sets `activeController` to `NO_ACTIVE_CONTROLLER` and permanently
 locks the current `isActive` state.
 
-### Route-book freeze
+### Route freezing
 
-The XNS name owner may permanently freeze the entire route book belonging to their XNS name.
+The XNS name owner may permanently freeze an individual route (`freezeRoute`) or the entire
+route book (`freezeRouteBook`).
 
-After freezing:
-- No new routes may be created.
-- Existing routes remain unchanged.
-- Existing active controllers may continue toggling their routes unless active control
-  has separately been renounced.
+A route is effectively frozen when `isFrozen` is true **or** its route book is frozen:
+
+    effectiveRouteFrozen = record.isFrozen || routeBookFrozen
+
+After effective freeze:
+- `target` and `routeType` can no longer be updated.
+- Active controllers may continue toggling `isActive` unless active control has been renounced.
+
+After route-book freeze:
+- No new routes may be created under that name.
+- All existing routes under that name are treated as effectively frozen for updates.
 
 ### Resolution
 
@@ -112,9 +121,10 @@ No reverse lookup is provided because multiple routes may point to the same targ
 ### createRoute
 
 
-Creates an immutable route under an XNS name.
+Creates a route under an XNS name.
 
-The route starts active and `activeController` is set to the current XNS name owner.
+The route starts active, unfrozen, and `activeController` is set to the current XNS name owner.
+`target` and `routeType` remain mutable until the route or route book is frozen.
 
 Example:
 
@@ -143,7 +153,7 @@ function createRoute(string label, string namespace, string routeLabel, address 
 ### createRouteWithController
 
 
-Creates an immutable route with an explicitly specified active controller.
+Creates a route with an explicitly specified active controller.
 
 Same requirements as `createRoute`, plus:
 - `activeController` must not be `address(0)`.
@@ -278,14 +288,56 @@ function renounceActiveControl(string label, string namespace, string routeLabel
 
 
 
+### updateRoute
+
+
+Updates `target` and `routeType` for an existing route.
+
+**Requirements:**
+- `msg.sender` must own `label AT namespace`.
+- The route must exist.
+- The route must not be effectively frozen (`isFrozen` or route-book freeze).
+- `newTarget` must not be address(0).
+
+Emits `RouteUpdated` only when `target` or `routeType` actually changes.
+
+```solidity
+function updateRoute(string label, string namespace, string routeLabel, address newTarget, uint32 newRouteType) external
+```
+
+
+
+
+### freezeRoute
+
+
+Permanently freezes an individual route so `target` and `routeType` cannot change.
+
+Freezing is irreversible. `isActive` / `activeController` remain independently controllable.
+
+**Requirements:**
+- `msg.sender` must own `label AT namespace`.
+- The route must exist.
+
+Emits `RouteFrozen` only if the route was not already frozen.
+
+```solidity
+function freezeRoute(string label, string namespace, string routeLabel) external
+```
+
+
+
+
 ### freezeRouteBook
 
 
 Permanently freezes the route book associated with an XNS name.
 
-After freezing no additional routes may be created.
-
-Existing routes and their active-controller mechanics remain unchanged.
+After freezing:
+- No additional routes may be created.
+- All existing routes under the name are treated as effectively frozen for
+  `target` / `routeType` updates (without iterating or writing each route).
+- Active-controller mechanics (`isActive`) remain unchanged.
 
 Requires `msg.sender` to own `label AT namespace`.
 
@@ -437,6 +489,21 @@ Example:
 
 ```solidity
 function isRouteBookFrozen(string xnsName) external view returns (bool frozen)
+```
+
+
+
+
+### isRouteFrozen
+
+
+Returns whether a route is effectively frozen for `target` / `routeType` updates.
+
+True when the route's `isFrozen` flag is set or its route book is frozen.
+Returns false when the route does not exist.
+
+```solidity
+function isRouteFrozen(string label, string namespace, string routeLabel) external view returns (bool frozen)
 ```
 
 
@@ -611,6 +678,32 @@ event RouteActiveStatusUpdated(bytes32 xnsNameKey, bytes32 routeKey, string labe
 
 
 
+### RouteUpdated
+
+
+
+
+```solidity
+event RouteUpdated(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel, address target, uint32 routeType)
+```
+
+
+
+
+
+### RouteFrozen
+
+
+
+
+```solidity
+event RouteFrozen(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel)
+```
+
+
+
+
+
 ### RouteBookFrozen
 
 
@@ -719,6 +812,7 @@ struct RouteRecord {
   address target;
   uint32 routeType;
   bool isActive;
+  bool isFrozen;
   address activeController;
   string routeLabel;
 ```

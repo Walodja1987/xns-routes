@@ -53,13 +53,15 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// ### Route record
 ///
 /// Each route stores:
-/// - `target` — immutable Ethereum address the route points to.
-/// - `routeType` — generic off-chain interpretation hint.
+/// - `target` — Ethereum address the route points to (mutable until frozen).
+/// - `routeType` — generic off-chain interpretation hint (mutable until frozen).
 /// - `isActive` — whether applications should currently treat the route as usable.
+/// - `isFrozen` — whether this route's `target` / `routeType` are permanently locked.
 /// - `activeController` — account authorized to toggle `isActive`.
 /// - `routeLabel` — immutable route label.
 ///
-/// `target`, `routeType`, and `routeLabel` are immutable after route creation.
+/// `routeLabel` is immutable after route creation. `target` and `routeType` may be updated by
+/// the XNS name owner until the route is effectively frozen (`isFrozen` or route-book freeze).
 ///
 /// The exact semantics of `routeType` are intentionally not enforced by this contract.
 /// Applications may define their own interpretation conventions.
@@ -81,15 +83,22 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// Renouncing active control sets `activeController` to `NO_ACTIVE_CONTROLLER` and permanently
 /// locks the current `isActive` state.
 ///
-/// ### Route-book freeze
+/// ### Route freezing
 ///
-/// The XNS name owner may permanently freeze the entire route book belonging to their XNS name.
+/// The XNS name owner may permanently freeze an individual route (`freezeRoute`) or the entire
+/// route book (`freezeRouteBook`).
 ///
-/// After freezing:
-/// - No new routes may be created.
-/// - Existing routes remain unchanged.
-/// - Existing active controllers may continue toggling their routes unless active control
-///   has separately been renounced.
+/// A route is effectively frozen when `isFrozen` is true **or** its route book is frozen:
+///
+///     effectiveRouteFrozen = record.isFrozen || routeBookFrozen
+///
+/// After effective freeze:
+/// - `target` and `routeType` can no longer be updated.
+/// - Active controllers may continue toggling `isActive` unless active control has been renounced.
+///
+/// After route-book freeze:
+/// - No new routes may be created under that name.
+/// - All existing routes under that name are treated as effectively frozen for updates.
 ///
 /// ### Resolution
 ///
@@ -122,6 +131,7 @@ contract XNSRoutes {
         address target;
         uint32 routeType;
         bool isActive;
+        bool isFrozen;
         address activeController;
         string routeLabel;
     }
@@ -184,6 +194,24 @@ contract XNSRoutes {
         string namespace,
         string routeLabel,
         bool isActive
+    );
+
+    event RouteUpdated(
+        bytes32 indexed xnsNameKey,
+        bytes32 indexed routeKey,
+        string label,
+        string namespace,
+        string routeLabel,
+        address indexed target,
+        uint32 routeType
+    );
+
+    event RouteFrozen(
+        bytes32 indexed xnsNameKey,
+        bytes32 indexed routeKey,
+        string label,
+        string namespace,
+        string routeLabel
     );
 
     event RouteBookFrozen(
@@ -257,9 +285,10 @@ contract XNSRoutes {
     // Route creation
     // -------------------------------------------------------------------------
 
-    /// @notice Creates an immutable route under an XNS name.
+    /// @notice Creates a route under an XNS name.
     ///
-    /// The route starts active and `activeController` is set to the current XNS name owner.
+    /// The route starts active, unfrozen, and `activeController` is set to the current XNS name owner.
+    /// `target` and `routeType` remain mutable until the route or route book is frozen.
     ///
     /// Example:
     ///
@@ -297,7 +326,7 @@ contract XNSRoutes {
         );
     }
 
-    /// @notice Creates an immutable route with an explicitly specified active controller.
+    /// @notice Creates a route with an explicitly specified active controller.
     ///
     /// Same requirements as `createRoute`, plus:
     /// - `activeController` must not be `address(0)`.
@@ -353,6 +382,7 @@ contract XNSRoutes {
             target: target,
             routeType: routeType,
             isActive: true,
+            isFrozen: false,
             activeController: activeController,
             routeLabel: routeLabel
         });
@@ -664,14 +694,98 @@ contract XNSRoutes {
     }
 
     // -------------------------------------------------------------------------
+    // Route update and freeze
+    // -------------------------------------------------------------------------
+
+    /// @notice Updates `target` and `routeType` for an existing route.
+    ///
+    /// **Requirements:**
+    /// - `msg.sender` must own `label AT namespace`.
+    /// - The route must exist.
+    /// - The route must not be effectively frozen (`isFrozen` or route-book freeze).
+    /// - `newTarget` must not be address(0).
+    ///
+    /// Emits `RouteUpdated` only when `target` or `routeType` actually changes.
+    function updateRoute(
+        string calldata label,
+        string calldata namespace,
+        string calldata routeLabel,
+        address newTarget,
+        uint32 newRouteType
+    ) external {
+        bytes32 xnsNameKey = _requireXNSNameOwner(label, namespace);
+        bytes32 routeKey = _routeKey(xnsNameKey, routeLabel);
+
+        RouteRecord storage record = _routes[routeKey];
+
+        require(record.target != address(0), "XNSRoutes: route not found");
+        require(
+            !_isEffectivelyFrozen(xnsNameKey, record),
+            "XNSRoutes: route frozen"
+        );
+        require(newTarget != address(0), "XNSRoutes: invalid target");
+
+        if (record.target != newTarget || record.routeType != newRouteType) {
+            record.target = newTarget;
+            record.routeType = newRouteType;
+
+            emit RouteUpdated(
+                xnsNameKey,
+                routeKey,
+                label,
+                namespace,
+                routeLabel,
+                newTarget,
+                newRouteType
+            );
+        }
+    }
+
+    /// @notice Permanently freezes an individual route so `target` and `routeType` cannot change.
+    ///
+    /// Freezing is irreversible. `isActive` / `activeController` remain independently controllable.
+    ///
+    /// **Requirements:**
+    /// - `msg.sender` must own `label AT namespace`.
+    /// - The route must exist.
+    ///
+    /// Emits `RouteFrozen` only if the route was not already frozen.
+    function freezeRoute(
+        string calldata label,
+        string calldata namespace,
+        string calldata routeLabel
+    ) external {
+        bytes32 xnsNameKey = _requireXNSNameOwner(label, namespace);
+        bytes32 routeKey = _routeKey(xnsNameKey, routeLabel);
+
+        RouteRecord storage record = _routes[routeKey];
+
+        require(record.target != address(0), "XNSRoutes: route not found");
+
+        if (!record.isFrozen) {
+            record.isFrozen = true;
+
+            emit RouteFrozen(
+                xnsNameKey,
+                routeKey,
+                label,
+                namespace,
+                routeLabel
+            );
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Route-book freeze
     // -------------------------------------------------------------------------
 
     /// @notice Permanently freezes the route book associated with an XNS name.
     ///
-    /// After freezing no additional routes may be created.
-    ///
-    /// Existing routes and their active-controller mechanics remain unchanged.
+    /// After freezing:
+    /// - No additional routes may be created.
+    /// - All existing routes under the name are treated as effectively frozen for
+    ///   `target` / `routeType` updates (without iterating or writing each route).
+    /// - Active-controller mechanics (`isActive`) remain unchanged.
     ///
     /// Requires `msg.sender` to own `label AT namespace`.
     ///
@@ -880,6 +994,25 @@ contract XNSRoutes {
         return _routeBookFrozen[
             _xnsNameKey(label, namespace)
         ];
+    }
+
+    /// @notice Returns whether a route is effectively frozen for `target` / `routeType` updates.
+    ///
+    /// True when the route's `isFrozen` flag is set or its route book is frozen.
+    /// Returns false when the route does not exist.
+    function isRouteFrozen(
+        string calldata label,
+        string calldata namespace,
+        string calldata routeLabel
+    ) external view returns (bool frozen) {
+        bytes32 xnsNameKey = _xnsNameKey(label, namespace);
+        RouteRecord storage record = _routes[_routeKey(xnsNameKey, routeLabel)];
+
+        if (record.target == address(0)) {
+            return false;
+        }
+
+        return _isEffectivelyFrozen(xnsNameKey, record);
     }
 
     /// @notice Returns a route's pending active controller, or address(0) if none.
@@ -1158,6 +1291,14 @@ contract XNSRoutes {
         return _xnsNameKey(label, namespace);
     }
 
+    /// @dev True when `target` / `routeType` updates are permanently blocked.
+    function _isEffectivelyFrozen(
+        bytes32 xnsNameKey,
+        RouteRecord storage record
+    ) private view returns (bool) {
+        return record.isFrozen || _routeBookFrozen[xnsNameKey];
+    }
+
     // =========================================================================
     // INTERNAL PURE HELPERS
     // =========================================================================
@@ -1402,6 +1543,7 @@ contract XNSRoutes {
             target: s.target,
             routeType: s.routeType,
             isActive: s.isActive,
+            isFrozen: s.isFrozen,
             activeController: s.activeController,
             routeLabel: s.routeLabel
         });

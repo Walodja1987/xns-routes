@@ -28,6 +28,8 @@ from web3 import Web3
 EVENT_NAMES = (
     "RouteCreated",
     "RouteActiveStatusUpdated",
+    "RouteUpdated",
+    "RouteFrozen",
     "RouteBookFrozen",
     "ActiveControllerTransferAccepted",
     "ActiveControllerRenounced",
@@ -84,6 +86,7 @@ def init_db(conn: sqlite3.Connection) -> None:
             target TEXT,
             route_type INTEGER,
             is_active INTEGER,
+            is_frozen INTEGER NOT NULL DEFAULT 0,
             active_controller TEXT,
             updated_block INTEGER NOT NULL,
             updated_tx_hash TEXT NOT NULL,
@@ -140,6 +143,7 @@ def upsert_route(
     target: str | None = None,
     route_type: int | None = None,
     is_active: int | None = None,
+    is_frozen: int | None = None,
     active_controller: str | None = None,
     block_number: int,
     tx_hash: str,
@@ -149,14 +153,15 @@ def upsert_route(
         """
         INSERT INTO routes(
             chain_id, contract, label, namespace, route_label,
-            target, route_type, is_active, active_controller,
+            target, route_type, is_active, is_frozen, active_controller,
             updated_block, updated_tx_hash, updated_log_index
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 0), ?, ?, ?, ?)
         ON CONFLICT(chain_id, contract, label, namespace, route_label)
         DO UPDATE SET
             target = COALESCE(excluded.target, routes.target),
             route_type = COALESCE(excluded.route_type, routes.route_type),
             is_active = COALESCE(excluded.is_active, routes.is_active),
+            is_frozen = COALESCE(excluded.is_frozen, routes.is_frozen),
             active_controller = COALESCE(excluded.active_controller, routes.active_controller),
             updated_block = excluded.updated_block,
             updated_tx_hash = excluded.updated_tx_hash,
@@ -171,6 +176,7 @@ def upsert_route(
             target,
             route_type,
             is_active,
+            is_frozen,
             active_controller,
             block_number,
             tx_hash,
@@ -232,18 +238,35 @@ def decode_logs(contract: Any, logs: list[dict[str, Any]]) -> list[dict[str, Any
 
 def apply_event(conn: sqlite3.Connection, chain_id: int, contract: str, evt: dict[str, Any]) -> None:
     a = evt["args"]
+    name = evt["name"]
+    block_number = evt["blockNumber"]
+    tx_hash = evt["transactionHash"]
+    log_index = evt["logIndex"]
+
+    if name == "RouteBookFrozen":
+        upsert_route_book_frozen(
+            conn,
+            chain_id=chain_id,
+            contract=contract,
+            label=a["label"],
+            namespace=a["namespace"],
+            block_number=block_number,
+            tx_hash=tx_hash,
+            log_index=log_index,
+        )
+        return
+
     common = {
         "chain_id": chain_id,
         "contract": contract,
         "label": a["label"],
         "namespace": a["namespace"],
         "route_label": a["routeLabel"],
-        "block_number": evt["blockNumber"],
-        "tx_hash": evt["transactionHash"],
-        "log_index": evt["logIndex"],
+        "block_number": block_number,
+        "tx_hash": tx_hash,
+        "log_index": log_index,
     }
 
-    name = evt["name"]
     if name == "RouteCreated":
         upsert_route(
             conn,
@@ -251,21 +274,20 @@ def apply_event(conn: sqlite3.Connection, chain_id: int, contract: str, evt: dic
             target=Web3.to_checksum_address(a["target"]),
             route_type=int(a["routeType"]),
             is_active=1 if a["isActive"] else 0,
+            is_frozen=0,
             active_controller=Web3.to_checksum_address(a["activeController"]),
         )
     elif name == "RouteActiveStatusUpdated":
         upsert_route(conn, **common, is_active=1 if a["isActive"] else 0)
-    elif name == "RouteBookFrozen":
-        upsert_route_book_frozen(
+    elif name == "RouteUpdated":
+        upsert_route(
             conn,
-            chain_id=chain_id,
-            contract=contract,
-            label=a["label"],
-            namespace=a["namespace"],
-            block_number=evt["blockNumber"],
-            tx_hash=evt["transactionHash"],
-            log_index=evt["logIndex"],
+            **common,
+            target=Web3.to_checksum_address(a["target"]),
+            route_type=int(a["routeType"]),
         )
+    elif name == "RouteFrozen":
+        upsert_route(conn, **common, is_frozen=1)
     elif name == "ActiveControllerTransferAccepted":
         upsert_route(
             conn,

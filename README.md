@@ -103,7 +103,7 @@ createRoute(
   0                // routeType (offchain-defined parser hint)
 );
 // Sets isActive = true and activeController = current XNS name owner.
-// target and routeType are immutable after creation.
+// target and routeType are mutable until the route or route book is frozen.
 // Use createRouteWithController(...) to set activeController explicitly (isActive=true by default).
 ```
 
@@ -155,18 +155,35 @@ A wallet:
 
 Each route has:
 
-- `target` → build contract (**immutable** after create)
-- `routeType` → off-chain parser hint (**immutable** after create)
+- `target` → build contract (**mutable** until effectively frozen)
+- `routeType` → off-chain parser hint (**mutable** until effectively frozen)
 - `isActive` → usable or disabled (toggled by `activeController`)
+- `isFrozen` → permanently locks `target` / `routeType` for that route
 - `activeController` → sole account that may call `activateRoute` / `deactivateRoute`, start a two-step transfer, or `renounceActiveControl` (must not be `address(0)`; see `NO_ACTIVE_CONTROLLER`)
+- `routeLabel` → immutable slug
 
-Routes cannot be updated or deleted. The binding from route to `target` is permanent.
+The XNS name owner can call `updateRoute` to change `target` and `routeType` until the route is effectively frozen:
+
+```text
+effectiveRouteFrozen = record.isFrozen || routeBookFrozen
+```
+
+`routeLabel` cannot be renamed; create another route instead. Routes are never deleted.
 
 ---
 
-## 🧊 Route book freeze
+## 🧊 Route freeze
 
-The XNS name owner can close the route book permanently:
+### Per-route freeze
+
+```solidity
+freezeRoute("xns", "action", "register-name");
+```
+
+- Permanently locks that route's `target` / `routeType`
+- `activeController` can still toggle `isActive`
+
+### Route-book freeze
 
 ```solidity
 freezeRouteBook("xns@action");
@@ -174,11 +191,12 @@ freezeRouteBook("xns@action");
 ```
 
 - No new routes can be added under that name
-- Existing routes are unchanged; `activeController` can still toggle `isActive`
+- All existing routes under that name become effectively frozen for updates (no per-route write loop)
+- `activeController` can still toggle `isActive`
 
 > Useful for finalized app registries, audited contract maps, or limited route collections.
 
-Use `isRouteBookFrozen(xnsName)` or `isRouteBookFrozen(label, namespace)` to check whether the book is closed.
+Use `isRouteBookFrozen(...)` for the book flag and `isRouteFrozen(label, namespace, routeLabel)` for effective freeze.
 
 ---
 
@@ -229,7 +247,7 @@ function suggestedRouteName() external pure returns (string memory);
 - **Composable** → builders are reusable
 - **Verifiable** → wallets can independently rebuild tx
 - **Human-readable** → no opaque calldata
-- **Immutable by design** → `target` and `routeType` never change after create
+- **Optionally immutable** → `target` / `routeType` updateable until freeze; then permanent
 
 ---
 
@@ -276,7 +294,7 @@ The registry stores each route's **`routeLabel` on-chain** and keeps a per-name 
 
 Use **`resolveRouteIfActive`** for execution paths that must skip inactive routes; use **`resolveRoute`** when you need the binding regardless of active status. Use **`getRouteRecord`** for route metadata. Resolver overloads revert when the route is missing or (for `resolveRouteIfActive`) inactive. `getRouteRecord` returns an **empty record** (`target == address(0)`) when the route is missing.
 
-`target` and `routeType` are **immutable** after create. Route book freeze blocks **new** routes only; `activeController` can still toggle `isActive` on existing routes.
+`target` and `routeType` are **mutable until effectively frozen**. Route book freeze blocks **new** routes and treats existing routes as frozen for updates; `activeController` can still toggle `isActive` on existing routes.
 
 **Important semantics (don’t skip this)**
 

@@ -90,12 +90,44 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 ---
 
+## `updateRoute`
+
+#### Functionality
+
+- XNS name owner can update `target` and `routeType` for an existing route while it is not effectively frozen.
+- Emits `RouteUpdated` only when values actually change.
+- `activeController` cannot update `target` / `routeType`.
+
+#### Reverts
+
+- `"XNSRoutes: not XNS name owner"`, `"XNSRoutes: route not found"`, `"XNSRoutes: route frozen"`, `"XNSRoutes: invalid target"`.
+
+---
+
+## `freezeRoute`
+
+#### Functionality
+
+- XNS name owner can permanently set `isFrozen` on one route.
+- After freeze, `updateRoute` reverts; `activateRoute` / `deactivateRoute` still work.
+- Idempotent: second freeze is a no-op (no duplicate event).
+
+#### Events
+
+- Emits `RouteFrozen` the first time the route is frozen.
+
+#### Reverts
+
+- `"XNSRoutes: not XNS name owner"`, `"XNSRoutes: route not found"`.
+
+---
+
 ## `freezeRouteBook`
 
 #### Functionality
 
 - Name owner can permanently freeze the route book for `(label, namespace)` or `label@namespace` string overload.
-- After freeze, `createRoute` reverts; existing routes can still toggle `isActive`.
+- After freeze, `createRoute` reverts; existing routes are treated as effectively frozen for `updateRoute`; existing routes can still toggle `isActive`.
 - Idempotent: second freeze is a no-op (no duplicate event).
 
 #### Events
