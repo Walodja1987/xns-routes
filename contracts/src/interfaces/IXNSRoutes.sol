@@ -113,6 +113,16 @@ interface IXNSRoutes {
 
     function getRouteRecord(string calldata route) external view returns (RouteRecord memory record);
 
+    function resolveRouteIfFrozenAndActive(
+        string calldata label,
+        string calldata namespace,
+        string calldata routeLabel
+    ) external view returns (bytes memory target, uint32 routeType);
+
+    function resolveRouteIfFrozenAndActive(
+        string calldata route
+    ) external view returns (bytes memory target, uint32 routeType);
+
     function resolveRouteIfActive(
         string calldata label,
         string calldata namespace,

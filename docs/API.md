@@ -93,8 +93,11 @@ Convenience view functions additionally support complete strings such as:
 No reverse lookup is provided because multiple routes may point to the same target.
 
 **Resolution & indexing**
-- Forward: route -> `target` via `resolveRouteIfActive` (requires `isActive`) or
-  `resolveRoute` (ignores `isActive`).
+- Forward: route -> `target` via:
+  - `resolveRouteIfFrozenAndActive` (requires `isFrozen` and `isActive`) — preferred for
+    production callers that only trust published, live bindings;
+  - `resolveRouteIfActive` (requires `isActive`, ignores freeze);
+  - `resolveRoute` (ignores `isActive` and freeze).
 - XNS name key: `keccak256(abi.encodePacked(label, " AT ", namespace))`.
 - Route key: `keccak256(abi.encode(xnsNameKey, keccak256(bytes(routeLabel))))`.
 - The route list can be queried with `getRouteKeyCount`, `getRouteKeys`, and `getRouteEntries`.
@@ -320,10 +323,45 @@ function getRouteRecord(string route) external view returns (struct XNSRoutes.Ro
 
 
 
+### resolveRouteIfFrozenAndActive
+
+
+Resolves a frozen and active route using separate XNS components.
+
+Preferred production resolver: the binding is permanently locked (`isFrozen`)
+and currently usable (`isActive`).
+
+```solidity
+function resolveRouteIfFrozenAndActive(string label, string namespace, string routeLabel) external view returns (bytes target, uint32 routeType)
+```
+
+
+
+
+### resolveRouteIfFrozenAndActive
+
+
+Resolves a frozen and active route using a complete route string.
+
+Example:
+
+    resolveRouteIfFrozenAndActive("alice AT pay/treasury")
+
+The string must be exactly `label AT namespace/routeLabel` (no extra `/` segments).
+
+```solidity
+function resolveRouteIfFrozenAndActive(string route) external view returns (bytes target, uint32 routeType)
+```
+
+
+
+
 ### resolveRouteIfActive
 
 
 Resolves an active route using separate XNS components.
+
+Unlike `resolveRouteIfFrozenAndActive`, this ignores whether the route is frozen.
 
 ```solidity
 function resolveRouteIfActive(string label, string namespace, string routeLabel) external view returns (bytes target, uint32 routeType)
@@ -342,6 +380,8 @@ Example:
     resolveRouteIfActive("alice AT pay/treasury")
 
 The string must be exactly `label AT namespace/routeLabel` (no extra `/` segments).
+
+Unlike `resolveRouteIfFrozenAndActive`, this ignores whether the route is frozen.
 
 ```solidity
 function resolveRouteIfActive(string route) external view returns (bytes target, uint32 routeType)

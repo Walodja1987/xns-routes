@@ -143,17 +143,20 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 ---
 
-## `resolveRoute` / `resolveRouteIfActive`
+## `resolveRoute` / `resolveRouteIfActive` / `resolveRouteIfFrozenAndActive`
 
 #### Functionality
 
-- `resolveRoute` returns `(target, routeType)` regardless of `isActive`.
-- `resolveRouteIfActive` reverts with `"XNSRoutes: route inactive"` when `isActive == false`.
+- `resolveRoute` returns `(target, routeType)` regardless of `isActive` / `isFrozen`.
+- `resolveRouteIfActive` reverts with `"XNSRoutes: route inactive"` when `isActive == false` (ignores freeze).
+- `resolveRouteIfFrozenAndActive` requires `isFrozen && isActive` (preferred production resolver).
 - String overloads require exactly `label@namespace/routeLabel` (no `/params…` suffix; apps must strip that themselves).
 
 #### Reverts
 
 - `"XNSRoutes: route not found"` when route does not exist.
+- `"XNSRoutes: route not frozen"` for `resolveRouteIfFrozenAndActive` when `isFrozen == false`.
+- `"XNSRoutes: route inactive"` when `isActive == false` (active-gated resolvers).
 - `"XNSRoutes: invalid route"` for malformed route strings (including extra `/` segments).
 
 ---

@@ -28,6 +28,7 @@ describe("XNSRoutes", function () {
     notXnsNameOwner: "XNSRoutes: not XNS name owner",
     routeNotFound: "XNSRoutes: route not found",
     routeInactive: "XNSRoutes: route inactive",
+    routeNotFrozen: "XNSRoutes: route not frozen",
     routeBookClosed: "XNSRoutes: route book closed",
     routeFrozen: "XNSRoutes: route frozen",
     routeAlreadyExists: "XNSRoutes: route already exists",
@@ -103,6 +104,11 @@ describe("XNSRoutes", function () {
   /** Disambiguate ethers overload: `getRouteRecord(string)` (route). */
   async function getRouteRecordByRoute(routes: XNSRoutes, route: string) {
     return routes["getRouteRecord(string)"](route);
+  }
+
+  /** Disambiguate ethers overload: `resolveRouteIfFrozenAndActive(string)` (route). */
+  async function resolveRouteIfFrozenAndActiveByRoute(routes: XNSRoutes, route: string) {
+    return routes["resolveRouteIfFrozenAndActive(string)"](route);
   }
 
   /** Disambiguate ethers overload: `resolveRouteIfActive(string)` (route). */
@@ -779,8 +785,72 @@ describe("XNSRoutes", function () {
     });
   });
 
-  describe("resolveRoute and resolveRouteIfActive", function () {
-    it("Should resolve an active route by tuple via resolveRouteIfActive", async function () {
+  describe("resolveRoute, resolveRouteIfActive, and resolveRouteIfFrozenAndActive", function () {
+    it("Should resolve a frozen active route by tuple via resolveRouteIfFrozenAndActive", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes.connect(owner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0);
+      await routes.connect(owner).freezeRoute(LABEL, NAMESPACE, ROUTE_LABEL);
+
+      const [target, routeType] = await routes.resolveRouteIfFrozenAndActive(
+        LABEL,
+        NAMESPACE,
+        ROUTE_LABEL,
+      );
+      expect(target).to.equal(buildTarget);
+      expect(routeType).to.equal(RT0);
+    });
+
+    it("Should resolve a frozen active route by route string via resolveRouteIfFrozenAndActive", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes.connect(owner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0);
+      await routes.connect(owner).freezeRoute(LABEL, NAMESPACE, ROUTE_LABEL);
+
+      const fullPath = formatRoute(LABEL, NAMESPACE, ROUTE_LABEL);
+      const [target, routeType] = await resolveRouteIfFrozenAndActiveByRoute(routes, fullPath);
+      expect(target).to.equal(buildTarget);
+      expect(routeType).to.equal(RT0);
+    });
+
+    it("Should revert resolveRouteIfFrozenAndActive when route is not frozen", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes.connect(owner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0);
+
+      await expect(
+        routes.resolveRouteIfFrozenAndActive(LABEL, NAMESPACE, ROUTE_LABEL),
+      ).to.be.revertedWith(XR.routeNotFrozen);
+    });
+
+    it("Should revert resolveRouteIfFrozenAndActive when frozen route is inactive", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes.connect(owner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0);
+      await routes.connect(owner).freezeRoute(LABEL, NAMESPACE, ROUTE_LABEL);
+      await routes.connect(owner).deactivateRoute(LABEL, NAMESPACE, ROUTE_LABEL);
+
+      await expect(
+        routes.resolveRouteIfFrozenAndActive(LABEL, NAMESPACE, ROUTE_LABEL),
+      ).to.be.revertedWith(XR.routeInactive);
+    });
+
+    it("Should revert resolveRouteIfFrozenAndActive when route is missing", async function () {
+      const { routes } = await loadFixture(deployFixture);
+
+      await expect(
+        routes.resolveRouteIfFrozenAndActive(LABEL, NAMESPACE, ROUTE_LABEL),
+      ).to.be.revertedWith(XR.routeNotFound);
+    });
+
+    it("Should revert resolveRouteIfFrozenAndActive when route has a params suffix", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes.connect(owner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0);
+      await routes.connect(owner).freezeRoute(LABEL, NAMESPACE, ROUTE_LABEL);
+
+      const parametrized = `${formatRoute(LABEL, NAMESPACE, ROUTE_LABEL)}/amount=10/to=0xabc`;
+      await expect(resolveRouteIfFrozenAndActiveByRoute(routes, parametrized)).to.be.revertedWith(
+        XR.invalidRoute,
+      );
+    });
+
+    it("Should resolve an active unfrozen route by tuple via resolveRouteIfActive", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes.connect(owner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0);
 
@@ -866,6 +936,13 @@ describe("XNSRoutes", function () {
       const [target, routeType] = await routes.resolveRoute(LABEL, NAMESPACE, ROUTE_LABEL);
       expect(target).to.equal(buildTarget);
       expect(routeType).to.equal(RT0);
+    });
+
+    it("Should revert resolveRouteIfFrozenAndActive with InvalidRoute when no slash is present", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      await expect(resolveRouteIfFrozenAndActiveByRoute(routes, XNS_NAME)).to.be.revertedWith(
+        XR.invalidRoute,
+      );
     });
 
     it("Should revert resolveRouteIfActive with InvalidRoute when no slash is present", async function () {

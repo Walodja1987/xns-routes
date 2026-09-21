@@ -138,7 +138,7 @@ A wallet:
 
 1. Strips any application-layer params from the shared link
 2. Resolves `xns@action` via XNSv2
-3. Resolves `(label, namespace, routeLabel)` via `resolveRouteIfActive`
+3. Resolves `(label, namespace, routeLabel)` via `resolveRouteIfFrozenAndActive` (or `resolveRouteIfActive` when unfrozen drafts are acceptable)
 4. Calls `build(...)` using the off-chain params
 5. Gets:
    - target chain
@@ -282,12 +282,13 @@ The registry stores each route's **`routeLabel` on-chain** and keeps a per-name 
 - `getRouteRecord(label, namespace, routeLabel)` — read by components
 - `getRouteRecord(route)` — read by exact **route** string (parsed by `splitRoute`)
 - `isRouteBookClosed(xnsName)` — whether new routes can still be added under that name
-- `resolveRoute` — resolve `(target, routeType)` when the route exists (ignores `isActive`)
-- `resolveRouteIfActive` — same, but requires `isActive == true`
+- `resolveRoute` — resolve `(target, routeType)` when the route exists (ignores `isActive` / `isFrozen`)
+- `resolveRouteIfActive` — same, but requires `isActive == true` (ignores freeze)
+- `resolveRouteIfFrozenAndActive` — requires `isFrozen == true` and `isActive == true` (preferred production path)
 - `splitRoute` — parse `label@namespace/routeLabel` into components
 - `splitXNSName` — parse `label@namespace` into components
 
-Use **`resolveRouteIfActive`** for execution paths that must skip inactive routes; use **`resolveRoute`** when you need the binding regardless of active status. Use **`getRouteRecord`** for route metadata. Resolver overloads revert when the route is missing or (for `resolveRouteIfActive`) inactive. `getRouteRecord` returns an **empty record** (`target.length == 0`) when the route is missing.
+Use **`resolveRouteIfFrozenAndActive`** for production execution paths that only trust published (frozen), live routes; use **`resolveRouteIfActive`** when unfrozen drafts are acceptable; use **`resolveRoute`** when you need the binding regardless of flags. Use **`getRouteRecord`** for route metadata. Resolver overloads revert when the route is missing, inactive (active-gated), or not frozen (`resolveRouteIfFrozenAndActive`). `getRouteRecord` returns an **empty record** (`target.length == 0`) when the route is missing.
 
 `target` and `routeType` are **mutable until the route is frozen** (`record.isFrozen`). Route book close blocks **new** routes only; the XNS name owner can still update existing routes and toggle `isActive`.
 
