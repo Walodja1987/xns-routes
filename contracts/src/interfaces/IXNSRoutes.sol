@@ -5,11 +5,10 @@ pragma solidity 0.8.28;
 /// @notice Interface for the `XNSRoutes` route registry (XNSv2 `label AT namespace/route` format).
 interface IXNSRoutes {
     struct RouteRecord {
-        address target;
+        bytes target;
         uint32 routeType;
         bool isActive;
         bool isFrozen;
-        address activeController;
         string routeLabel;
     }
 
@@ -24,10 +23,9 @@ interface IXNSRoutes {
         string label,
         string namespace,
         string routeLabel,
-        address indexed target,
+        bytes target,
         uint32 routeType,
-        bool isActive,
-        address activeController
+        bool isActive
     );
 
     event RouteActiveStatusUpdated(
@@ -45,7 +43,7 @@ interface IXNSRoutes {
         string label,
         string namespace,
         string routeLabel,
-        address indexed target,
+        bytes target,
         uint32 routeType
     );
 
@@ -57,45 +55,7 @@ interface IXNSRoutes {
         string routeLabel
     );
 
-    event RouteBookFrozen(bytes32 indexed xnsNameKey, string label, string namespace);
-
-    event ActiveControllerTransferInitiated(
-        bytes32 indexed xnsNameKey,
-        bytes32 indexed routeKey,
-        string label,
-        string namespace,
-        string routeLabel,
-        address indexed pendingActiveController
-    );
-
-    event ActiveControllerTransferAccepted(
-        bytes32 indexed xnsNameKey,
-        bytes32 indexed routeKey,
-        string label,
-        string namespace,
-        string routeLabel,
-        address previousActiveController,
-        address indexed newActiveController
-    );
-
-    event ActiveControllerTransferCancelled(
-        bytes32 indexed xnsNameKey,
-        bytes32 indexed routeKey,
-        string label,
-        string namespace,
-        string routeLabel,
-        address indexed cancelledPendingActiveController
-    );
-
-    event ActiveControllerRenounced(
-        bytes32 indexed xnsNameKey,
-        bytes32 indexed routeKey,
-        string label,
-        string namespace,
-        string routeLabel
-    );
-
-    function NO_ACTIVE_CONTROLLER() external view returns (address);
+    event RouteBookClosed(bytes32 indexed xnsNameKey, string label, string namespace);
 
     function XNS() external view returns (address);
 
@@ -103,17 +63,8 @@ interface IXNSRoutes {
         string calldata label,
         string calldata namespace,
         string calldata routeLabel,
-        address target,
+        bytes calldata target,
         uint32 routeType
-    ) external;
-
-    function createRouteWithController(
-        string calldata label,
-        string calldata namespace,
-        string calldata routeLabel,
-        address target,
-        uint32 routeType,
-        address activeController
     ) external;
 
     function activateRoute(
@@ -128,36 +79,11 @@ interface IXNSRoutes {
         string calldata routeLabel
     ) external;
 
-    function initiateActiveControllerTransfer(
-        string calldata label,
-        string calldata namespace,
-        string calldata routeLabel,
-        address newActiveController
-    ) external;
-
-    function acceptActiveController(
-        string calldata label,
-        string calldata namespace,
-        string calldata routeLabel
-    ) external;
-
-    function cancelActiveControllerTransfer(
-        string calldata label,
-        string calldata namespace,
-        string calldata routeLabel
-    ) external;
-
-    function renounceActiveControl(
-        string calldata label,
-        string calldata namespace,
-        string calldata routeLabel
-    ) external;
-
     function updateRoute(
         string calldata label,
         string calldata namespace,
         string calldata routeLabel,
-        address newTarget,
+        bytes calldata newTarget,
         uint32 newRouteType
     ) external;
 
@@ -167,9 +93,15 @@ interface IXNSRoutes {
         string calldata routeLabel
     ) external;
 
-    function freezeRouteBook(string calldata label, string calldata namespace) external;
+    function batchFreezeRoutes(
+        string calldata label,
+        string calldata namespace,
+        string[] calldata routeLabels
+    ) external;
 
-    function freezeRouteBook(string calldata xnsName) external;
+    function closeRouteBook(string calldata label, string calldata namespace) external;
+
+    function closeRouteBook(string calldata xnsName) external;
 
     function getRouteRecord(bytes32 routeKey) external view returns (RouteRecord memory record);
 
@@ -185,40 +117,28 @@ interface IXNSRoutes {
         string calldata label,
         string calldata namespace,
         string calldata routeLabel
-    ) external view returns (address target, uint32 routeType);
+    ) external view returns (bytes memory target, uint32 routeType);
 
     function resolveRouteIfActive(
         string calldata route
-    ) external view returns (address target, uint32 routeType);
+    ) external view returns (bytes memory target, uint32 routeType);
 
     function resolveRoute(
         string calldata label,
         string calldata namespace,
         string calldata routeLabel
-    ) external view returns (address target, uint32 routeType);
+    ) external view returns (bytes memory target, uint32 routeType);
 
     function resolveRoute(
         string calldata route
-    ) external view returns (address target, uint32 routeType);
+    ) external view returns (bytes memory target, uint32 routeType);
 
-    function isRouteBookFrozen(
+    function isRouteBookClosed(
         string calldata label,
         string calldata namespace
-    ) external view returns (bool frozen);
+    ) external view returns (bool closed);
 
-    function isRouteBookFrozen(string calldata xnsName) external view returns (bool frozen);
-
-    function isRouteFrozen(
-        string calldata label,
-        string calldata namespace,
-        string calldata routeLabel
-    ) external view returns (bool frozen);
-
-    function pendingActiveController(
-        string calldata label,
-        string calldata namespace,
-        string calldata routeLabel
-    ) external view returns (address pending);
+    function isRouteBookClosed(string calldata xnsName) external view returns (bool closed);
 
     function getRouteKeyCount(
         string calldata label,

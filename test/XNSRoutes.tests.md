@@ -30,29 +30,18 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
-- Name owner can **create** a route for `(label, namespace, routeLabel)` with the given `target`, `routeType`, `isActive == true`, and `activeController` set to the current XNS name owner (`XNS.getAddress(label, namespace)`).
+- Name owner can **create** a route for `(label, namespace, routeLabel)` with the given `target` (`bytes`, non-empty; no protocol max length), `routeType`, and `isActive == true`.
 - Second `createRoute` for the same key should revert with `"XNSRoutes: route already exists"`.
 - Routes under different `label`, `namespace`, or `routeLabel` are independent.
+- Missing routes are represented by empty `target` (`target.length == 0`).
 
 #### Events
 
-- Should emit `RouteCreated` with indexed `xnsNameKey` (`keccak256(abi.encodePacked(label, "@", namespace))`), `routeKey`, and `target`, then `label`, `namespace`, `routeLabel`, `routeType`, `isActive`, and `activeController` (non-indexed, full values in log data).
+- Should emit `RouteCreated` with indexed `xnsNameKey` (`keccak256(abi.encodePacked(label, "@", namespace))`), `routeKey`, then `label`, `namespace`, `routeLabel`, `target`, `routeType`, and `isActive` (non-indexed, full values in log data).
 
 #### Reverts
 
-- Owner, local route-label rules (1–32 chars), non-zero `target`, `"XNSRoutes: route book frozen"`, plus `"XNSRoutes: route already exists"` if the route key already exists.
-
----
-
-## `createRouteWithController`
-
-#### Functionality
-
-- Same as `createRoute`, but accepts an explicit `activeController` (`isActive = true`; must not be `address(0)`).
-
-#### Reverts
-
-- Same as `createRoute`, plus `"XNSRoutes: invalid active controller"` when `activeController == address(0)`.
+- Owner, local route-label rules (1–32 chars), `"XNSRoutes: invalid target"` when `target` is empty, `"XNSRoutes: route book closed"`, plus `"XNSRoutes: route already exists"` if the route key already exists.
 
 ---
 
@@ -60,8 +49,8 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
-- `activeController` can set `isActive` to true / false for an existing `(label, namespace, routeLabel)`.
-- Should still succeed when the **route book** is frozen (only new routes are blocked for the name owner).
+- XNS name owner can set `isActive` to true / false for an existing `(label, namespace, routeLabel)`.
+- Should still succeed when the **route book** is closed (only new routes are blocked for the name owner).
 - Should emit `RouteActiveStatusUpdated` **only when `isActive` actually changes** (second call when already in that state is a no-op for events).
 
 #### Events
@@ -70,23 +59,8 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Reverts
 
-- Should revert with `"XNSRoutes: not active controller"` when the caller is not `record.activeController`.
+- Should revert with `"XNSRoutes: not XNS name owner"` when the caller is not the current XNS name owner.
 - Should revert with `"XNSRoutes: route not found"` when no route exists for `(label, namespace, routeLabel)`.
-- Should revert with `"XNSRoutes: active control renounced"` after `renounceActiveControl`.
-
----
-
-## `activeController`
-
-#### Functionality
-
-- Two-step transfer: `initiateActiveControllerTransfer` → `acceptActiveController` (or `cancelActiveControllerTransfer`).
-- `renounceActiveControl` sets `activeController` to `NO_ACTIVE_CONTROLLER` and `isActive` to false.
-- Events: `ActiveControllerTransferInitiated`, `ActiveControllerTransferAccepted`, `ActiveControllerTransferCancelled`, `ActiveControllerRenounced`.
-
-#### Reverts
-
-- `"XNSRoutes: not active controller"`, `"XNSRoutes: same active controller"`, `"XNSRoutes: use renounceActiveControl"` (when transferring to zero), `"XNSRoutes: no pending transfer"`, `"XNSRoutes: not pending active controller"`.
 
 ---
 
@@ -94,13 +68,13 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
-- XNS name owner can update `target` and `routeType` for an existing route while it is not effectively frozen.
+- XNS name owner can update `target` (`bytes`, non-empty; no protocol max length) and `routeType` for an existing route while `record.isFrozen` is false.
+- Closing the route book does **not** block `updateRoute`.
 - Emits `RouteUpdated` only when values actually change.
-- `activeController` cannot update `target` / `routeType`.
 
 #### Reverts
 
-- `"XNSRoutes: not XNS name owner"`, `"XNSRoutes: route not found"`, `"XNSRoutes: route frozen"`, `"XNSRoutes: invalid target"`.
+- `"XNSRoutes: not XNS name owner"`, `"XNSRoutes: route not found"`, `"XNSRoutes: route frozen"`, `"XNSRoutes: invalid target"` (empty).
 
 ---
 
@@ -122,17 +96,36 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 ---
 
-## `freezeRouteBook`
+## `batchFreezeRoutes`
 
 #### Functionality
 
-- Name owner can permanently freeze the route book for `(label, namespace)` or `label@namespace` string overload.
-- After freeze, `createRoute` reverts; existing routes are treated as effectively frozen for `updateRoute`; existing routes can still toggle `isActive`.
-- Idempotent: second freeze is a no-op (no duplicate event).
+- XNS name owner can freeze multiple routes under one `(label, namespace)` in a single call.
+- Same per-route semantics as `freezeRoute` (already-frozen = no-op / no event).
+- Empty `routeLabels` succeeds as a no-op.
+- If any label is missing, the entire batch reverts.
 
 #### Events
 
-- Should emit `RouteBookFrozen` with indexed `xnsNameKey` and full `label`, `namespace` the first time the route book is frozen.
+- Emits `RouteFrozen` for each route that newly becomes frozen.
+
+#### Reverts
+
+- `"XNSRoutes: not XNS name owner"`, `"XNSRoutes: route not found"`.
+
+---
+
+## `closeRouteBook`
+
+#### Functionality
+
+- Name owner can permanently close the route book for `(label, namespace)` or `label@namespace` string overload.
+- After close, `createRoute` reverts; existing routes remain updatable until individually frozen; existing routes can still toggle `isActive`.
+- Idempotent: second close is a no-op (no duplicate event).
+
+#### Events
+
+- Should emit `RouteBookClosed` with indexed `xnsNameKey` and full `label`, `namespace` the first time the route book is closed.
 
 #### Reverts
 
@@ -144,7 +137,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
-- `getRouteRecord(label, namespace, routeLabel)` returns fields consistent with `createRoute` / `createRouteWithController` / `activateRoute` / `deactivateRoute`.
+- `getRouteRecord(label, namespace, routeLabel)` returns fields consistent with `createRoute` / `activateRoute` / `deactivateRoute`.
 - `getRouteRecord(routeKey)` and `getRouteRecord(route)` overloads behave consistently.
 - Malformed `routeLabel` on read paths return an empty record (no validation revert).
 
@@ -156,11 +149,12 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 - `resolveRoute` returns `(target, routeType)` regardless of `isActive`.
 - `resolveRouteIfActive` reverts with `"XNSRoutes: route inactive"` when `isActive == false`.
-- String overloads accept parametrized routes; params after the second `/` are stripped.
+- String overloads require exactly `label@namespace/routeLabel` (no `/params…` suffix; apps must strip that themselves).
 
 #### Reverts
 
 - `"XNSRoutes: route not found"` when route does not exist.
+- `"XNSRoutes: invalid route"` for malformed route strings (including extra `/` segments).
 
 ---
 
@@ -169,12 +163,12 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 #### Functionality
 
 - `splitRoute` parses `label@namespace/routeLabel` into `(label, namespace, routeLabel)`.
-- Parametrized routes: strips `/params…` tail at the second `/`.
+- Exactly one `/` is allowed; param suffixes are not stripped or accepted.
 - `splitXNSName` parses `label@namespace` into components.
 
 #### Reverts
 
-- `"XNSRoutes: invalid route"` for malformed input.
+- `"XNSRoutes: invalid route"` / `"XNSRoutes: invalid XNS name"` for malformed input.
 
 ---
 
@@ -201,8 +195,15 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 ---
 
+## `isValidTarget` (removed)
+
+Target validation is only `target.length > 0` inline in `createRoute` / `updateRoute`. There is no protocol max length and no `isValidTarget` view. Contents are not validated; `routeType` interprets the opaque payload offchain.
+
+---
+
 ## Key semantics
 
 - `xnsNameKey = keccak256(abi.encodePacked(label, "@", namespace))`
 - `routeKey = keccak256(abi.encode(xnsNameKey, keccak256(bytes(routeLabel))))`
 - Routes under different `label`, `namespace`, or `routeLabel` are independent.
+- Existence: `getRouteRecord(...).target.length == 0` means the route is not registered.
