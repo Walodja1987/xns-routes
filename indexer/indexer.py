@@ -30,7 +30,7 @@ EVENT_NAMES = (
     "RouteActiveStatusUpdated",
     "RouteUpdated",
     "RouteFrozen",
-    "RouteBookFrozen",
+    "RouteBookClosed",
 )
 
 
@@ -96,7 +96,7 @@ def init_db(conn: sqlite3.Connection) -> None:
             contract TEXT NOT NULL,
             label TEXT NOT NULL,
             namespace TEXT NOT NULL,
-            is_frozen INTEGER NOT NULL DEFAULT 0,
+            is_closed INTEGER NOT NULL DEFAULT 0,
             updated_block INTEGER NOT NULL,
             updated_tx_hash TEXT NOT NULL,
             updated_log_index INTEGER NOT NULL,
@@ -179,7 +179,7 @@ def upsert_route(
     )
 
 
-def upsert_route_book_frozen(
+def upsert_route_book_closed(
     conn: sqlite3.Connection,
     chain_id: int,
     contract: str,
@@ -193,12 +193,12 @@ def upsert_route_book_frozen(
     conn.execute(
         """
         INSERT INTO route_books(
-            chain_id, contract, label, namespace, is_frozen,
+            chain_id, contract, label, namespace, is_closed,
             updated_block, updated_tx_hash, updated_log_index
         ) VALUES (?, ?, ?, ?, 1, ?, ?, ?)
         ON CONFLICT(chain_id, contract, label, namespace)
         DO UPDATE SET
-            is_frozen = 1,
+            is_closed = 1,
             updated_block = excluded.updated_block,
             updated_tx_hash = excluded.updated_tx_hash,
             updated_log_index = excluded.updated_log_index
@@ -237,8 +237,8 @@ def apply_event(conn: sqlite3.Connection, chain_id: int, contract: str, evt: dic
     tx_hash = evt["transactionHash"]
     log_index = evt["logIndex"]
 
-    if name == "RouteBookFrozen":
-        upsert_route_book_frozen(
+    if name == "RouteBookClosed":
+        upsert_route_book_closed(
             conn,
             chain_id=chain_id,
             contract=contract,
@@ -338,12 +338,12 @@ def print_routes(ctx: Context, xns_name: str) -> None:
 
     book = conn.execute(
         """
-        SELECT is_frozen FROM route_books
+        SELECT is_closed FROM route_books
         WHERE chain_id = ? AND contract = ? AND label = ? AND namespace = ?
         """,
         (chain_id, contract_addr, label, namespace),
     ).fetchone()
-    book_frozen = bool(book[0]) if book else False
+    book_closed = bool(book[0]) if book else False
 
     rows = conn.execute(
         """
@@ -361,7 +361,7 @@ def print_routes(ctx: Context, xns_name: str) -> None:
         print("No indexed routes found. Run sync first.")
         return
 
-    print(f"routeBookFrozen={book_frozen}")
+    print(f"routeBookClosed={book_closed}")
     for r in rows:
         route_label, target, route_type, is_active, blk, tx = r
         print(
@@ -404,7 +404,7 @@ def export_routes(ctx: Context, xns_name: str | None, out_path: Path) -> None:
 
     books = conn.execute(
         """
-        SELECT label, namespace, is_frozen, updated_block, updated_tx_hash, updated_log_index
+        SELECT label, namespace, is_closed, updated_block, updated_tx_hash, updated_log_index
         FROM route_books
         WHERE chain_id = ? AND contract = ?
         """,
@@ -426,7 +426,7 @@ def export_routes(ctx: Context, xns_name: str | None, out_path: Path) -> None:
                 "xnsName": xns_name_from_parts(b[0], b[1]),
                 "label": b[0],
                 "namespace": b[1],
-                "isRouteBookFrozen": bool(b[2]),
+                "isRouteBookClosed": bool(b[2]),
                 "updatedBlock": b[3],
                 "updatedTxHash": b[4],
                 "updatedLogIndex": b[5],

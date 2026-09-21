@@ -52,13 +52,14 @@ async function main() {
     return;
   }
 
-  const bookFrozen = await routes.isRouteBookFrozen(xnsName);
+  const bookClosed = await routes.isRouteBookClosed(xnsName);
 
   console.log(
     `target:    ${GREEN}${record.target}${RESET} (${hre.ethers.getBytes(record.target).length} bytes)`,
   );
   console.log(`isActive:  ${GREEN}${record.isActive}${RESET}`);
-  console.log(`isRouteBookFrozen: ${GREEN}${bookFrozen}${RESET}`);
+  console.log(`isFrozen:  ${GREEN}${record.isFrozen}${RESET}`);
+  console.log(`isRouteBookClosed: ${GREEN}${bookClosed}${RESET}`);
   console.log(`routeType: ${GREEN}${record.routeType}${RESET}\n`);
 }
 

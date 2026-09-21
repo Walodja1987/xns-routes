@@ -55,7 +55,7 @@ interface IXNSRoutes {
         string routeLabel
     );
 
-    event RouteBookFrozen(bytes32 indexed xnsNameKey, string label, string namespace);
+    event RouteBookClosed(bytes32 indexed xnsNameKey, string label, string namespace);
 
     function MAX_TARGET_LENGTH() external view returns (uint256);
 
@@ -95,9 +95,15 @@ interface IXNSRoutes {
         string calldata routeLabel
     ) external;
 
-    function freezeRouteBook(string calldata label, string calldata namespace) external;
+    function batchFreezeRoutes(
+        string calldata label,
+        string calldata namespace,
+        string[] calldata routeLabels
+    ) external;
 
-    function freezeRouteBook(string calldata xnsName) external;
+    function closeRouteBook(string calldata label, string calldata namespace) external;
+
+    function closeRouteBook(string calldata xnsName) external;
 
     function getRouteRecord(bytes32 routeKey) external view returns (RouteRecord memory record);
 
@@ -129,18 +135,12 @@ interface IXNSRoutes {
         string calldata route
     ) external view returns (bytes memory target, uint32 routeType);
 
-    function isRouteBookFrozen(
+    function isRouteBookClosed(
         string calldata label,
         string calldata namespace
-    ) external view returns (bool frozen);
+    ) external view returns (bool closed);
 
-    function isRouteBookFrozen(string calldata xnsName) external view returns (bool frozen);
-
-    function isRouteFrozen(
-        string calldata label,
-        string calldata namespace,
-        string calldata routeLabel
-    ) external view returns (bool frozen);
+    function isRouteBookClosed(string calldata xnsName) external view returns (bool closed);
 
     function getRouteKeyCount(
         string calldata label,

@@ -41,7 +41,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Reverts
 
-- Owner, local route-label rules (1–32 chars), `"XNSRoutes: invalid target"` when `target` is empty or longer than `MAX_TARGET_LENGTH` (256), `"XNSRoutes: route book frozen"`, plus `"XNSRoutes: route already exists"` if the route key already exists.
+- Owner, local route-label rules (1–32 chars), `"XNSRoutes: invalid target"` when `target` is empty or longer than `MAX_TARGET_LENGTH` (256), `"XNSRoutes: route book closed"`, plus `"XNSRoutes: route already exists"` if the route key already exists.
 
 ---
 
@@ -50,7 +50,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 #### Functionality
 
 - XNS name owner can set `isActive` to true / false for an existing `(label, namespace, routeLabel)`.
-- Should still succeed when the **route book** is frozen (only new routes are blocked for the name owner).
+- Should still succeed when the **route book** is closed (only new routes are blocked for the name owner).
 - Should emit `RouteActiveStatusUpdated` **only when `isActive` actually changes** (second call when already in that state is a no-op for events).
 
 #### Events
@@ -68,7 +68,8 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
-- XNS name owner can update `target` (`bytes`, 1–`MAX_TARGET_LENGTH`) and `routeType` for an existing route while it is not effectively frozen.
+- XNS name owner can update `target` (`bytes`, 1–`MAX_TARGET_LENGTH`) and `routeType` for an existing route while `record.isFrozen` is false.
+- Closing the route book does **not** block `updateRoute`.
 - Emits `RouteUpdated` only when values actually change.
 
 #### Reverts
@@ -95,17 +96,36 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 ---
 
-## `freezeRouteBook`
+## `batchFreezeRoutes`
 
 #### Functionality
 
-- Name owner can permanently freeze the route book for `(label, namespace)` or `label@namespace` string overload.
-- After freeze, `createRoute` reverts; existing routes are treated as effectively frozen for `updateRoute`; existing routes can still toggle `isActive`.
-- Idempotent: second freeze is a no-op (no duplicate event).
+- XNS name owner can freeze multiple routes under one `(label, namespace)` in a single call.
+- Same per-route semantics as `freezeRoute` (already-frozen = no-op / no event).
+- Empty `routeLabels` succeeds as a no-op.
+- If any label is missing, the entire batch reverts.
 
 #### Events
 
-- Should emit `RouteBookFrozen` with indexed `xnsNameKey` and full `label`, `namespace` the first time the route book is frozen.
+- Emits `RouteFrozen` for each route that newly becomes frozen.
+
+#### Reverts
+
+- `"XNSRoutes: not XNS name owner"`, `"XNSRoutes: route not found"`.
+
+---
+
+## `closeRouteBook`
+
+#### Functionality
+
+- Name owner can permanently close the route book for `(label, namespace)` or `label@namespace` string overload.
+- After close, `createRoute` reverts; existing routes remain updatable until individually frozen; existing routes can still toggle `isActive`.
+- Idempotent: second close is a no-op (no duplicate event).
+
+#### Events
+
+- Should emit `RouteBookClosed` with indexed `xnsNameKey` and full `label`, `namespace` the first time the route book is closed.
 
 #### Reverts
 
@@ -129,11 +149,12 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 - `resolveRoute` returns `(target, routeType)` regardless of `isActive`.
 - `resolveRouteIfActive` reverts with `"XNSRoutes: route inactive"` when `isActive == false`.
-- String overloads accept parametrized routes; params after the second `/` are stripped.
+- String overloads require exactly `label@namespace/routeLabel` (no `/params…` suffix; apps must strip that themselves).
 
 #### Reverts
 
 - `"XNSRoutes: route not found"` when route does not exist.
+- `"XNSRoutes: invalid route"` for malformed route strings (including extra `/` segments).
 
 ---
 
@@ -142,12 +163,12 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 #### Functionality
 
 - `splitRoute` parses `label@namespace/routeLabel` into `(label, namespace, routeLabel)`.
-- Parametrized routes: strips `/params…` tail at the second `/`.
+- Exactly one `/` is allowed; param suffixes are not stripped or accepted.
 - `splitXNSName` parses `label@namespace` into components.
 
 #### Reverts
 
-- `"XNSRoutes: invalid route"` for malformed input.
+- `"XNSRoutes: invalid route"` / `"XNSRoutes: invalid XNS name"` for malformed input.
 
 ---
 

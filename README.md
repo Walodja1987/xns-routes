@@ -8,22 +8,20 @@ Instead of sharing raw calldata or relying on a single frontend, protocols and u
 
 ## ✨ What are Routes?
 
-Routes are registered under an XNSv2 name using **route** and **parametrized route** strings.
+Routes are registered under an XNSv2 name using **route** strings.
 
 **Grammar:**
 
 ```text
-route               = label "@" namespace "/" routeLabel
-parametrized route  = route [ "/" params… ]
+route = label "@" namespace "/" routeLabel
 ```
 
-- **params** (e.g. `/label=bro/namespace=og`) are off-chain; registration stores only the **route**.
-  String helpers (`splitRoute`, `getRouteRecord(string)`, `resolveRoute*`) strip at the second `/`
-  and ignore that tail.
+Application-layer params (e.g. `/amount=10`) are **not** part of the on-chain format.
+Apps must strip them before calling string helpers (`splitRoute`, `getRouteRecord(string)`, `resolveRoute*`).
 
 ```
-xns@action/register-name/label=bro/namespace=og
-usdt@action/transfer-usdt/to=0x.../amount=100
+xns@action/register-name
+usdt@action/transfer-usdt
 ```
 
 Each route:
@@ -45,14 +43,13 @@ Validation rules:
 
 | Term | Example | Notes |
 |------|---------|--------|
-| **route** | `alice@pay/treasury` | On-chain identity: `label@namespace/routeLabel` (no params). Used by `splitRoute`, `routeKey`, and registry lookups |
-| **parametrized route** | `alice@pay/treasury/amount=10` | Off-chain link: route plus optional `/params…` tail. String helpers strip the tail at the second `/` |
+| **route** | `alice@pay/treasury` | On-chain identity: `label@namespace/routeLabel`. Used by `splitRoute`, `routeKey`, and registry lookups |
 | **label** | `alice` | XNSv2 name label |
 | **namespace** | `pay` | XNSv2 namespace |
 | **route label** | `treasury` | Required slug after `/` |
-| **route key** | `bytes32` | `keccak256(abi.encode(xnsNameKey, keccak256(bytes(routeLabel))))`; params never included |
+| **route key** | `bytes32` | `keccak256(abi.encode(xnsNameKey, keccak256(bytes(routeLabel))))` |
 
-Contract tuple APIs use `(label, namespace, routeLabel)` — equivalent to parsing a route. String helpers: `splitRoute`, `splitXNSName`, `getRouteRecord(string route)` (accept a route or parametrized route; params after the second `/` are ignored).
+Contract tuple APIs use `(label, namespace, routeLabel)` — equivalent to parsing a route. String helpers: `splitRoute`, `splitXNSName`, `getRouteRecord(string route)` (exact route string only; no params suffix).
 
 ---
 
@@ -132,15 +129,17 @@ Non-EVM endpoints (e.g. Bitcoin) can store the destination directly in `bytes ta
 Given:
 
 ```
-xns@action/register-name/label=bro/namespace=og
+xns@action/register-name
 ```
+
+(with optional off-chain params like `/label=bro/namespace=og` stripped by the app before calling Routes)
 
 A wallet:
 
-1. Resolves `xns@action` via XNSv2
-2. Parses `register-name` from the route path
+1. Strips any application-layer params from the shared link
+2. Resolves `xns@action` via XNSv2
 3. Resolves `(label, namespace, routeLabel)` via `resolveRouteIfActive`
-4. Calls `build(...)`
+4. Calls `build(...)` using the off-chain params
 5. Gets:
    - target chain
    - contract address
@@ -155,17 +154,13 @@ A wallet:
 
 Each route has:
 
-- `target` → opaque endpoint payload, 1–256 bytes (**mutable** until effectively frozen; e.g. 20-byte EVM address for `routeType = 0`)
-- `routeType` → off-chain interpretation hint (**mutable** until effectively frozen)
+- `target` → opaque endpoint payload, 1–256 bytes (**mutable** until the route is frozen; e.g. 20-byte EVM address for `routeType = 0`)
+- `routeType` → off-chain interpretation hint (**mutable** until the route is frozen)
 - `isActive` → usable or disabled (toggled by the XNS name owner)
 - `isFrozen` → permanently locks `target` / `routeType` for that route
 - `routeLabel` → immutable slug
 
-The XNS name owner can call `updateRoute` to change `target` and `routeType` until the route is effectively frozen:
-
-```text
-effectiveRouteFrozen = record.isFrozen || routeBookFrozen
-```
+The XNS name owner can call `updateRoute` to change `target` and `routeType` until the route's `isFrozen` flag is set. Closing the route book does **not** block updates.
 
 `routeLabel` cannot be renamed; create another route instead. Routes are never deleted.
 
@@ -177,25 +172,26 @@ effectiveRouteFrozen = record.isFrozen || routeBookFrozen
 
 ```solidity
 freezeRoute("xns", "action", "register-name");
+// or batchFreezeRoutes("xns", "action", ["register-name", "treasury"]);
 ```
 
 - Permanently locks that route's `target` / `routeType`
 - XNS name owner can still toggle `isActive`
 
-### Route-book freeze
+### Route-book close
 
 ```solidity
-freezeRouteBook("xns@action");
-// or freezeRouteBook("xns", "action");
+closeRouteBook("xns@action");
+// or closeRouteBook("xns", "action");
 ```
 
 - No new routes can be added under that name
-- All existing routes under that name become effectively frozen for updates (no per-route write loop)
+- Existing routes stay updatable until individually frozen
 - XNS name owner can still toggle `isActive`
 
 > Useful for finalized app registries, audited contract maps, or limited route collections.
 
-Use `isRouteBookFrozen(...)` for the book flag and `isRouteFrozen(label, namespace, routeLabel)` for effective freeze.
+Use `isRouteBookClosed(...)` for the book flag and `record.isFrozen` (via `getRouteRecord`) for per-route freeze.
 
 ---
 
@@ -284,16 +280,16 @@ The registry stores each route's **`routeLabel` on-chain** and keeps a per-name 
 - `getRouteKeys(label, namespace, start, end)` — page through storage keys only (same pagination rules as `getRouteEntries`)
 - `getRouteRecord(routeKey)` — read one `RouteRecord` by key (includes stored `routeLabel`)
 - `getRouteRecord(label, namespace, routeLabel)` — read by components
-- `getRouteRecord(route)` — read by **route** or parametrized route string (parsed by `splitRoute`; params stripped)
-- `isRouteBookFrozen(xnsName)` — whether new routes can still be added under that name
+- `getRouteRecord(route)` — read by exact **route** string (parsed by `splitRoute`)
+- `isRouteBookClosed(xnsName)` — whether new routes can still be added under that name
 - `resolveRoute` — resolve `(target, routeType)` when the route exists (ignores `isActive`)
 - `resolveRouteIfActive` — same, but requires `isActive == true`
-- `splitRoute` — parse a route (or parametrized route) into `(label, namespace, routeLabel)`
+- `splitRoute` — parse `label@namespace/routeLabel` into components
 - `splitXNSName` — parse `label@namespace` into components
 
 Use **`resolveRouteIfActive`** for execution paths that must skip inactive routes; use **`resolveRoute`** when you need the binding regardless of active status. Use **`getRouteRecord`** for route metadata. Resolver overloads revert when the route is missing or (for `resolveRouteIfActive`) inactive. `getRouteRecord` returns an **empty record** (`target.length == 0`) when the route is missing.
 
-`target` and `routeType` are **mutable until effectively frozen**. Route book freeze blocks **new** routes and treats existing routes as frozen for updates; the XNS name owner can still toggle `isActive` on existing routes.
+`target` and `routeType` are **mutable until the route is frozen** (`record.isFrozen`). Route book close blocks **new** routes only; the XNS name owner can still update existing routes and toggle `isActive`.
 
 **Important semantics (don’t skip this)**
 
@@ -337,15 +333,15 @@ npx hardhat run scripts/examples/<script_name>.ts --network <network_name>
 **Read-only**
 
 - [scripts/examples/routeExists.ts](scripts/examples/routeExists.ts) — check if a route is registered (`getRouteRecord(...).target.length != 0`)
-- [scripts/examples/getRouteRecord.ts](scripts/examples/getRouteRecord.ts) — read target, `isActive`, `routeType`, and route-book freeze
-- [scripts/examples/isRouteBookFrozen.ts](scripts/examples/isRouteBookFrozen.ts) — route book freeze flag for a name
+- [scripts/examples/getRouteRecord.ts](scripts/examples/getRouteRecord.ts) — read target, `isActive`, `isFrozen`, `routeType`, and route-book close
+- [scripts/examples/isRouteBookClosed.ts](scripts/examples/isRouteBookClosed.ts) — route book closed flag for a name
 
 **Write** (signer must be the address XNS currently resolves for the script’s `label@namespace`)
 
 - [scripts/examples/createRoute.ts](scripts/examples/createRoute.ts) — register a new route key (`createRoute`)
 - [scripts/examples/activateRoute.ts](scripts/examples/activateRoute.ts) — set `isActive` true as XNS name owner (emit only on change)
 - [scripts/examples/deactivateRoute.ts](scripts/examples/deactivateRoute.ts) — set `isActive` false as XNS name owner (emit only on change)
-- [scripts/examples/freezeRouteBook.ts](scripts/examples/freezeRouteBook.ts) — route book freeze for a name
+- [scripts/examples/closeRouteBook.ts](scripts/examples/closeRouteBook.ts) — route book close for a name
 
 Each script has a `USER INPUTS` section at the top. Fill in [constants/addresses.ts](constants/addresses.ts) for `XNS_ROUTES_ADDRESS` on your network before running.
 

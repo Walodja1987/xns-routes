@@ -16,7 +16,7 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 
 /// @title XNSRoutes
 /// @author Wladimir Weinbender (DIVA Technologies AG)
-/// @notice A simple immutable named-endpoint registry attached to XNS names.
+/// @notice A simple named-endpoint registry attached to XNS names.
 ///
 /// XNS name owners can create named routes under their XNS name which resolve to opaque
 /// endpoint payloads (`bytes`). Routes may represent EVM addresses, other-chain addresses,
@@ -24,7 +24,7 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 ///
 /// Route format:
 ///
-///     label AT namespace/route
+///     label AT namespace/routeLabel
 ///
 /// Examples:
 /// - `alice AT pay/treasury`
@@ -32,24 +32,14 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - `alice AT pay/treasury-arb`
 /// - `aave AT defi/v3-pool`
 ///
-/// The route portion must:
+/// The route label must:
 /// - Be 1–32 characters long.
 /// - Consist only of [a-z0-9-].
 /// - Not start or end with '-'.
 /// - Not contain consecutive hyphens ('--').
 ///
-/// Routes may optionally include an application-layer `/params...` suffix when using the
-/// string-based view functions. Anything after the second `/` is ignored by this contract.
-///
-/// Example:
-///
-///     alice AT pay/payment/amount=10
-///
-/// resolves the stored route:
-///
-///     alice AT pay/payment
-///
-/// Params are not validated, stored, interpreted, or processed on-chain.
+/// Application-layer parameters (e.g. `/amount=10`) are not part of the on-chain route format.
+/// Callers must strip any such suffix before using string-based helpers.
 ///
 /// ### Route record
 ///
@@ -62,7 +52,7 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - `routeLabel` — immutable route label.
 ///
 /// `routeLabel` is immutable after route creation. `target` and `routeType` may be updated by
-/// the XNS name owner until the route is effectively frozen (`isFrozen` or route-book freeze).
+/// the XNS name owner until that route is frozen (`isFrozen`).
 ///
 /// The exact semantics of `routeType` are intentionally not enforced by this contract.
 /// Applications may define their own interpretation conventions.
@@ -79,24 +69,25 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 ///
 /// A route starts active by default.
 ///
-/// The XNS name owner may activate or deactivate the route at any time (including after freeze).
+/// The XNS name owner may activate or deactivate the route at any time, including after the
+/// route has been frozen. Freezing a route does **not** lock `isActive`.
 ///
 /// ### Route freezing
 ///
-/// The XNS name owner may permanently freeze an individual route (`freezeRoute`) or the entire
-/// route book (`freezeRouteBook`).
+/// The XNS name owner may permanently freeze an individual route (`freezeRoute`).
 ///
-/// A route is effectively frozen when `isFrozen` is true **or** its route book is frozen:
-///
-///     effectiveRouteFrozen = record.isFrozen || routeBookFrozen
-///
-/// After effective freeze:
-/// - `target` and `routeType` can no longer be updated.
+/// Once `isFrozen` is true:
+/// - `target` and `routeType` can never change again.
 /// - The XNS name owner may continue toggling `isActive`.
 ///
-/// After route-book freeze:
+/// ### Route-book closing
+///
+/// The XNS name owner may permanently close the route book (`closeRouteBook`).
+///
+/// After closing:
 /// - No new routes may be created under that name.
-/// - All existing routes under that name are treated as effectively frozen for updates.
+/// - Existing routes are unchanged (not frozen by the close).
+/// - Per-route freeze and `isActive` controls remain independent.
 ///
 /// ### Resolution
 ///
@@ -149,12 +140,12 @@ contract XNSRoutes {
     /// @notice XNSv2 registry used for name ownership resolution.
     IXNSMinimal public immutable XNS;
 
-    /// @dev XNS name key => whether its route book has been permanently frozen.
+    /// @dev XNS name key => whether its route book has been permanently closed.
     ///
     /// XNS name key:
     ///
     ///     keccak256(abi.encodePacked(label, " AT ", namespace))
-    mapping(bytes32 => bool) private _routeBookFrozen;
+    mapping(bytes32 => bool) private _routeBookClosed;
 
     /// @dev Route key => route record.
     mapping(bytes32 => RouteRecord) private _routes;
@@ -204,7 +195,7 @@ contract XNSRoutes {
         string routeLabel
     );
 
-    event RouteBookFrozen(
+    event RouteBookClosed(
         bytes32 indexed xnsNameKey,
         string label,
         string namespace
@@ -242,7 +233,7 @@ contract XNSRoutes {
     /// @notice Creates a route under an XNS name.
     ///
     /// The route starts active and unfrozen.
-    /// `target` and `routeType` remain mutable until the route or route book is frozen.
+    /// `target` and `routeType` remain mutable until the route is frozen.
     ///
     /// Example:
     ///
@@ -256,7 +247,7 @@ contract XNSRoutes {
     /// - `msg.sender` must own `label AT namespace`.
     /// - `routeLabel` must be valid.
     /// - `target` must be non-empty and at most `MAX_TARGET_LENGTH` bytes.
-    /// - The route book must not be frozen.
+    /// - The route book must not be closed.
     /// - The route must not already exist.
     ///
     /// Emits `RouteCreated`.
@@ -290,7 +281,7 @@ contract XNSRoutes {
     ) private {
         require(_isValidRouteLabel(routeLabel), "XNSRoutes: invalid route label");
         require(_isValidTarget(target), "XNSRoutes: invalid target");
-        require(!_routeBookFrozen[xnsNameKey], "XNSRoutes: route book frozen");
+        require(!_routeBookClosed[xnsNameKey], "XNSRoutes: route book closed");
 
         bytes32 routeKey = _routeKey(xnsNameKey, routeLabel);
 
@@ -327,6 +318,8 @@ contract XNSRoutes {
 
     /// @notice Activates an existing route.
     ///
+    /// Allowed even if the route is frozen — freeze does not lock `isActive`.
+    ///
     /// **Requirements:**
     /// - `msg.sender` must own `label AT namespace`.
     /// - The route must exist.
@@ -346,6 +339,8 @@ contract XNSRoutes {
     }
 
     /// @notice Deactivates an existing route.
+    ///
+    /// Allowed even if the route is frozen — freeze does not lock `isActive`.
     ///
     /// **Requirements:**
     /// - `msg.sender` must own `label AT namespace`.
@@ -402,7 +397,7 @@ contract XNSRoutes {
     /// **Requirements:**
     /// - `msg.sender` must own `label AT namespace`.
     /// - The route must exist.
-    /// - The route must not be effectively frozen (`isFrozen` or route-book freeze).
+    /// - The route must not be frozen (`isFrozen`).
     /// - `newTarget` must be non-empty and at most `MAX_TARGET_LENGTH` bytes.
     ///
     /// Emits `RouteUpdated` only when `target` or `routeType` actually changes.
@@ -419,10 +414,7 @@ contract XNSRoutes {
         RouteRecord storage record = _routes[routeKey];
 
         require(record.target.length > 0, "XNSRoutes: route not found");
-        require(
-            !_isEffectivelyFrozen(xnsNameKey, record),
-            "XNSRoutes: route frozen"
-        );
+        require(!record.isFrozen, "XNSRoutes: route frozen");
         require(_isValidTarget(newTarget), "XNSRoutes: invalid target");
 
         if (
@@ -459,6 +451,39 @@ contract XNSRoutes {
         string calldata routeLabel
     ) external {
         bytes32 xnsNameKey = _requireXNSNameOwner(label, namespace);
+        _freezeRoute(xnsNameKey, label, namespace, routeLabel);
+    }
+
+    /// @notice Permanently freezes multiple routes under one XNS name.
+    ///
+    /// Same per-route semantics as `freezeRoute`. Already-frozen routes are skipped
+    /// (no event). Missing routes cause the entire call to revert.
+    ///
+    /// **Requirements:**
+    /// - `msg.sender` must own `label AT namespace`.
+    /// - Every `routeLabels[i]` must refer to an existing route.
+    ///
+    /// Emits `RouteFrozen` for each route that newly becomes frozen.
+    function batchFreezeRoutes(
+        string calldata label,
+        string calldata namespace,
+        string[] calldata routeLabels
+    ) external {
+        bytes32 xnsNameKey = _requireXNSNameOwner(label, namespace);
+
+        uint256 n = routeLabels.length;
+        for (uint256 i = 0; i < n; ++i) {
+            _freezeRoute(xnsNameKey, label, namespace, routeLabels[i]);
+        }
+    }
+
+    /// @dev Shared freeze implementation used by `freezeRoute` and `batchFreezeRoutes`.
+    function _freezeRoute(
+        bytes32 xnsNameKey,
+        string calldata label,
+        string calldata namespace,
+        string calldata routeLabel
+    ) private {
         bytes32 routeKey = _routeKey(xnsNameKey, routeLabel);
 
         RouteRecord storage record = _routes[routeKey];
@@ -479,30 +504,28 @@ contract XNSRoutes {
     }
 
     // -------------------------------------------------------------------------
-    // Route-book freeze
+    // Route-book close
     // -------------------------------------------------------------------------
 
-    /// @notice Permanently freezes the route book associated with an XNS name.
+    /// @notice Permanently closes the route book associated with an XNS name.
     ///
-    /// After freezing:
-    /// - No additional routes may be created.
-    /// - All existing routes under the name are treated as effectively frozen for
-    ///   `target` / `routeType` updates (without iterating or writing each route).
-    /// - The XNS name owner may continue toggling `isActive` on existing routes.
+    /// After closing, no additional routes may be created under that name.
+    /// Existing routes are unchanged: they are not frozen, and `isActive` remains
+    /// controllable by the XNS name owner.
     ///
     /// Requires `msg.sender` to own `label AT namespace`.
     ///
-    /// Emits `RouteBookFrozen` only if the route book was not already frozen.
-    function freezeRouteBook(
+    /// Emits `RouteBookClosed` only if the route book was not already closed.
+    function closeRouteBook(
         string calldata label,
         string calldata namespace
     ) external {
         bytes32 xnsNameKey = _requireXNSNameOwner(label, namespace);
 
-        if (!_routeBookFrozen[xnsNameKey]) {
-            _routeBookFrozen[xnsNameKey] = true;
+        if (!_routeBookClosed[xnsNameKey]) {
+            _routeBookClosed[xnsNameKey] = true;
 
-            emit RouteBookFrozen(
+            emit RouteBookClosed(
                 xnsNameKey,
                 label,
                 namespace
@@ -510,19 +533,19 @@ contract XNSRoutes {
         }
     }
 
-    /// @notice Permanently freezes the route book for `label AT namespace`.
+    /// @notice Permanently closes the route book for `label AT namespace`.
     ///
-    /// Same requirements and effects as `freezeRouteBook(label, namespace)`.
+    /// Same requirements and effects as `closeRouteBook(label, namespace)`.
     ///
-    /// Emits `RouteBookFrozen` only if the route book was not already frozen.
-    function freezeRouteBook(string calldata xnsName) external {
+    /// Emits `RouteBookClosed` only if the route book was not already closed.
+    function closeRouteBook(string calldata xnsName) external {
         (string memory label, string memory namespace) = _splitXNSName(xnsName);
         bytes32 xnsNameKey = _requireXNSNameOwnerMemory(label, namespace);
 
-        if (!_routeBookFrozen[xnsNameKey]) {
-            _routeBookFrozen[xnsNameKey] = true;
+        if (!_routeBookClosed[xnsNameKey]) {
+            _routeBookClosed[xnsNameKey] = true;
 
-            emit RouteBookFrozen(
+            emit RouteBookClosed(
                 xnsNameKey,
                 label,
                 namespace
@@ -566,7 +589,7 @@ contract XNSRoutes {
     ///
     ///     alice AT pay/treasury
     ///
-    /// An optional suffix after the second `/` is ignored.
+    /// The string must be exactly `label AT namespace/routeLabel` (no extra `/` segments).
     function getRouteRecord(
         string calldata route
     ) external view returns (RouteRecord memory record) {
@@ -608,6 +631,8 @@ contract XNSRoutes {
     /// Example:
     ///
     ///     resolveRouteIfActive("alice AT pay/treasury")
+    ///
+    /// The string must be exactly `label AT namespace/routeLabel` (no extra `/` segments).
     function resolveRouteIfActive(
         string calldata route
     ) external view returns (
@@ -648,6 +673,8 @@ contract XNSRoutes {
     /// Example:
     ///
     ///     resolveRoute("alice AT pay/treasury")
+    ///
+    /// The string must be exactly `label AT namespace/routeLabel` (no extra `/` segments).
     function resolveRoute(
         string calldata route
     ) external view returns (
@@ -671,12 +698,12 @@ contract XNSRoutes {
     // Route-book metadata
     // -------------------------------------------------------------------------
 
-    /// @notice Returns whether the route book belonging to an XNS name is frozen.
-    function isRouteBookFrozen(
+    /// @notice Returns whether the route book belonging to an XNS name is closed.
+    function isRouteBookClosed(
         string calldata label,
         string calldata namespace
-    ) external view returns (bool frozen) {
-        return _routeBookFrozen[
+    ) external view returns (bool closed) {
+        return _routeBookClosed[
             _xnsNameKey(label, namespace)
         ];
     }
@@ -685,37 +712,18 @@ contract XNSRoutes {
     ///
     /// Example:
     ///
-    ///     isRouteBookFrozen("alice AT pay")
-    function isRouteBookFrozen(
+    ///     isRouteBookClosed("alice AT pay")
+    function isRouteBookClosed(
         string calldata xnsName
-    ) external view returns (bool frozen) {
+    ) external view returns (bool closed) {
         (
             string memory label,
             string memory namespace
         ) = _splitXNSName(xnsName);
 
-        return _routeBookFrozen[
+        return _routeBookClosed[
             _xnsNameKey(label, namespace)
         ];
-    }
-
-    /// @notice Returns whether a route is effectively frozen for `target` / `routeType` updates.
-    ///
-    /// True when the route's `isFrozen` flag is set or its route book is frozen.
-    /// Returns false when the route does not exist.
-    function isRouteFrozen(
-        string calldata label,
-        string calldata namespace,
-        string calldata routeLabel
-    ) external view returns (bool frozen) {
-        bytes32 xnsNameKey = _xnsNameKey(label, namespace);
-        RouteRecord storage record = _routes[_routeKey(xnsNameKey, routeLabel)];
-
-        if (record.target.length == 0) {
-            return false;
-        }
-
-        return _isEffectivelyFrozen(xnsNameKey, record);
     }
 
     /// @notice Returns the number of routes ever created under an XNS name.
@@ -844,13 +852,7 @@ contract XNSRoutes {
     ///
     ///     ("alice", "pay", "treasury")
     ///
-    /// An optional `/params...` suffix is ignored:
-    ///
-    ///     alice AT pay/payment/amount=10
-    ///
-    /// also returns:
-    ///
-    ///     ("alice", "pay", "payment")
+    /// The input must contain exactly one `/` separating the XNS name from the route label.
     function splitRoute(
         string calldata route
     )
@@ -988,14 +990,6 @@ contract XNSRoutes {
         return _xnsNameKey(label, namespace);
     }
 
-    /// @dev True when `target` / `routeType` updates are permanently blocked.
-    function _isEffectivelyFrozen(
-        bytes32 xnsNameKey,
-        RouteRecord storage record
-    ) private view returns (bool) {
-        return record.isFrozen || _routeBookFrozen[xnsNameKey];
-    }
-
     // =========================================================================
     // INTERNAL PURE HELPERS
     // =========================================================================
@@ -1033,9 +1027,9 @@ contract XNSRoutes {
 
     /// @dev Parses:
     ///
-    ///     label AT namespace/route
+    ///     label AT namespace/routeLabel
     ///
-    /// and ignores anything after a second `/`.
+    /// Exactly one `/` is allowed. Application-layer param suffixes are not stripped.
     function _splitRoute(
         string calldata route
     )
@@ -1056,8 +1050,11 @@ contract XNSRoutes {
 
         for (uint256 i = 0; i < len; ++i) {
             if (b[i] == 0x2F) {
+                require(
+                    slashIndex == type(uint256).max,
+                    "XNSRoutes: invalid route"
+                );
                 slashIndex = i;
-                break;
             }
         }
 
@@ -1087,26 +1084,11 @@ contract XNSRoutes {
             "XNSRoutes: invalid route"
         );
 
-        uint256 routeEnd = len;
-
-        // Ignore optional application-layer params after second slash.
-        for (uint256 i = routeStart; i < len; ++i) {
-            if (b[i] == 0x2F) {
-                routeEnd = i;
-                break;
-            }
-        }
-
-        require(
-            routeEnd > routeStart,
-            "XNSRoutes: invalid route"
-        );
-
         routeLabel =
             _calldataSubstringToString(
                 b,
                 routeStart,
-                routeEnd
+                len
             );
     }
 

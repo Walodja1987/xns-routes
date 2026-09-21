@@ -1,12 +1,13 @@
 /**
- * Check whether the entire route book under an XNS name is frozen
- * (no new routes; activation may still toggle).
+ * Permanently close the route book under an XNS name (no new routes).
+ * Caller must be the address XNS currently resolves for `label@namespace`.
+ * Existing routes remain updatable until individually frozen; activation may still be toggled.
  *
  * USAGE:
- * `npx hardhat run scripts/examples/isRouteBookFrozen.ts --network <network_name>`
+ * `npx hardhat run scripts/examples/closeRouteBook.ts --network <network_name>`
  *
  * EXAMPLE:
- * `npx hardhat run scripts/examples/isRouteBookFrozen.ts --network sepolia`
+ * `npx hardhat run scripts/examples/closeRouteBook.ts --network sepolia`
  *
  * REQUIRED SETUP:
  * - MNEMONIC, network RPC (see docs/DEV_NOTES.md)
@@ -14,12 +15,11 @@
  */
 
 import hre from "hardhat";
-import { solidityPackedKeccak256 } from "ethers";
+import { formatEther } from "ethers";
 import { XNS_ROUTES_ADDRESS } from "../../constants/addresses";
 
 const RESET = "\x1b[0m";
 const GREEN = "\x1b[32m";
-const YELLOW = "\x1b[33m";
 const RED = "\x1b[31m";
 
 /*//////////////////////////////////////////////////////////////
@@ -28,6 +28,7 @@ const RED = "\x1b[31m";
 
 const label = "xns";
 const namespace = "action";
+const signerIndex = 0;
 
 async function main() {
   const networkName = hre.network.name;
@@ -39,22 +40,24 @@ async function main() {
   }
 
   const routes = await hre.ethers.getContractAt("XNSRoutes", contractAddress);
+  const signers = await hre.ethers.getSigners();
+  const signer = signers[signerIndex];
   const xnsName = `${label}@${namespace}`;
-  const xnsNameKey = solidityPackedKeccak256(["string", "string", "string"], [label, "@", namespace]);
-  const frozen = await routes.isRouteBookFrozen(xnsName);
 
   console.log(`\nNetwork: ${GREEN}${networkName}${RESET}`);
   console.log(`XNSRoutes: ${GREEN}${contractAddress}${RESET}`);
-  console.log(`xnsName: ${GREEN}${xnsName}${RESET}`);
-  console.log(`xnsNameKey: ${GREEN}${xnsNameKey}${RESET}\n`);
+  console.log(`Signer: ${GREEN}${signer.address}${RESET}`);
+  const balance = await hre.ethers.provider.getBalance(signer.address);
+  console.log(`Balance: ${GREEN}${formatEther(balance)} ETH${RESET}`);
+  console.log(`xnsName: ${GREEN}${xnsName}${RESET}\n`);
 
-  if (frozen) {
-    console.log(
-      `${YELLOW}⚠${RESET} Route book is ${YELLOW}frozen${RESET} for this name (new routes disabled).\n`,
-    );
-  } else {
-    console.log(`${GREEN}✓${RESET} Route book is ${GREEN}not${RESET} frozen.\n`);
-  }
+  const tx = await routes.connect(signer).closeRouteBook(xnsName);
+  console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
+  console.log("Waiting for confirmation...\n");
+  await tx.wait();
+
+  const closed = await routes.isRouteBookClosed(xnsName);
+  console.log(`${GREEN}✓ Confirmed. routeBookClosed=${closed}${RESET}\n`);
 }
 
 main().catch((error: unknown) => {
