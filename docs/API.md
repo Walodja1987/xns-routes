@@ -45,9 +45,9 @@ Params are not validated, stored, interpreted, or processed on-chain.
 Each route stores:
 - `target` — opaque endpoint payload (mutable until frozen); 1–256 bytes.
 - `routeType` — generic off-chain interpretation hint (mutable until frozen).
-- `isActive` — whether applications should currently treat the route as usable.
+- `isActive` — whether applications should currently treat the route as usable
+  (toggled by the XNS name owner).
 - `isFrozen` — whether this route's `target` / `routeType` are permanently locked.
-- `activeController` — account authorized to toggle `isActive`.
 - `routeLabel` — immutable route label.
 
 `routeLabel` is immutable after route creation. `target` and `routeType` may be updated by
@@ -68,13 +68,7 @@ This contract does not validate `target` contents beyond non-empty and max lengt
 
 A route starts active by default.
 
-Its `activeController` may:
-- Activate or deactivate the route.
-- Transfer active control using a two-step process.
-- Permanently renounce active control.
-
-Renouncing active control sets `activeController` to `NO_ACTIVE_CONTROLLER` and permanently
-locks the current `isActive` state.
+The XNS name owner may activate or deactivate the route at any time (including after freeze).
 
 ### Route freezing
 
@@ -87,7 +81,7 @@ A route is effectively frozen when `isFrozen` is true **or** its route book is f
 
 After effective freeze:
 - `target` and `routeType` can no longer be updated.
-- Active controllers may continue toggling `isActive` unless active control has been renounced.
+- The XNS name owner may continue toggling `isActive`.
 
 After route-book freeze:
 - No new routes may be created under that name.
@@ -127,7 +121,7 @@ No reverse lookup is provided because multiple routes may point to the same targ
 
 Creates a route under an XNS name.
 
-The route starts active, unfrozen, and `activeController` is set to the current XNS name owner.
+The route starts active and unfrozen.
 `target` and `routeType` remain mutable until the route or route book is frozen.
 
 Example:
@@ -154,34 +148,14 @@ function createRoute(string label, string namespace, string routeLabel, bytes ta
 
 
 
-### createRouteWithController
-
-
-Creates a route with an explicitly specified active controller.
-
-Same requirements as `createRoute`, plus:
-- `activeController` must not be `address(0)`.
-
-Note: If `activeController` is set to `NO_ACTIVE_CONTROLLER`, the route's `isActive` status is
-locked and cannot be changed after creation.
-
-Emits `RouteCreated`.
-
-```solidity
-function createRouteWithController(string label, string namespace, string routeLabel, bytes target, uint32 routeType, address activeController) external
-```
-
-
-
-
 ### activateRoute
 
 
 Activates an existing route.
 
 **Requirements:**
-- `msg.sender` must be the current `activeController`.
-- The route must exist and active control must not be renounced.
+- `msg.sender` must own `label AT namespace`.
+- The route must exist.
 
 Emits `RouteActiveStatusUpdated` only when `isActive` changes.
 
@@ -198,95 +172,13 @@ function activateRoute(string label, string namespace, string routeLabel) extern
 Deactivates an existing route.
 
 **Requirements:**
-- `msg.sender` must be the current `activeController`.
-- The route must exist and active control must not be renounced.
+- `msg.sender` must own `label AT namespace`.
+- The route must exist.
 
 Emits `RouteActiveStatusUpdated` only when `isActive` changes.
 
 ```solidity
 function deactivateRoute(string label, string namespace, string routeLabel) external
-```
-
-
-
-
-### initiateActiveControllerTransfer
-
-
-Starts a two-step active-controller transfer.
-
-**Requirements:**
-- `msg.sender` must be the current `activeController`.
-- The route must exist and active control must not be renounced.
-- `newActiveController` must not be zero, the current controller, or
-  `NO_ACTIVE_CONTROLLER` (use `renounceActiveControl` instead).
-
-Replaces any existing pending transfer for this route.
-
-Emits `ActiveControllerTransferInitiated`.
-
-```solidity
-function initiateActiveControllerTransfer(string label, string namespace, string routeLabel, address newActiveController) external
-```
-
-
-
-
-### acceptActiveController
-
-
-Accepts a pending active-controller transfer.
-
-**Requirements:**
-- `msg.sender` must be the pending `newActiveController` from `initiateActiveControllerTransfer`.
-- The route must exist and active control must not be renounced.
-- A pending transfer must exist.
-
-Emits `ActiveControllerTransferAccepted`.
-
-```solidity
-function acceptActiveController(string label, string namespace, string routeLabel) external
-```
-
-
-
-
-### cancelActiveControllerTransfer
-
-
-Cancels a pending active-controller transfer.
-
-**Requirements:**
-- `msg.sender` must be the current `activeController`.
-- The route must exist and active control must not be renounced.
-- A pending transfer must exist.
-
-Emits `ActiveControllerTransferCancelled`.
-
-```solidity
-function cancelActiveControllerTransfer(string label, string namespace, string routeLabel) external
-```
-
-
-
-
-### renounceActiveControl
-
-
-Permanently renounces active control for a route.
-
-The current `isActive` status remains unchanged and becomes permanently locked.
-
-**Requirements:**
-- `msg.sender` must be the current `activeController`.
-- The route must exist and active control must not be renounced.
-
-Clears any pending transfer.
-
-Emits `ActiveControllerRenounced`.
-
-```solidity
-function renounceActiveControl(string label, string namespace, string routeLabel) external
 ```
 
 
@@ -317,7 +209,7 @@ function updateRoute(string label, string namespace, string routeLabel, bytes ne
 
 Permanently freezes an individual route so `target` and `routeType` cannot change.
 
-Freezing is irreversible. `isActive` / `activeController` remain independently controllable.
+Freezing is irreversible. `isActive` remains independently controllable by the XNS name owner.
 
 **Requirements:**
 - `msg.sender` must own `label AT namespace`.
@@ -341,7 +233,7 @@ After freezing:
 - No additional routes may be created.
 - All existing routes under the name are treated as effectively frozen for
   `target` / `routeType` updates (without iterating or writing each route).
-- Active-controller mechanics (`isActive`) remain unchanged.
+- The XNS name owner may continue toggling `isActive` on existing routes.
 
 Requires `msg.sender` to own `label AT namespace`.
 
@@ -513,18 +405,6 @@ function isRouteFrozen(string label, string namespace, string routeLabel) extern
 
 
 
-### pendingActiveController
-
-
-Returns a route's pending active controller, or address(0) if none.
-
-```solidity
-function pendingActiveController(string label, string namespace, string routeLabel) external view returns (address pending)
-```
-
-
-
-
 ### getRouteKeyCount
 
 
@@ -674,7 +554,7 @@ function isValidTarget(bytes target) external pure returns (bool valid)
 
 
 ```solidity
-event RouteCreated(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel, bytes target, uint32 routeType, bool isActive, address activeController)
+event RouteCreated(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel, bytes target, uint32 routeType, bool isActive)
 ```
 
 
@@ -733,58 +613,6 @@ event RouteBookFrozen(bytes32 xnsNameKey, string label, string namespace)
 
 
 
-### ActiveControllerTransferInitiated
-
-
-
-
-```solidity
-event ActiveControllerTransferInitiated(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel, address pendingActiveController)
-```
-
-
-
-
-
-### ActiveControllerTransferAccepted
-
-
-
-
-```solidity
-event ActiveControllerTransferAccepted(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel, address previousActiveController, address newActiveController)
-```
-
-
-
-
-
-### ActiveControllerTransferCancelled
-
-
-
-
-```solidity
-event ActiveControllerTransferCancelled(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel, address cancelledPendingActiveController)
-```
-
-
-
-
-
-### ActiveControllerRenounced
-
-
-
-
-```solidity
-event ActiveControllerRenounced(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel)
-```
-
-
-
-
-
 
 
 
@@ -797,21 +625,6 @@ Maximum allowed `target` payload length (bytes).
 
 ```solidity
 uint256 MAX_TARGET_LENGTH
-```
-
-
-
-
-
-### NO_ACTIVE_CONTROLLER
-
-
-Sentinel indicating that active control has been permanently renounced.
-
-`address(0)` remains reserved for invalid/unset controller values.
-
-```solidity
-address NO_ACTIVE_CONTROLLER
 ```
 
 
@@ -842,7 +655,6 @@ struct RouteRecord {
   uint32 routeType;
   bool isActive;
   bool isFrozen;
-  address activeController;
   string routeLabel;
 ```
 

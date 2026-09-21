@@ -16,7 +16,6 @@ describe("XNSRoutes", function () {
   const XNS_NAME = `${LABEL}@${NAMESPACE}`;
   /** Default `routeType` in tests; semantics are offchain */
   const RT0 = 0;
-  const NO_ACTIVE_CONTROLLER = "0x000000000000000000000000000000000000dEaD";
   /** Matches `XNSRoutes.MAX_TARGET_LENGTH`. */
   const MAX_TARGET_LENGTH = 256;
   /** Empty `bytes` — missing-route sentinel (`target.length == 0`). */
@@ -28,14 +27,7 @@ describe("XNSRoutes", function () {
     invalidXnsName: "XNSRoutes: invalid XNS name",
     invalidRouteLabel: "XNSRoutes: invalid route label",
     invalidTarget: "XNSRoutes: invalid target",
-    invalidActiveController: "XNSRoutes: invalid active controller",
     notXnsNameOwner: "XNSRoutes: not XNS name owner",
-    notActiveController: "XNSRoutes: not active controller",
-    activeControlRenounced: "XNSRoutes: active control renounced",
-    sameActiveController: "XNSRoutes: same active controller",
-    useRenounceActiveControl: "XNSRoutes: use renounceActiveControl",
-    noPendingTransfer: "XNSRoutes: no pending transfer",
-    notPendingActiveController: "XNSRoutes: not pending active controller",
     routeNotFound: "XNSRoutes: route not found",
     routeInactive: "XNSRoutes: route inactive",
     routeBookFrozen: "XNSRoutes: route book frozen",
@@ -128,7 +120,7 @@ describe("XNSRoutes", function () {
   /** `getRouteRecord(routeKey)` returns a struct; destructure as tuple in tests. */
   async function getRouteRecordSingle(routes: XNSRoutes, routeKey: string) {
     const r = await getRouteRecordByKey(routes, routeKey);
-    return [r.target, r.routeType, r.isActive, r.activeController] as const;
+    return [r.target, r.routeType, r.isActive] as const;
   }
 
   /** True when `target` is a non-empty bytes payload (route exists). */
@@ -215,7 +207,6 @@ describe("XNSRoutes", function () {
           buildTarget,
           RT0,
           true,
-          owner.address,
         );
 
       expect(
@@ -226,7 +217,6 @@ describe("XNSRoutes", function () {
       expect(record.isActive).to.equal(true);
       expect(record.isFrozen).to.equal(false);
       expect(record.routeType).to.equal(RT0);
-      expect(record.activeController).to.equal(owner.address);
     });
 
     it("Should revert with NotXnsNameOwner when caller is not XNS owner", async function () {
@@ -294,16 +284,7 @@ describe("XNSRoutes", function () {
       await routes.connect(owner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, t1, RT0);
       await routes.connect(owner).createRoute(LABEL, NAMESPACE, "other-route", t2, RT0);
       await routes.connect(owner).createRoute(LABEL, "pay", ROUTE_LABEL, t2, RT0);
-      await routes
-        .connect(other)
-        .createRouteWithController(
-          OTHER_LABEL,
-          OTHER_NAMESPACE,
-          ROUTE_LABEL,
-          t2,
-          RT0,
-          other.address,
-        );
+      await routes.connect(other).createRoute(OTHER_LABEL, OTHER_NAMESPACE, ROUTE_LABEL, t2, RT0);
 
       expect((await routes.getRouteRecord(LABEL, NAMESPACE, ROUTE_LABEL)).target).to.equal(t1);
       expect((await routes.getRouteRecord(LABEL, NAMESPACE, "other-route")).target).to.equal(t2);
@@ -320,59 +301,6 @@ describe("XNSRoutes", function () {
       await expect(
         routes.connect(owner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0),
       ).to.be.revertedWith(XR.routeAlreadyExists);
-    });
-  });
-
-  describe("createRouteWithController", function () {
-    it("Should create route with explicit activeController", async function () {
-      const { routes, owner, other, buildTarget } = await loadFixture(deployFixture);
-
-      await expect(
-        routes
-          .connect(owner)
-          .createRouteWithController(
-            LABEL,
-            NAMESPACE,
-            ROUTE_LABEL,
-            buildTarget,
-            RT0,
-            other.address,
-          ),
-      )
-        .to.emit(routes, "RouteCreated")
-        .withArgs(
-          xnsNameKey(LABEL, NAMESPACE),
-          routeStorageKey(LABEL, NAMESPACE, ROUTE_LABEL),
-          LABEL,
-          NAMESPACE,
-          ROUTE_LABEL,
-          buildTarget,
-          RT0,
-          true,
-          other.address,
-        );
-
-      const record = await routes.getRouteRecord(LABEL, NAMESPACE, ROUTE_LABEL);
-      expect(record.target).to.equal(buildTarget);
-      expect(record.isActive).to.equal(true);
-      expect(record.activeController).to.equal(other.address);
-    });
-
-    it("Should revert with InvalidActiveController when activeController is zero", async function () {
-      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
-
-      await expect(
-        routes
-          .connect(owner)
-          .createRouteWithController(
-            LABEL,
-            NAMESPACE,
-            ROUTE_LABEL,
-            buildTarget,
-            RT0,
-            ethers.ZeroAddress,
-          ),
-      ).to.be.revertedWith(XR.invalidActiveController);
     });
   });
 
@@ -449,13 +377,27 @@ describe("XNSRoutes", function () {
       expect((await routes.getRouteRecord(LABEL, NAMESPACE, ROUTE_LABEL)).isActive).to.equal(false);
     });
 
-    it("Should revert with NotActiveController for wrong caller", async function () {
+    it("Should revert with NotXnsNameOwner when caller is not XNS owner", async function () {
       const { routes, owner, other, buildTarget } = await loadFixture(deployFixture);
       await routes.connect(owner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0);
 
       await expect(
         routes.connect(other).deactivateRoute(LABEL, NAMESPACE, ROUTE_LABEL),
-      ).to.be.revertedWith(XR.notActiveController);
+      ).to.be.revertedWith(XR.notXnsNameOwner);
+      await expect(
+        routes.connect(other).activateRoute(LABEL, NAMESPACE, ROUTE_LABEL),
+      ).to.be.revertedWith(XR.notXnsNameOwner);
+    });
+
+    it("Should let the XNS name owner toggle isActive", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes.connect(owner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0);
+
+      await routes.connect(owner).deactivateRoute(LABEL, NAMESPACE, ROUTE_LABEL);
+      expect((await routes.getRouteRecord(LABEL, NAMESPACE, ROUTE_LABEL)).isActive).to.equal(false);
+
+      await routes.connect(owner).activateRoute(LABEL, NAMESPACE, ROUTE_LABEL);
+      expect((await routes.getRouteRecord(LABEL, NAMESPACE, ROUTE_LABEL)).isActive).to.equal(true);
     });
 
     it("Should revert with RouteNotFound when route missing", async function () {
@@ -464,261 +406,6 @@ describe("XNSRoutes", function () {
       await expect(
         routes.connect(owner).deactivateRoute(LABEL, NAMESPACE, "missing"),
       ).to.be.revertedWith(XR.routeNotFound);
-    });
-  });
-
-  describe("activeController", function () {
-    it("Should let activeController toggle without being the XNS name owner", async function () {
-      const { routes, owner, other, buildTarget } = await loadFixture(deployFixture);
-      await routes
-        .connect(owner)
-        .createRouteWithController(
-          LABEL,
-          NAMESPACE,
-          ROUTE_LABEL,
-          buildTarget,
-          RT0,
-          other.address,
-        );
-
-      await expect(routes.connect(other).deactivateRoute(LABEL, NAMESPACE, ROUTE_LABEL)).to.emit(
-        routes,
-        "RouteActiveStatusUpdated",
-      );
-      expect((await routes.getRouteRecord(LABEL, NAMESPACE, ROUTE_LABEL)).isActive).to.equal(false);
-    });
-
-    it("Should revert when name owner toggles active status but is not activeController", async function () {
-      const { routes, owner, other, buildTarget } = await loadFixture(deployFixture);
-      await routes
-        .connect(owner)
-        .createRouteWithController(
-          LABEL,
-          NAMESPACE,
-          ROUTE_LABEL,
-          buildTarget,
-          RT0,
-          other.address,
-        );
-
-      await expect(
-        routes.connect(owner).deactivateRoute(LABEL, NAMESPACE, ROUTE_LABEL),
-      ).to.be.revertedWith(XR.notActiveController);
-    });
-  });
-
-  describe("activeController transfer and renounce", function () {
-    it("Should transfer activeController in two steps", async function () {
-      const fixture = await loadFixture(deployFixture);
-      const { routes, owner, other } = fixture;
-      await createDefaultRoute(fixture);
-
-      await expect(
-        routes
-          .connect(owner)
-          .initiateActiveControllerTransfer(LABEL, NAMESPACE, ROUTE_LABEL, other.address),
-      )
-        .to.emit(routes, "ActiveControllerTransferInitiated")
-        .withArgs(
-          xnsNameKey(LABEL, NAMESPACE),
-          routeStorageKey(LABEL, NAMESPACE, ROUTE_LABEL),
-          LABEL,
-          NAMESPACE,
-          ROUTE_LABEL,
-          other.address,
-        );
-
-      expect(await routes.pendingActiveController(LABEL, NAMESPACE, ROUTE_LABEL)).to.equal(
-        other.address,
-      );
-
-      await expect(routes.connect(other).acceptActiveController(LABEL, NAMESPACE, ROUTE_LABEL))
-        .to.emit(routes, "ActiveControllerTransferAccepted")
-        .withArgs(
-          xnsNameKey(LABEL, NAMESPACE),
-          routeStorageKey(LABEL, NAMESPACE, ROUTE_LABEL),
-          LABEL,
-          NAMESPACE,
-          ROUTE_LABEL,
-          owner.address,
-          other.address,
-        );
-
-      const record = await routes.getRouteRecord(LABEL, NAMESPACE, ROUTE_LABEL);
-      expect(record.activeController).to.equal(other.address);
-      expect(await routes.pendingActiveController(LABEL, NAMESPACE, ROUTE_LABEL)).to.equal(
-        ethers.ZeroAddress,
-      );
-    });
-
-    it("Should let the current controller cancel a pending transfer", async function () {
-      const fixture = await loadFixture(deployFixture);
-      const { routes, owner, other } = fixture;
-      await createDefaultRoute(fixture);
-
-      await routes
-        .connect(owner)
-        .initiateActiveControllerTransfer(LABEL, NAMESPACE, ROUTE_LABEL, other.address);
-
-      await expect(
-        routes.connect(owner).cancelActiveControllerTransfer(LABEL, NAMESPACE, ROUTE_LABEL),
-      )
-        .to.emit(routes, "ActiveControllerTransferCancelled")
-        .withArgs(
-          xnsNameKey(LABEL, NAMESPACE),
-          routeStorageKey(LABEL, NAMESPACE, ROUTE_LABEL),
-          LABEL,
-          NAMESPACE,
-          ROUTE_LABEL,
-          other.address,
-        );
-
-      expect(await routes.pendingActiveController(LABEL, NAMESPACE, ROUTE_LABEL)).to.equal(
-        ethers.ZeroAddress,
-      );
-      expect((await routes.getRouteRecord(LABEL, NAMESPACE, ROUTE_LABEL)).activeController).to.equal(
-        owner.address,
-      );
-    });
-
-    it("Should replace an existing pending transfer", async function () {
-      const fixture = await loadFixture(deployFixture);
-      const { routes, owner, other } = fixture;
-      const [, , , third] = await ethers.getSigners();
-      await createDefaultRoute(fixture);
-
-      await routes
-        .connect(owner)
-        .initiateActiveControllerTransfer(LABEL, NAMESPACE, ROUTE_LABEL, other.address);
-      await routes
-        .connect(owner)
-        .initiateActiveControllerTransfer(LABEL, NAMESPACE, ROUTE_LABEL, third.address);
-
-      expect(await routes.pendingActiveController(LABEL, NAMESPACE, ROUTE_LABEL)).to.equal(
-        third.address,
-      );
-
-      await expect(
-        routes.connect(other).acceptActiveController(LABEL, NAMESPACE, ROUTE_LABEL),
-      ).to.be.revertedWith(XR.notPendingActiveController);
-
-      await routes.connect(third).acceptActiveController(LABEL, NAMESPACE, ROUTE_LABEL);
-      expect((await routes.getRouteRecord(LABEL, NAMESPACE, ROUTE_LABEL)).activeController).to.equal(
-        third.address,
-      );
-    });
-
-    it("Should revert initiateActiveControllerTransfer for invalid newActiveController", async function () {
-      const fixture = await loadFixture(deployFixture);
-      const { routes, owner, other } = fixture;
-      await createDefaultRoute(fixture);
-
-      await expect(
-        routes
-          .connect(owner)
-          .initiateActiveControllerTransfer(LABEL, NAMESPACE, ROUTE_LABEL, ethers.ZeroAddress),
-      ).to.be.revertedWith(XR.invalidActiveController);
-
-      await expect(
-        routes
-          .connect(owner)
-          .initiateActiveControllerTransfer(LABEL, NAMESPACE, ROUTE_LABEL, owner.address),
-      ).to.be.revertedWith(XR.sameActiveController);
-
-      await expect(
-        routes
-          .connect(owner)
-          .initiateActiveControllerTransfer(LABEL, NAMESPACE, ROUTE_LABEL, NO_ACTIVE_CONTROLLER),
-      ).to.be.revertedWith(XR.useRenounceActiveControl);
-
-      await expect(
-        routes
-          .connect(other)
-          .initiateActiveControllerTransfer(LABEL, NAMESPACE, ROUTE_LABEL, other.address),
-      ).to.be.revertedWith(XR.notActiveController);
-    });
-
-    it("Should renounce active control and block further toggles", async function () {
-      const fixture = await loadFixture(deployFixture);
-      const { routes, owner } = fixture;
-      await createDefaultRoute(fixture);
-
-      await expect(routes.connect(owner).renounceActiveControl(LABEL, NAMESPACE, ROUTE_LABEL))
-        .to.emit(routes, "ActiveControllerRenounced")
-        .and.not.to.emit(routes, "RouteActiveStatusUpdated");
-
-      const record = await routes.getRouteRecord(LABEL, NAMESPACE, ROUTE_LABEL);
-      expect(record.isActive).to.equal(true);
-      expect(record.activeController).to.equal(NO_ACTIVE_CONTROLLER);
-      expect(await routes.NO_ACTIVE_CONTROLLER()).to.equal(NO_ACTIVE_CONTROLLER);
-
-      await expect(
-        routes.connect(owner).activateRoute(LABEL, NAMESPACE, ROUTE_LABEL),
-      ).to.be.revertedWith(XR.activeControlRenounced);
-
-      await expect(
-        routes
-          .connect(owner)
-          .initiateActiveControllerTransfer(LABEL, NAMESPACE, ROUTE_LABEL, owner.address),
-      ).to.be.revertedWith(XR.activeControlRenounced);
-    });
-
-    it("Should keep isActive false when renouncing an inactive route", async function () {
-      const fixture = await loadFixture(deployFixture);
-      const { routes, owner } = fixture;
-      await createDefaultRoute(fixture);
-
-      await routes.connect(owner).deactivateRoute(LABEL, NAMESPACE, ROUTE_LABEL);
-
-      await expect(routes.connect(owner).renounceActiveControl(LABEL, NAMESPACE, ROUTE_LABEL))
-        .to.emit(routes, "ActiveControllerRenounced")
-        .and.not.to.emit(routes, "RouteActiveStatusUpdated");
-
-      const record = await routes.getRouteRecord(LABEL, NAMESPACE, ROUTE_LABEL);
-      expect(record.isActive).to.equal(false);
-      expect(record.activeController).to.equal(NO_ACTIVE_CONTROLLER);
-    });
-
-    it("Should clear pending transfer on renounce", async function () {
-      const fixture = await loadFixture(deployFixture);
-      const { routes, owner, other } = fixture;
-      await createDefaultRoute(fixture);
-
-      await routes
-        .connect(owner)
-        .initiateActiveControllerTransfer(LABEL, NAMESPACE, ROUTE_LABEL, other.address);
-      await routes.connect(owner).renounceActiveControl(LABEL, NAMESPACE, ROUTE_LABEL);
-
-      expect(await routes.pendingActiveController(LABEL, NAMESPACE, ROUTE_LABEL)).to.equal(
-        ethers.ZeroAddress,
-      );
-      await expect(
-        routes.connect(other).acceptActiveController(LABEL, NAMESPACE, ROUTE_LABEL),
-      ).to.be.revertedWith(XR.activeControlRenounced);
-    });
-
-    it("Should revert renounceActiveControl when already renounced", async function () {
-      const fixture = await loadFixture(deployFixture);
-      const { routes, owner } = fixture;
-      await createDefaultRoute(fixture);
-
-      await routes.connect(owner).renounceActiveControl(LABEL, NAMESPACE, ROUTE_LABEL);
-      await expect(
-        routes.connect(owner).renounceActiveControl(LABEL, NAMESPACE, ROUTE_LABEL),
-      ).to.be.revertedWith(XR.activeControlRenounced);
-    });
-
-    it("Should still resolve via resolveRouteIfActive when renounced while active", async function () {
-      const fixture = await loadFixture(deployFixture);
-      const { routes, owner, buildTarget } = fixture;
-      await createDefaultRoute(fixture);
-
-      await routes.connect(owner).renounceActiveControl(LABEL, NAMESPACE, ROUTE_LABEL);
-
-      expect(await routes.resolveRouteIfActive(LABEL, NAMESPACE, ROUTE_LABEL)).to.deep.equal([
-        buildTarget,
-        RT0,
-      ]);
     });
   });
 
@@ -750,7 +437,6 @@ describe("XNSRoutes", function () {
       expect(record.routeType).to.equal(newType);
       expect(record.isActive).to.equal(true);
       expect(record.isFrozen).to.equal(false);
-      expect(record.activeController).to.equal(owner.address);
     });
 
     it("Should not emit RouteUpdated when values are unchanged", async function () {
@@ -767,18 +453,6 @@ describe("XNSRoutes", function () {
       const fixture = await loadFixture(deployFixture);
       const { routes, other, buildTarget } = fixture;
       await createDefaultRoute(fixture);
-
-      await expect(
-        routes.connect(other).updateRoute(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, 1),
-      ).to.be.revertedWith(XR.notXnsNameOwner);
-    });
-
-    it("Should revert when activeController tries to update", async function () {
-      const fixture = await loadFixture(deployFixture);
-      const { routes, owner, other, buildTarget } = fixture;
-      await routes
-        .connect(owner)
-        .createRouteWithController(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0, other.address);
 
       await expect(
         routes.connect(other).updateRoute(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, 1),
@@ -984,7 +658,6 @@ describe("XNSRoutes", function () {
       expect(record.target).to.equal(buildTarget);
       expect(record.isActive).to.equal(true);
       expect(record.routeType).to.equal(RT0);
-      expect(record.activeController).to.equal(owner.address);
     });
 
     it("Should revert getRouteRecord with InvalidRoute when no slash is present", async function () {
@@ -1172,14 +845,13 @@ describe("XNSRoutes", function () {
       expect(keys.length).to.equal(1);
       expect(keys[0]).to.equal(rk);
 
-      const [target, routeType, isActive, activeController] = await getRouteRecordSingle(
+      const [target, routeType, isActive] = await getRouteRecordSingle(
         routes,
         rk,
       );
       expect(target).to.equal(buildTarget);
       expect(routeType).to.equal(RT0);
       expect(isActive).to.equal(true);
-      expect(activeController).to.equal(owner.address);
     });
 
     it("Should not add a key when createRoute reverts with RouteAlreadyExists", async function () {
@@ -1214,19 +886,10 @@ describe("XNSRoutes", function () {
     });
 
     it("Should read multiple keys via getRouteRecord in a loop", async function () {
-      const { routes, owner, other, buildTarget } = await loadFixture(deployFixture);
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes.connect(owner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0);
-      await routes
-        .connect(owner)
-        .createRouteWithController(
-          LABEL,
-          NAMESPACE,
-          "other-route",
-          buildTarget,
-          RT0,
-          other.address,
-        );
-      await routes.connect(other).deactivateRoute(LABEL, NAMESPACE, "other-route");
+      await routes.connect(owner).createRoute(LABEL, NAMESPACE, "other-route", buildTarget, RT0);
+      await routes.connect(owner).deactivateRoute(LABEL, NAMESPACE, "other-route");
 
       const k0 = routeStorageKey(LABEL, NAMESPACE, ROUTE_LABEL);
       const k1 = routeStorageKey(LABEL, NAMESPACE, "other-route");
@@ -1239,11 +902,9 @@ describe("XNSRoutes", function () {
       expect(r0.target).to.equal(buildTarget);
       expect(r0.routeType).to.equal(RT0);
       expect(r0.isActive).to.equal(true);
-      expect(r0.activeController).to.equal(owner.address);
       expect(r0.routeLabel).to.equal(ROUTE_LABEL);
       expect(r1.target).to.equal(buildTarget);
       expect(r1.isActive).to.equal(false);
-      expect(r1.activeController).to.equal(other.address);
       expect(r1.routeLabel).to.equal("other-route");
       expect(rAbsent.target).to.equal(EMPTY_TARGET);
       expect(rAbsent.routeLabel).to.equal("");
@@ -1260,18 +921,9 @@ describe("XNSRoutes", function () {
     });
 
     it("Should return human-readable routes via getRouteEntries", async function () {
-      const { routes, owner, other, buildTarget } = await loadFixture(deployFixture);
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes.connect(owner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0);
-      await routes
-        .connect(owner)
-        .createRouteWithController(
-          LABEL,
-          NAMESPACE,
-          "global-route",
-          buildTarget,
-          RT0,
-          other.address,
-        );
+      await routes.connect(owner).createRoute(LABEL, NAMESPACE, "global-route", buildTarget, RT0);
 
       const k0 = routeStorageKey(LABEL, NAMESPACE, ROUTE_LABEL);
       const k1 = routeStorageKey(LABEL, NAMESPACE, "global-route");
@@ -1283,7 +935,7 @@ describe("XNSRoutes", function () {
       expect(entries[0].record.target).to.equal(buildTarget);
       expect(entries[1].routeKey).to.equal(k1);
       expect(entries[1].record.routeLabel).to.equal("global-route");
-      expect(entries[1].record.activeController).to.equal(other.address);
+      expect(entries[1].record.isActive).to.equal(true);
     });
 
     it("Should paginate getRouteEntries with the same rules as getRouteKeys", async function () {

@@ -30,14 +30,14 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
-- Name owner can **create** a route for `(label, namespace, routeLabel)` with the given `target` (`bytes`, 1–`MAX_TARGET_LENGTH` where `MAX_TARGET_LENGTH = 256`), `routeType`, `isActive == true`, and `activeController` set to the current XNS name owner (`XNS.getAddress(label, namespace)`).
+- Name owner can **create** a route for `(label, namespace, routeLabel)` with the given `target` (`bytes`, 1–`MAX_TARGET_LENGTH` where `MAX_TARGET_LENGTH = 256`), `routeType`, and `isActive == true`.
 - Second `createRoute` for the same key should revert with `"XNSRoutes: route already exists"`.
 - Routes under different `label`, `namespace`, or `routeLabel` are independent.
 - Missing routes are represented by empty `target` (`target.length == 0`).
 
 #### Events
 
-- Should emit `RouteCreated` with indexed `xnsNameKey` (`keccak256(abi.encodePacked(label, "@", namespace))`), `routeKey`, and `target`, then `label`, `namespace`, `routeLabel`, `routeType`, `isActive`, and `activeController` (non-indexed, full values in log data).
+- Should emit `RouteCreated` with indexed `xnsNameKey` (`keccak256(abi.encodePacked(label, "@", namespace))`), `routeKey`, then `label`, `namespace`, `routeLabel`, `target`, `routeType`, and `isActive` (non-indexed, full values in log data).
 
 #### Reverts
 
@@ -45,23 +45,11 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 ---
 
-## `createRouteWithController`
-
-#### Functionality
-
-- Same as `createRoute`, but accepts an explicit `activeController` (`isActive = true`; must not be `address(0)`).
-
-#### Reverts
-
-- Same as `createRoute`, plus `"XNSRoutes: invalid active controller"` when `activeController == address(0)`.
-
----
-
 ## `activateRoute` / `deactivateRoute`
 
 #### Functionality
 
-- `activeController` can set `isActive` to true / false for an existing `(label, namespace, routeLabel)`.
+- XNS name owner can set `isActive` to true / false for an existing `(label, namespace, routeLabel)`.
 - Should still succeed when the **route book** is frozen (only new routes are blocked for the name owner).
 - Should emit `RouteActiveStatusUpdated` **only when `isActive` actually changes** (second call when already in that state is a no-op for events).
 
@@ -71,23 +59,8 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Reverts
 
-- Should revert with `"XNSRoutes: not active controller"` when the caller is not `record.activeController`.
+- Should revert with `"XNSRoutes: not XNS name owner"` when the caller is not the current XNS name owner.
 - Should revert with `"XNSRoutes: route not found"` when no route exists for `(label, namespace, routeLabel)`.
-- Should revert with `"XNSRoutes: active control renounced"` after `renounceActiveControl`.
-
----
-
-## `activeController`
-
-#### Functionality
-
-- Two-step transfer: `initiateActiveControllerTransfer` → `acceptActiveController` (or `cancelActiveControllerTransfer`).
-- `renounceActiveControl` sets `activeController` to `NO_ACTIVE_CONTROLLER` and `isActive` to false.
-- Events: `ActiveControllerTransferInitiated`, `ActiveControllerTransferAccepted`, `ActiveControllerTransferCancelled`, `ActiveControllerRenounced`.
-
-#### Reverts
-
-- `"XNSRoutes: not active controller"`, `"XNSRoutes: same active controller"`, `"XNSRoutes: use renounceActiveControl"` (when transferring to zero), `"XNSRoutes: no pending transfer"`, `"XNSRoutes: not pending active controller"`.
 
 ---
 
@@ -97,7 +70,6 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 - XNS name owner can update `target` (`bytes`, 1–`MAX_TARGET_LENGTH`) and `routeType` for an existing route while it is not effectively frozen.
 - Emits `RouteUpdated` only when values actually change.
-- `activeController` cannot update `target` / `routeType`.
 
 #### Reverts
 
@@ -145,7 +117,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
-- `getRouteRecord(label, namespace, routeLabel)` returns fields consistent with `createRoute` / `createRouteWithController` / `activateRoute` / `deactivateRoute`.
+- `getRouteRecord(label, namespace, routeLabel)` returns fields consistent with `createRoute` / `activateRoute` / `deactivateRoute`.
 - `getRouteRecord(routeKey)` and `getRouteRecord(route)` overloads behave consistently.
 - Malformed `routeLabel` on read paths return an empty record (no validation revert).
 

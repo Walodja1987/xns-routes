@@ -102,9 +102,8 @@ createRoute(
   abi.encodePacked(address(builder)), // target (bytes; e.g. 20-byte EVM address)
   0                // routeType (offchain-defined; 0 = EVM address payload)
 );
-// Sets isActive = true and activeController = current XNS name owner.
+// Sets isActive = true.
 // target and routeType are mutable until the route or route book is frozen.
-// Use createRouteWithController(...) to set activeController explicitly (isActive=true by default).
 ```
 
 ---
@@ -158,9 +157,8 @@ Each route has:
 
 - `target` → opaque endpoint payload, 1–256 bytes (**mutable** until effectively frozen; e.g. 20-byte EVM address for `routeType = 0`)
 - `routeType` → off-chain interpretation hint (**mutable** until effectively frozen)
-- `isActive` → usable or disabled (toggled by `activeController`)
+- `isActive` → usable or disabled (toggled by the XNS name owner)
 - `isFrozen` → permanently locks `target` / `routeType` for that route
-- `activeController` → sole account that may call `activateRoute` / `deactivateRoute`, start a two-step transfer, or `renounceActiveControl` (must not be `address(0)`; see `NO_ACTIVE_CONTROLLER`)
 - `routeLabel` → immutable slug
 
 The XNS name owner can call `updateRoute` to change `target` and `routeType` until the route is effectively frozen:
@@ -182,7 +180,7 @@ freezeRoute("xns", "action", "register-name");
 ```
 
 - Permanently locks that route's `target` / `routeType`
-- `activeController` can still toggle `isActive`
+- XNS name owner can still toggle `isActive`
 
 ### Route-book freeze
 
@@ -193,7 +191,7 @@ freezeRouteBook("xns@action");
 
 - No new routes can be added under that name
 - All existing routes under that name become effectively frozen for updates (no per-route write loop)
-- `activeController` can still toggle `isActive`
+- XNS name owner can still toggle `isActive`
 
 > Useful for finalized app registries, audited contract maps, or limited route collections.
 
@@ -295,7 +293,7 @@ The registry stores each route's **`routeLabel` on-chain** and keeps a per-name 
 
 Use **`resolveRouteIfActive`** for execution paths that must skip inactive routes; use **`resolveRoute`** when you need the binding regardless of active status. Use **`getRouteRecord`** for route metadata. Resolver overloads revert when the route is missing or (for `resolveRouteIfActive`) inactive. `getRouteRecord` returns an **empty record** (`target.length == 0`) when the route is missing.
 
-`target` and `routeType` are **mutable until effectively frozen**. Route book freeze blocks **new** routes and treats existing routes as frozen for updates; `activeController` can still toggle `isActive` on existing routes.
+`target` and `routeType` are **mutable until effectively frozen**. Route book freeze blocks **new** routes and treats existing routes as frozen for updates; the XNS name owner can still toggle `isActive` on existing routes.
 
 **Important semantics (don’t skip this)**
 
@@ -339,14 +337,14 @@ npx hardhat run scripts/examples/<script_name>.ts --network <network_name>
 **Read-only**
 
 - [scripts/examples/routeExists.ts](scripts/examples/routeExists.ts) — check if a route is registered (`getRouteRecord(...).target.length != 0`)
-- [scripts/examples/getRouteRecord.ts](scripts/examples/getRouteRecord.ts) — read target, `isActive`, `routeType`, `activeController`, and route-book freeze
+- [scripts/examples/getRouteRecord.ts](scripts/examples/getRouteRecord.ts) — read target, `isActive`, `routeType`, and route-book freeze
 - [scripts/examples/isRouteBookFrozen.ts](scripts/examples/isRouteBookFrozen.ts) — route book freeze flag for a name
 
-**Write** (signer must be the address XNS currently resolves for the script’s `label@namespace`, except activate/deactivate which require `activeController`)
+**Write** (signer must be the address XNS currently resolves for the script’s `label@namespace`)
 
-- [scripts/examples/createRoute.ts](scripts/examples/createRoute.ts) — register a new route key (`createRoute` or `createRouteWithController`)
-- [scripts/examples/activateRoute.ts](scripts/examples/activateRoute.ts) — set `isActive` true as `activeController` (emit only on change)
-- [scripts/examples/deactivateRoute.ts](scripts/examples/deactivateRoute.ts) — set `isActive` false as `activeController` (emit only on change)
+- [scripts/examples/createRoute.ts](scripts/examples/createRoute.ts) — register a new route key (`createRoute`)
+- [scripts/examples/activateRoute.ts](scripts/examples/activateRoute.ts) — set `isActive` true as XNS name owner (emit only on change)
+- [scripts/examples/deactivateRoute.ts](scripts/examples/deactivateRoute.ts) — set `isActive` false as XNS name owner (emit only on change)
 - [scripts/examples/freezeRouteBook.ts](scripts/examples/freezeRouteBook.ts) — route book freeze for a name
 
 Each script has a `USER INPUTS` section at the top. Fill in [constants/addresses.ts](constants/addresses.ts) for `XNS_ROUTES_ADDRESS` on your network before running.

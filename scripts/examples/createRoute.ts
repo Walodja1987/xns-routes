@@ -38,13 +38,6 @@ const targetAddress = "0x0000000000000000000000000000000000000001";
 /** Parser hint; semantics are offchain (0 = EVM address, 1 = resolver, 2 = app-defined) */
 const routeType = 0;
 
-/**
- * Optional explicit `activeController`. When set, calls `createRouteWithController`
- * instead of `createRoute` (which defaults to activeController=XNS name owner; both use isActive=true).
- */
-const useControllerOverride = false;
-const activeControllerOverride = "0x0000000000000000000000000000000000000002";
-
 /** Signer index (0 = first account from mnemonic) */
 const signerIndex = 0;
 
@@ -79,32 +72,16 @@ async function main() {
   console.log(`routeLabel: ${GREEN}${routeLabel}${RESET}`);
   console.log(`target: ${GREEN}${target}${RESET} (${ethers.getBytes(target).length} bytes)`);
   console.log(`routeType: ${GREEN}${routeType}${RESET}`);
-  if (useControllerOverride) {
-    console.log(`activeController: ${GREEN}${activeControllerOverride}${RESET} (override)\n`);
-  } else {
-    console.log(`isActive: ${GREEN}true (default)${RESET}`);
-    console.log(`activeController: ${GREEN}XNS name owner (default)${RESET}\n`);
-  }
+  console.log(`isActive: ${GREEN}true (default)${RESET}\n`);
 
-  const tx = useControllerOverride
-    ? await routes
-        .connect(signer)
-        .createRouteWithController(
-          label,
-          namespace,
-          routeLabel,
-          target,
-          routeType,
-          activeControllerOverride,
-        )
-    : await routes.connect(signer).createRoute(label, namespace, routeLabel, target, routeType);
+  const tx = await routes.connect(signer).createRoute(label, namespace, routeLabel, target, routeType);
   console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
   const record = await routes.getRouteRecord(label, namespace, routeLabel);
   console.log(
-    `${GREEN}✓ Confirmed. getRouteRecord → target=${record.target} routeType=${record.routeType} isActive=${record.isActive} activeController=${record.activeController}${RESET}\n`,
+    `${GREEN}✓ Confirmed. getRouteRecord → target=${record.target} routeType=${record.routeType} isActive=${record.isActive}${RESET}\n`,
   );
 }
 

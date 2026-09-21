@@ -3,7 +3,7 @@
 
 Route-scoped events include indexed `xnsNameKey`
 (`keccak256(abi.encodePacked(label, "@", namespace))`) and `routeKey` as log topics.
-`RouteCreated` indexes `target`; remaining fields are non-indexed in log data.
+`RouteCreated` remaining fields are non-indexed in log data.
 
 Usage examples:
   python indexer/indexer.py sync --rpc-url https://... --contract 0x... --from-block 12345678
@@ -31,8 +31,6 @@ EVENT_NAMES = (
     "RouteUpdated",
     "RouteFrozen",
     "RouteBookFrozen",
-    "ActiveControllerTransferAccepted",
-    "ActiveControllerRenounced",
 )
 
 
@@ -87,7 +85,6 @@ def init_db(conn: sqlite3.Connection) -> None:
             route_type INTEGER,
             is_active INTEGER,
             is_frozen INTEGER NOT NULL DEFAULT 0,
-            active_controller TEXT,
             updated_block INTEGER NOT NULL,
             updated_tx_hash TEXT NOT NULL,
             updated_log_index INTEGER NOT NULL,
@@ -144,7 +141,6 @@ def upsert_route(
     route_type: int | None = None,
     is_active: int | None = None,
     is_frozen: int | None = None,
-    active_controller: str | None = None,
     block_number: int,
     tx_hash: str,
     log_index: int,
@@ -153,16 +149,15 @@ def upsert_route(
         """
         INSERT INTO routes(
             chain_id, contract, label, namespace, route_label,
-            target, route_type, is_active, is_frozen, active_controller,
+            target, route_type, is_active, is_frozen,
             updated_block, updated_tx_hash, updated_log_index
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 0), ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 0), ?, ?, ?)
         ON CONFLICT(chain_id, contract, label, namespace, route_label)
         DO UPDATE SET
             target = COALESCE(excluded.target, routes.target),
             route_type = COALESCE(excluded.route_type, routes.route_type),
             is_active = COALESCE(excluded.is_active, routes.is_active),
             is_frozen = COALESCE(excluded.is_frozen, routes.is_frozen),
-            active_controller = COALESCE(excluded.active_controller, routes.active_controller),
             updated_block = excluded.updated_block,
             updated_tx_hash = excluded.updated_tx_hash,
             updated_log_index = excluded.updated_log_index
@@ -177,7 +172,6 @@ def upsert_route(
             route_type,
             is_active,
             is_frozen,
-            active_controller,
             block_number,
             tx_hash,
             log_index,
@@ -271,11 +265,10 @@ def apply_event(conn: sqlite3.Connection, chain_id: int, contract: str, evt: dic
         upsert_route(
             conn,
             **common,
-            target=Web3.to_checksum_address(a["target"]),
+            target=Web3.to_hex(a["target"]) if not isinstance(a["target"], str) else a["target"],
             route_type=int(a["routeType"]),
             is_active=1 if a["isActive"] else 0,
             is_frozen=0,
-            active_controller=Web3.to_checksum_address(a["activeController"]),
         )
     elif name == "RouteActiveStatusUpdated":
         upsert_route(conn, **common, is_active=1 if a["isActive"] else 0)
@@ -283,26 +276,11 @@ def apply_event(conn: sqlite3.Connection, chain_id: int, contract: str, evt: dic
         upsert_route(
             conn,
             **common,
-            target=Web3.to_checksum_address(a["target"]),
+            target=Web3.to_hex(a["target"]) if not isinstance(a["target"], str) else a["target"],
             route_type=int(a["routeType"]),
         )
     elif name == "RouteFrozen":
         upsert_route(conn, **common, is_frozen=1)
-    elif name == "ActiveControllerTransferAccepted":
-        upsert_route(
-            conn,
-            **common,
-            active_controller=Web3.to_checksum_address(a["newActiveController"]),
-        )
-    elif name == "ActiveControllerRenounced":
-        upsert_route(
-            conn,
-            **common,
-            is_active=0,
-            active_controller=Web3.to_checksum_address(
-                "0x000000000000000000000000000000000000dEaD"
-            ),
-        )
 
 
 def parse_xns_name(xns_name: str) -> tuple[str, str]:
@@ -369,7 +347,7 @@ def print_routes(ctx: Context, xns_name: str) -> None:
 
     rows = conn.execute(
         """
-        SELECT route_label, target, route_type, is_active, active_controller,
+        SELECT route_label, target, route_type, is_active,
                updated_block, updated_tx_hash
         FROM routes
         WHERE chain_id = ? AND contract = ? AND label = ? AND namespace = ?
@@ -385,11 +363,10 @@ def print_routes(ctx: Context, xns_name: str) -> None:
 
     print(f"routeBookFrozen={book_frozen}")
     for r in rows:
-        route_label, target, route_type, is_active, active_controller, blk, tx = r
+        route_label, target, route_type, is_active, blk, tx = r
         print(
             f"  {xns_name_from_parts(label, namespace)}/{route_label}  "
             f"target={target} type={route_type} active={bool(is_active)} "
-            f"controller={active_controller} "
             f"@block={blk} tx={tx[:10]}..."
         )
 
@@ -405,7 +382,7 @@ def export_routes(ctx: Context, xns_name: str | None, out_path: Path) -> None:
         label, namespace = parse_xns_name(xns_name)
         rows = conn.execute(
             """
-            SELECT label, namespace, route_label, target, route_type, is_active, active_controller,
+            SELECT label, namespace, route_label, target, route_type, is_active,
                    updated_block, updated_tx_hash, updated_log_index
             FROM routes
             WHERE chain_id = ? AND contract = ? AND label = ? AND namespace = ?
@@ -416,7 +393,7 @@ def export_routes(ctx: Context, xns_name: str | None, out_path: Path) -> None:
     else:
         rows = conn.execute(
             """
-            SELECT label, namespace, route_label, target, route_type, is_active, active_controller,
+            SELECT label, namespace, route_label, target, route_type, is_active,
                    updated_block, updated_tx_hash, updated_log_index
             FROM routes
             WHERE chain_id = ? AND contract = ?
@@ -465,10 +442,9 @@ def export_routes(ctx: Context, xns_name: str | None, out_path: Path) -> None:
                 "target": r[3],
                 "routeType": r[4],
                 "isActive": bool(r[5]) if r[5] is not None else None,
-                "activeController": r[6],
-                "updatedBlock": r[7],
-                "updatedTxHash": r[8],
-                "updatedLogIndex": r[9],
+                "updatedBlock": r[6],
+                "updatedTxHash": r[7],
+                "updatedLogIndex": r[8],
             }
             for r in rows
         ],

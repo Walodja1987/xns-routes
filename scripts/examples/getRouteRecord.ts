@@ -59,8 +59,7 @@ async function main() {
   );
   console.log(`isActive:  ${GREEN}${record.isActive}${RESET}`);
   console.log(`isRouteBookFrozen: ${GREEN}${bookFrozen}${RESET}`);
-  console.log(`routeType: ${GREEN}${record.routeType}${RESET}`);
-  console.log(`activeController: ${GREEN}${record.activeController}${RESET}\n`);
+  console.log(`routeType: ${GREEN}${record.routeType}${RESET}\n`);
 }
 
 main().catch((error: unknown) => {

@@ -1,6 +1,6 @@
 /**
  * Mark an existing route as inactive. Emits `RouteActiveStatusUpdated` only if `isActive` changes.
- * Caller must be `record.activeController` for the route.
+ * Caller must be the XNS name owner for `label@namespace`.
  * Allowed even after route book freeze.
  *
  * USAGE:

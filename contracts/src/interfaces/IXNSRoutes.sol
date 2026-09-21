@@ -9,7 +9,6 @@ interface IXNSRoutes {
         uint32 routeType;
         bool isActive;
         bool isFrozen;
-        address activeController;
         string routeLabel;
     }
 
@@ -26,8 +25,7 @@ interface IXNSRoutes {
         string routeLabel,
         bytes target,
         uint32 routeType,
-        bool isActive,
-        address activeController
+        bool isActive
     );
 
     event RouteActiveStatusUpdated(
@@ -59,44 +57,6 @@ interface IXNSRoutes {
 
     event RouteBookFrozen(bytes32 indexed xnsNameKey, string label, string namespace);
 
-    event ActiveControllerTransferInitiated(
-        bytes32 indexed xnsNameKey,
-        bytes32 indexed routeKey,
-        string label,
-        string namespace,
-        string routeLabel,
-        address indexed pendingActiveController
-    );
-
-    event ActiveControllerTransferAccepted(
-        bytes32 indexed xnsNameKey,
-        bytes32 indexed routeKey,
-        string label,
-        string namespace,
-        string routeLabel,
-        address previousActiveController,
-        address indexed newActiveController
-    );
-
-    event ActiveControllerTransferCancelled(
-        bytes32 indexed xnsNameKey,
-        bytes32 indexed routeKey,
-        string label,
-        string namespace,
-        string routeLabel,
-        address indexed cancelledPendingActiveController
-    );
-
-    event ActiveControllerRenounced(
-        bytes32 indexed xnsNameKey,
-        bytes32 indexed routeKey,
-        string label,
-        string namespace,
-        string routeLabel
-    );
-
-    function NO_ACTIVE_CONTROLLER() external view returns (address);
-
     function MAX_TARGET_LENGTH() external view returns (uint256);
 
     function XNS() external view returns (address);
@@ -109,15 +69,6 @@ interface IXNSRoutes {
         uint32 routeType
     ) external;
 
-    function createRouteWithController(
-        string calldata label,
-        string calldata namespace,
-        string calldata routeLabel,
-        bytes calldata target,
-        uint32 routeType,
-        address activeController
-    ) external;
-
     function activateRoute(
         string calldata label,
         string calldata namespace,
@@ -125,31 +76,6 @@ interface IXNSRoutes {
     ) external;
 
     function deactivateRoute(
-        string calldata label,
-        string calldata namespace,
-        string calldata routeLabel
-    ) external;
-
-    function initiateActiveControllerTransfer(
-        string calldata label,
-        string calldata namespace,
-        string calldata routeLabel,
-        address newActiveController
-    ) external;
-
-    function acceptActiveController(
-        string calldata label,
-        string calldata namespace,
-        string calldata routeLabel
-    ) external;
-
-    function cancelActiveControllerTransfer(
-        string calldata label,
-        string calldata namespace,
-        string calldata routeLabel
-    ) external;
-
-    function renounceActiveControl(
         string calldata label,
         string calldata namespace,
         string calldata routeLabel
@@ -215,12 +141,6 @@ interface IXNSRoutes {
         string calldata namespace,
         string calldata routeLabel
     ) external view returns (bool frozen);
-
-    function pendingActiveController(
-        string calldata label,
-        string calldata namespace,
-        string calldata routeLabel
-    ) external view returns (address pending);
 
     function getRouteKeyCount(
         string calldata label,
