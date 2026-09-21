@@ -121,7 +121,7 @@ function build(...)
     );
 ```
 
-Non-EVM endpoints (e.g. Bitcoin) can store the destination directly in `bytes target` under another `routeType`. Large calldata should live in a contract; keep `target` as a short pointer (≤ 256 bytes).
+Non-EVM endpoints (e.g. Bitcoin) can store the destination directly in `bytes target` under another `routeType`. Large payloads (e.g. calldata) are allowed; owners pay the gas/storage cost.
 ---
 
 ### 3. Wallet Flow
@@ -154,7 +154,7 @@ A wallet:
 
 Each route has:
 
-- `target` → opaque endpoint payload, 1–256 bytes (**mutable** until the route is frozen; e.g. 20-byte EVM address for `routeType = 0`)
+- `target` → opaque endpoint payload, non-empty `bytes` with no protocol max length (**mutable** until the route is frozen; e.g. 20-byte EVM address for `routeType = 0`)
 - `routeType` → off-chain interpretation hint (**mutable** until the route is frozen)
 - `isActive` → usable or disabled (toggled by the XNS name owner)
 - `isFrozen` → permanently locks `target` / `routeType` for that route

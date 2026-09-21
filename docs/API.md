@@ -33,7 +33,7 @@ Callers must strip any such suffix before using string-based helpers.
 ### Route record
 
 Each route stores:
-- `target` — opaque endpoint payload (mutable until frozen); 1–256 bytes.
+- `target` — opaque endpoint payload (mutable until frozen); must be non-empty.
 - `routeType` — generic off-chain interpretation hint (mutable until frozen).
 - `isActive` — whether applications should currently treat the route as usable
   (toggled by the XNS name owner).
@@ -52,7 +52,7 @@ Example route types:
 - `2` = `target` is interpreted according to another application-level convention
   (e.g. Bitcoin address UTF-8, Solana pubkey, etc.).
 
-This contract does not validate `target` contents beyond non-empty and max length.
+This contract does not validate `target` contents beyond requiring non-empty.
 
 ### Active status
 
@@ -126,7 +126,7 @@ creates:
 Requirements:
 - `msg.sender` must own `label AT namespace`.
 - `routeLabel` must be valid.
-- `target` must be non-empty and at most `MAX_TARGET_LENGTH` bytes.
+- `target` must be non-empty.
 - The route book must not be closed.
 - The route must not already exist.
 
@@ -188,7 +188,7 @@ Updates `target` and `routeType` for an existing route.
 - `msg.sender` must own `label AT namespace`.
 - The route must exist.
 - The route must not be frozen (`isFrozen`).
-- `newTarget` must be non-empty and at most `MAX_TARGET_LENGTH` bytes.
+- `newTarget` must be non-empty.
 
 Emits `RouteUpdated` only when `target` or `routeType` actually changes.
 
@@ -530,18 +530,6 @@ function isValidRouteLabel(string routeLabel) external pure returns (bool valid)
 
 
 
-### isValidTarget
-
-
-Returns whether a target payload is non-empty and within `MAX_TARGET_LENGTH`.
-
-```solidity
-function isValidTarget(bytes target) external pure returns (bool valid)
-```
-
-
-
-
 
 ## Events
 
@@ -614,19 +602,6 @@ event RouteBookClosed(bytes32 xnsNameKey, string label, string namespace)
 
 
 ## State Variables
-
-### MAX_TARGET_LENGTH
-
-
-Maximum allowed `target` payload length (bytes).
-
-```solidity
-uint256 MAX_TARGET_LENGTH
-```
-
-
-
-
 
 ### XNS
 

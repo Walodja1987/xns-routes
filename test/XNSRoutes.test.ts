@@ -16,8 +16,6 @@ describe("XNSRoutes", function () {
   const XNS_NAME = `${LABEL}@${NAMESPACE}`;
   /** Default `routeType` in tests; semantics are offchain */
   const RT0 = 0;
-  /** Matches `XNSRoutes.MAX_TARGET_LENGTH`. */
-  const MAX_TARGET_LENGTH = 256;
   /** Empty `bytes` — missing-route sentinel (`target.length == 0`). */
   const EMPTY_TARGET = "0x";
 
@@ -257,13 +255,15 @@ describe("XNSRoutes", function () {
       ).to.be.revertedWith(XR.invalidTarget);
     });
 
-    it("Should revert with InvalidTarget when target exceeds MAX_TARGET_LENGTH", async function () {
+    it("Should accept a target longer than 256 bytes", async function () {
       const { routes, owner } = await loadFixture(deployFixture);
-      const tooLong = ethers.hexlify(new Uint8Array(MAX_TARGET_LENGTH + 1));
+      const longTarget = ethers.hexlify(new Uint8Array(512).fill(0xab));
 
-      await expect(
-        routes.connect(owner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, tooLong, RT0),
-      ).to.be.revertedWith(XR.invalidTarget);
+      await routes.connect(owner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, longTarget, RT0);
+
+      expect((await routes.getRouteRecord(LABEL, NAMESPACE, ROUTE_LABEL)).target).to.equal(
+        longTarget,
+      );
     });
 
     it("Should revert with RouteBookClosed after closeRouteBook", async function () {
@@ -477,15 +477,17 @@ describe("XNSRoutes", function () {
       ).to.be.revertedWith(XR.invalidTarget);
     });
 
-    it("Should revert with InvalidTarget when newTarget exceeds MAX_TARGET_LENGTH", async function () {
+    it("Should accept a newTarget longer than 256 bytes", async function () {
       const fixture = await loadFixture(deployFixture);
       const { routes, owner } = fixture;
       await createDefaultRoute(fixture);
-      const tooLong = ethers.hexlify(new Uint8Array(MAX_TARGET_LENGTH + 1));
+      const longTarget = ethers.hexlify(new Uint8Array(512).fill(0xcd));
 
-      await expect(
-        routes.connect(owner).updateRoute(LABEL, NAMESPACE, ROUTE_LABEL, tooLong, RT0),
-      ).to.be.revertedWith(XR.invalidTarget);
+      await routes.connect(owner).updateRoute(LABEL, NAMESPACE, ROUTE_LABEL, longTarget, RT0);
+
+      expect((await routes.getRouteRecord(LABEL, NAMESPACE, ROUTE_LABEL)).target).to.equal(
+        longTarget,
+      );
     });
 
     it("Should revert with RouteFrozen after freezeRoute", async function () {

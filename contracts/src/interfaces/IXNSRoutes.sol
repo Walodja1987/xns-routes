@@ -57,8 +57,6 @@ interface IXNSRoutes {
 
     event RouteBookClosed(bytes32 indexed xnsNameKey, string label, string namespace);
 
-    function MAX_TARGET_LENGTH() external view returns (uint256);
-
     function XNS() external view returns (address);
 
     function createRoute(
@@ -184,6 +182,4 @@ interface IXNSRoutes {
     ) external pure returns (string memory label, string memory namespace);
 
     function isValidRouteLabel(string calldata routeLabel) external pure returns (bool valid);
-
-    function isValidTarget(bytes calldata target) external pure returns (bool valid);
 }

@@ -30,7 +30,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
-- Name owner can **create** a route for `(label, namespace, routeLabel)` with the given `target` (`bytes`, 1–`MAX_TARGET_LENGTH` where `MAX_TARGET_LENGTH = 256`), `routeType`, and `isActive == true`.
+- Name owner can **create** a route for `(label, namespace, routeLabel)` with the given `target` (`bytes`, non-empty; no protocol max length), `routeType`, and `isActive == true`.
 - Second `createRoute` for the same key should revert with `"XNSRoutes: route already exists"`.
 - Routes under different `label`, `namespace`, or `routeLabel` are independent.
 - Missing routes are represented by empty `target` (`target.length == 0`).
@@ -41,7 +41,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Reverts
 
-- Owner, local route-label rules (1–32 chars), `"XNSRoutes: invalid target"` when `target` is empty or longer than `MAX_TARGET_LENGTH` (256), `"XNSRoutes: route book closed"`, plus `"XNSRoutes: route already exists"` if the route key already exists.
+- Owner, local route-label rules (1–32 chars), `"XNSRoutes: invalid target"` when `target` is empty, `"XNSRoutes: route book closed"`, plus `"XNSRoutes: route already exists"` if the route key already exists.
 
 ---
 
@@ -68,13 +68,13 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
-- XNS name owner can update `target` (`bytes`, 1–`MAX_TARGET_LENGTH`) and `routeType` for an existing route while `record.isFrozen` is false.
+- XNS name owner can update `target` (`bytes`, non-empty; no protocol max length) and `routeType` for an existing route while `record.isFrozen` is false.
 - Closing the route book does **not** block `updateRoute`.
 - Emits `RouteUpdated` only when values actually change.
 
 #### Reverts
 
-- `"XNSRoutes: not XNS name owner"`, `"XNSRoutes: route not found"`, `"XNSRoutes: route frozen"`, `"XNSRoutes: invalid target"` (empty or `> MAX_TARGET_LENGTH`).
+- `"XNSRoutes: not XNS name owner"`, `"XNSRoutes: route not found"`, `"XNSRoutes: route frozen"`, `"XNSRoutes: invalid target"` (empty).
 
 ---
 
@@ -195,13 +195,9 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 ---
 
-## `isValidTarget` / `MAX_TARGET_LENGTH`
+## `isValidTarget` (removed)
 
-#### Functionality
-
-- `MAX_TARGET_LENGTH = 256`.
-- `isValidTarget(target)` is true iff `target.length > 0 && target.length <= MAX_TARGET_LENGTH`.
-- Contents are not validated; `routeType` interprets the opaque payload offchain.
+Target validation is only `target.length > 0` inline in `createRoute` / `updateRoute`. There is no protocol max length and no `isValidTarget` view. Contents are not validated; `routeType` interprets the opaque payload offchain.
 
 ---
 

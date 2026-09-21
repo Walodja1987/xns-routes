@@ -30,8 +30,8 @@ const namespace = "action";
 const routeLabel = "register-name";
 
 /**
- * Opaque `bytes` target (1–256 bytes). For a 20-byte EVM address payload, pass the address
- * hex and convert with `ethers.getBytes` / `ethers.hexlify`.
+ * Opaque `bytes` target (non-empty; no protocol max length). For a 20-byte EVM address
+ * payload, pass the address hex and convert with `ethers.getBytes` / `ethers.hexlify`.
  */
 const targetAddress = "0x0000000000000000000000000000000000000001";
 

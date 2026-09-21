@@ -44,7 +44,7 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// ### Route record
 ///
 /// Each route stores:
-/// - `target` — opaque endpoint payload (mutable until frozen); 1–256 bytes.
+/// - `target` — opaque endpoint payload (mutable until frozen); must be non-empty.
 /// - `routeType` — generic off-chain interpretation hint (mutable until frozen).
 /// - `isActive` — whether applications should currently treat the route as usable
 ///   (toggled by the XNS name owner).
@@ -63,7 +63,7 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - `2` = `target` is interpreted according to another application-level convention
 ///   (e.g. Bitcoin address UTF-8, Solana pubkey, etc.).
 ///
-/// This contract does not validate `target` contents beyond non-empty and max length.
+/// This contract does not validate `target` contents beyond requiring non-empty.
 ///
 /// ### Active status
 ///
@@ -133,9 +133,6 @@ contract XNSRoutes {
     // -------------------------------------------------------------------------
     // Constants and storage
     // -------------------------------------------------------------------------
-
-    /// @notice Maximum allowed `target` payload length (bytes).
-    uint256 public constant MAX_TARGET_LENGTH = 256;
 
     /// @notice XNSv2 registry used for name ownership resolution.
     IXNSMinimal public immutable XNS;
@@ -246,7 +243,7 @@ contract XNSRoutes {
     /// Requirements:
     /// - `msg.sender` must own `label AT namespace`.
     /// - `routeLabel` must be valid.
-    /// - `target` must be non-empty and at most `MAX_TARGET_LENGTH` bytes.
+    /// - `target` must be non-empty.
     /// - The route book must not be closed.
     /// - The route must not already exist.
     ///
@@ -280,7 +277,7 @@ contract XNSRoutes {
         uint32 routeType
     ) private {
         require(_isValidRouteLabel(routeLabel), "XNSRoutes: invalid route label");
-        require(_isValidTarget(target), "XNSRoutes: invalid target");
+        require(target.length > 0, "XNSRoutes: invalid target");
         require(!_routeBookClosed[xnsNameKey], "XNSRoutes: route book closed");
 
         bytes32 routeKey = _routeKey(xnsNameKey, routeLabel);
@@ -398,7 +395,7 @@ contract XNSRoutes {
     /// - `msg.sender` must own `label AT namespace`.
     /// - The route must exist.
     /// - The route must not be frozen (`isFrozen`).
-    /// - `newTarget` must be non-empty and at most `MAX_TARGET_LENGTH` bytes.
+    /// - `newTarget` must be non-empty.
     ///
     /// Emits `RouteUpdated` only when `target` or `routeType` actually changes.
     function updateRoute(
@@ -415,7 +412,7 @@ contract XNSRoutes {
 
         require(record.target.length > 0, "XNSRoutes: route not found");
         require(!record.isFrozen, "XNSRoutes: route frozen");
-        require(_isValidTarget(newTarget), "XNSRoutes: invalid target");
+        require(newTarget.length > 0, "XNSRoutes: invalid target");
 
         if (
             keccak256(record.target) != keccak256(newTarget) ||
@@ -892,13 +889,6 @@ contract XNSRoutes {
         return _isValidRouteLabel(routeLabel);
     }
 
-    /// @notice Returns whether a target payload is non-empty and within `MAX_TARGET_LENGTH`.
-    function isValidTarget(
-        bytes calldata target
-    ) external pure returns (bool valid) {
-        return _isValidTarget(target);
-    }
-
     // =========================================================================
     // INTERNAL VIEW HELPERS
     // =========================================================================
@@ -1305,13 +1295,5 @@ contract XNSRoutes {
         }
 
         return true;
-    }
-
-    /// @dev Non-empty and at most `MAX_TARGET_LENGTH` bytes. Contents are not validated.
-    function _isValidTarget(
-        bytes calldata target
-    ) private pure returns (bool isValid) {
-        uint256 len = target.length;
-        return len > 0 && len <= MAX_TARGET_LENGTH;
     }
 }
