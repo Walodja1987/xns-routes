@@ -10,13 +10,17 @@
  * - Network RPC, e.g. ETH_SEPOLIA_TESTNET_URL
  *
  * XNS registry (constructor arg):
- * - Preferred: `npx hardhat vars set XNS_CONTRACT_ADDRESS` (deployed XNS / resolver contract
- *   implementing IXNSMinimal: getAddress, registerName)
- * - Override for one-off runs: `XNS_CONTRACT_ADDRESS=0x... npx hardhat run ...`
+ * - Default for `ethMain` / `sepolia`: `constants/addresses.ts` (`XNS_ADDRESS`)
+ * - Override: `npx hardhat vars set XNS_CONTRACT_ADDRESS` or `XNS_CONTRACT_ADDRESS=0x...`
+ *
+ * Initial owner (constructor arg):
+ * - Defaults to the deployer
+ * - Override: `npx hardhat vars set XNS_ROUTES_INITIAL_OWNER` or
+ *   `XNS_ROUTES_INITIAL_OWNER=0x...`
  *
  * After deployment, record the address in constants/addresses.ts (XNS_ROUTES_ADDRESS).
  *
- * The constructor is payable: it forwards `msg.value` to XNS `registerName("routes","xns")` so `routes.xns`
+ * The constructor is payable: it forwards `msg.value` to XNS `registerName("routes","xns")` so `routes@xns`
  * resolves to the new registry. The script queries `getNamespacePrice("xns")` on the XNS contract and
  * uses that as the deployment transaction value (excess is refunded by XNS).
  */
@@ -24,6 +28,7 @@
 import { vars } from "hardhat/config";
 import hre from "hardhat";
 import { getAddress, isAddress } from "ethers";
+import { XNS_ADDRESS } from "../../constants/addresses";
 
 const RESET = "\x1b[0m";
 const GREEN = "\x1b[32m";
@@ -35,12 +40,31 @@ function delay(ms: number) {
 
 function resolveXnsContractAddress(): string {
   const fromEnv = process.env.XNS_CONTRACT_ADDRESS?.trim();
-  const raw = fromEnv && fromEnv.length > 0 ? fromEnv : vars.get("XNS_CONTRACT_ADDRESS");
+  const fromVar = vars.has("XNS_CONTRACT_ADDRESS") ? vars.get("XNS_CONTRACT_ADDRESS").trim() : "";
+  const fromConstants = XNS_ADDRESS[hre.network.name]?.trim() ?? "";
+  const raw =
+    fromEnv && fromEnv.length > 0 ? fromEnv : fromVar.length > 0 ? fromVar : fromConstants;
   if (!isAddress(raw)) {
     throw new Error(
-      "Set a valid XNS registry address via hardhat var XNS_CONTRACT_ADDRESS or env XNS_CONTRACT_ADDRESS.",
+      "Set a valid XNS registry address via constants/addresses.ts (XNS_ADDRESS), hardhat var XNS_CONTRACT_ADDRESS, or env XNS_CONTRACT_ADDRESS.",
     );
   }
+  return getAddress(raw);
+}
+
+function resolveInitialOwner(deployer: string): string {
+  const fromEnv = process.env.XNS_ROUTES_INITIAL_OWNER?.trim();
+  const fromVar = vars.has("XNS_ROUTES_INITIAL_OWNER")
+    ? vars.get("XNS_ROUTES_INITIAL_OWNER").trim()
+    : "";
+  const raw = fromEnv && fromEnv.length > 0 ? fromEnv : fromVar.length > 0 ? fromVar : deployer;
+
+  if (!isAddress(raw) || getAddress(raw) === hre.ethers.ZeroAddress) {
+    throw new Error(
+      "Set XNS_ROUTES_INITIAL_OWNER to a valid non-zero address, or leave it unset to use the deployer.",
+    );
+  }
+
   return getAddress(raw);
 }
 
@@ -56,7 +80,9 @@ async function main() {
   console.log("XNS registry (constructor):", xnsAddress, "\n");
 
   const [deployer] = await hre.ethers.getSigners();
+  const initialOwner = resolveInitialOwner(deployer.address);
   console.log("Deploying with account:", deployer.address);
+  console.log("Initial owner:", initialOwner);
   console.log(
     "Account balance:",
     hre.ethers.formatEther(await hre.ethers.provider.getBalance(deployer.address)),
@@ -82,7 +108,7 @@ async function main() {
   }
 
   const XNSRoutes = await hre.ethers.getContractFactory("XNSRoutes");
-  const xnsRoutes = await XNSRoutes.deploy(xnsAddress, {
+  const xnsRoutes = await XNSRoutes.deploy(initialOwner, xnsAddress, {
     value: registrationValue,
   });
   await xnsRoutes.waitForDeployment();
@@ -104,7 +130,7 @@ async function main() {
   try {
     await hre.run("verify:verify", {
       address: contractAddress,
-      constructorArguments: [xnsAddress],
+      constructorArguments: [initialOwner, xnsAddress],
     });
     console.log("\nVerification succeeded.");
   } catch (err: unknown) {

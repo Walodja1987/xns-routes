@@ -6,7 +6,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 ## Test setup
 
-- **Unit tests** use [`MockXNS`](../contracts/src/mocks/MockXNS.sol): set `xnsName → owner` via `setResolution`. Route segment validation is local to `XNSRoutes` (not delegated to XNS): `routeScope` allows 1–20 chars (or empty), while routeLabel allows 1–32 chars; both share lowercase/number/hyphen and hyphen-placement rules.
+- **Unit tests** use [`MockXNS`](../contracts/src/mocks/MockXNS.sol): set `label@namespace → owner` via `setResolution(label, namespace, addr)`. Route label validation is local to `XNSRoutes` (not delegated to XNS): `routeLabel` allows 1–32 chars with lowercase/number/hyphen and hyphen-placement rules.
 - **Canonical on-chain XNS** addresses for deploy/scripts/fork work live in [`constants/addresses.ts`](../constants/addresses.ts) as `XNS_ADDRESS` (they are not used by the default local test suite).
 
 ---
@@ -15,14 +15,24 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
+- Sets the non-zero `initialOwner` as the ERC-173 contract owner.
 - Stores the non-zero XNS registry address and exposes it via `XNS()`.
-- Calls XNS `registerName("routes","xns")` with the constructor’s `msg.value`, so `routes.xns` resolves to the new registry (`address(this)`).
-- On the mock, `getAddress("routes.xns")` returns the deployed `XNSRoutes` address after deployment.
+- Calls XNS `registerName("routes","xns")` with the constructor’s `msg.value`, so `routes@xns` resolves to the new registry (`address(this)`).
+- On the mock, `getAddress("routes", "xns")` returns the deployed `XNSRoutes` address after deployment.
 
 #### Reverts
 
+- Should revert with OpenZeppelin `OwnableInvalidOwner(address(0))` when `initialOwner` is zero.
 - Should revert with `"XNSRoutes: 0x XNS address"` when `xnsContract` is `address(0)`.
 - Reverts if XNS rejects registration (e.g. insufficient `msg.value`, name taken, exclusivity rules on the real contract).
+
+---
+
+## Contract ownership
+
+- Ownership transfers use the two-step `transferOwnership` / `acceptOwnership` flow.
+- `pendingOwner()` is set until the nominated account accepts.
+- Contract ownership grants no route authority; route mutations still require current XNS name ownership.
 
 ---
 
@@ -30,29 +40,18 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
-- Name owner can **create** a route for `(xnsName, routeScope, routeLabel)` with the given `target`, `routeType`, `isActive == true`, and `activeController` set to the current XNS name owner.
+- Name owner can **create** a route for `(label, namespace, routeLabel)` with the given `target` (`bytes`, non-empty; no protocol max length), `routeType`, and `isActive == true`.
 - Second `createRoute` for the same key should revert with `"XNSRoutes: route already exists"`.
-- Routes under different `xnsName`, `routeScope`, or routeLabel are independent.
+- Routes under different `label`, `namespace`, or `routeLabel` are independent.
+- Missing routes are represented by empty `target` (`target.length == 0`).
 
 #### Events
 
-- Should emit `RouteCreated` with indexed `xnsNameKey` (`keccak256(bytes(canonicalXNSName))`), `routeKey` (same as `_routeKey`), and `target`, then `canonicalXNSName`, `routeScope`, routeLabel, `routeType`, `isActive`, and `activeController` (non-indexed, full values in log data).
+- Should emit `RouteCreated` with indexed `xnsNameKey`, `routeKey`, and `targetHash` (`keccak256(target)`), then `label`, `namespace`, `routeLabel`, `routeType`, and `isActive` in log data. Full `target` is not logged — read it from storage via `getRouteRecord` / resolve.
 
 #### Reverts
 
-- Owner, local route-segment rules on non-empty `routeScope` and on routeLabel (prefix 1–20; route 1–32), non-zero `target`, `"XNSRoutes: route book frozen"`, plus `"XNSRoutes: route already exists"` if the route key already exists.
-
----
-
-## `createRouteWithController`
-
-#### Functionality
-
-- Same as `createRoute`, but accepts an explicit `activeController` (`isActive = true`; must not be `address(0)`).
-
-#### Reverts
-
-- Same as `createRoute`, plus `"XNSRoutes: invalid active controller"` when `activeController == address(0)`.
+- Owner, local route-label rules (1–32 chars), `"XNSRoutes: invalid target"` when `target` is empty, `"XNSRoutes: route book closed"`, plus `"XNSRoutes: route already exists"` if the route key already exists.
 
 ---
 
@@ -60,91 +59,87 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
-- `activeController` can set `isActive` to true / false for an existing `(xnsName, routeScope, routeLabel)`.
-- Should still succeed when the **route book** is frozen (only new routes are blocked for the name owner).
+- XNS name owner can set `isActive` to true / false for an existing `(label, namespace, routeLabel)`.
+- Should still succeed when the **route book** is closed (only new routes are blocked for the name owner).
 - Should emit `RouteActiveStatusUpdated` **only when `isActive` actually changes** (second call when already in that state is a no-op for events).
 
 #### Events
 
-- Should emit `RouteActiveStatusUpdated` with indexed `xnsNameKey` / `routeKey`, then `canonicalXNSName`, `routeScope`, routeLabel, and `isActive` when transitioning.
+- Should emit `RouteActiveStatusUpdated` with indexed `xnsNameKey` / `routeKey`, then `label`, `namespace`, `routeLabel`, and `isActive` when transitioning.
 
 #### Reverts
 
-- Should revert with `"XNSRoutes: not active controller"` when the caller is not `record.activeController`.
-- Should revert with `"XNSRoutes: route not found"` when no route exists for `(xnsName, routeScope, routeLabel)`.
-- Should revert with `"XNSRoutes: active control renounced"` after `renounceActiveControl`.
+- Should revert with `"XNSRoutes: not XNS name owner"` when the caller is not the current XNS name owner.
+- Should revert with `"XNSRoutes: route not found"` when no route exists for `(label, namespace, routeLabel)`.
 
 ---
 
-## `activeController`
+## `updateRoute`
 
 #### Functionality
 
-- Set at `createRoute` (XNS name owner) or `createRouteWithController`; may be transferred in two steps or renounced.
-- Only `activeController` may call `activateRoute` / `deactivateRoute` (name owner has no special toggle rights unless they are the stored controller).
+- XNS name owner can update `target` (`bytes`, non-empty; no protocol max length) and `routeType` for an existing route while `record.isFrozen` is false.
+- Closing the route book does **not** block `updateRoute`.
+- Emits `RouteUpdated` only when values actually change (indexed `targetHash = keccak256(newTarget)`; full `target` is not in the log).
+
+#### Reverts
+
+- `"XNSRoutes: not XNS name owner"`, `"XNSRoutes: route not found"`, `"XNSRoutes: route frozen"`, `"XNSRoutes: invalid target"` (empty).
 
 ---
 
-## `initiateActiveControllerTransfer` / `acceptActiveController` / `cancelActiveControllerTransfer`
+## `freezeRoute`
 
 #### Functionality
 
-- Current `activeController` may initiate a transfer to a live non-zero address (`initiateActiveControllerTransfer`).
-- Pending recipient completes with `acceptActiveController`; current controller may `cancelActiveControllerTransfer`.
-- A new transfer replaces any existing pending transfer.
-- Cannot transfer to `NO_ACTIVE_CONTROLLER` (use `renounceActiveControl`).
+- XNS name owner can permanently set `isFrozen` on one route.
+- After freeze, `updateRoute` reverts; `activateRoute` / `deactivateRoute` still work.
+- Idempotent: second freeze is a no-op (no duplicate event).
 
 #### Events
 
-- `ActiveControllerTransferInitiated`, `ActiveControllerTransferAccepted`, `ActiveControllerTransferCancelled`.
+- Emits `RouteFrozen` the first time the route is frozen.
 
 #### Reverts
 
-- `"XNSRoutes: not active controller"`, `"XNSRoutes: invalid active controller"`, `"XNSRoutes: same active controller"`, `"XNSRoutes: use renounceActiveControl"`, `"XNSRoutes: no pending transfer"`, `"XNSRoutes: not pending active controller"`, `"XNSRoutes: active control renounced"`, `"XNSRoutes: route not found"`.
+- `"XNSRoutes: not XNS name owner"`, `"XNSRoutes: route not found"`.
 
 ---
 
-## `renounceActiveControl`
+## `batchFreezeRoutes`
 
 #### Functionality
 
-- Current `activeController` may permanently renounce control: sets `activeController` to `NO_ACTIVE_CONTROLLER`.
-- `isActive` is left unchanged and can no longer be toggled.
-- Clears any pending transfer. After renounce, toggles and transfers revert.
+- XNS name owner can freeze multiple routes under one `(label, namespace)` in a single call.
+- Same per-route semantics as `freezeRoute` (already-frozen = no-op / no event).
+- Empty `routeLabels` succeeds as a no-op.
+- If any label is missing, the entire batch reverts.
 
 #### Events
 
-- `ActiveControllerRenounced` only (no `RouteActiveStatusUpdated`).
+- Emits `RouteFrozen` for each route that newly becomes frozen.
 
 #### Reverts
 
-- `"XNSRoutes: not active controller"`, `"XNSRoutes: active control renounced"`, `"XNSRoutes: route not found"`.
+- `"XNSRoutes: not XNS name owner"`, `"XNSRoutes: route not found"`.
 
 ---
 
-## `pendingActiveController`
+## `closeRouteBook`
 
 #### Functionality
 
-- Returns pending accept address for a route, or `address(0)` if none.
-
----
-
-## `freezeRouteBook`
-
-#### Functionality
-
-- Name owner can set `isRouteBookFrozen(xnsName)` permanently.
-- After route book freeze, `createRoute` must revert for that `xnsName`, while `activeController` may still call `activateRoute` / `deactivateRoute`.
+- Name owner can permanently close the route book for `(label, namespace)` or `label@namespace` string overload.
+- After close, `createRoute` reverts; existing routes remain updatable until individually frozen; existing routes can still toggle `isActive`.
+- Idempotent: second close is a no-op (no duplicate event).
 
 #### Events
 
-- Should emit `RouteBookFrozen` with indexed `xnsNameKey` and full `canonicalXNSName` the first time the route book is frozen.
-- Second call should not emit again (idempotent).
+- Should emit `RouteBookClosed` with indexed `xnsNameKey` and full `label`, `namespace` the first time the route book is closed.
 
 #### Reverts
 
-- Should revert with `"XNSRoutes: not XNS name owner"` when the caller is not the resolved owner.
+- `"XNSRoutes: not XNS name owner"` when caller is not the XNS name owner.
 
 ---
 
@@ -152,90 +147,89 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
-- All overloads return an empty `RouteRecord` (`target == address(0)`) when the route does not exist (soft read).
-- `getRouteRecord(xnsName, routeScope, routeLabel)` returns fields consistent with `createRoute` / `createRouteWithController` / `activateRoute` / `deactivateRoute`.
-- `getRouteRecord(string route)` parses a **route** (or parametrized route) via `splitRoute` then reads the same record; any `/params…` tail after the second `/` is stripped.
-- `getRouteRecord(bytes32 routeKey)` reads storage directly by key.
-- Existence: `getRouteRecord(...).target != address(0)`.
-- Malformed `routeScope` / routeLabel on read paths return an empty record (no validation revert).
+- `getRouteRecord(label, namespace, routeLabel)` returns fields consistent with `createRoute` / `activateRoute` / `deactivateRoute`.
+- `getRouteRecord(routeKey)` and `getRouteRecord(route)` overloads behave consistently.
+- Malformed `routeLabel` on read paths return an empty record (no validation revert).
+
+---
+
+## `resolveRoute` / `resolveRouteIfActive` / `resolveRouteIfFrozenAndActive`
+
+#### Functionality
+
+- `resolveRoute` returns `(target, routeType)` regardless of `isActive` / `isFrozen`.
+- `resolveRouteIfActive` reverts with `"XNSRoutes: route inactive"` when `isActive == false` (ignores freeze).
+- `resolveRouteIfFrozenAndActive` requires `isFrozen && isActive` (preferred production resolver).
+- String overloads require exactly `label@namespace/routeLabel` (no `/params…` suffix; apps must strip that themselves).
 
 #### Reverts
 
-- `getRouteRecord(string)` should revert with `"XNSRoutes: invalid route"` when no `/` is present.
+- `"XNSRoutes: route not found"` when route does not exist.
+- `"XNSRoutes: route not frozen"` for `resolveRouteIfFrozenAndActive` when `isFrozen == false`.
+- `"XNSRoutes: route inactive"` when `isActive == false` (active-gated resolvers).
+- `"XNSRoutes: invalid route"` for malformed route strings (including extra `/` segments).
 
 ---
 
-## `splitRoute`
+## `splitRoute` / `splitXNSName`
 
 #### Functionality
 
-- Parses `xnsName/[routeScope:]routeLabel` into `(xnsName, routeScope, routeLabel)`.
-- An optional `/params…` tail after the second `/` is stripped and ignored (not returned).
-- Does not validate segment charset/length.
+- `splitRoute` parses `label@namespace/routeLabel` into `(label, namespace, routeLabel)`.
+- Exactly one `/` is allowed; param suffixes are not stripped or accepted.
+- `splitXNSName` parses `label@namespace` into components.
 
 #### Reverts
 
-- `"XNSRoutes: invalid route"` when no `/` is present.
+- `"XNSRoutes: invalid route"` / `"XNSRoutes: invalid XNS name"` for malformed input.
 
 ---
 
-## `resolveRoute` / `resolveRouteIfActive`
+## `getRouteKey`
 
 #### Functionality
 
-- Tuple and route-string overloads return `(target, routeType)` for forward resolution.
-- `resolveRoute`: route exists (`target != address(0)`); ignores `isActive`.
-- `resolveRouteIfActive`: route exists and `isActive == true`.
-- Both succeed when the route book is frozen (existing routes unchanged).
-- Route-string overloads accept parametrized routes: the `/params…` tail after the second `/` is stripped before lookup.
+- `getRouteKey(label, namespace, routeLabel)` returns `keccak256(abi.encodePacked(label, "@", namespace, "/", routeLabel))`.
+- `getRouteKey(route)` parses an exact `label@namespace/routeLabel` string and returns the same key.
 
 #### Reverts
 
-- `"XNSRoutes: route not found"` when the route does not exist.
-- `"XNSRoutes: route inactive"` for `resolveRouteIfActive` when `isActive == false`.
-- `"XNSRoutes: invalid route"` for route-string overloads without `/`.
+- `"XNSRoutes: invalid route"` for the string overload when the route string is malformed.
 
 ---
 
-## Route key list
+## Route key list (`getRouteKeyCount`, `getRouteKeys`, `getRouteEntries`)
 
 #### Functionality
 
-- `getRouteKeyCount` starts at zero for a name; increments by one on each successful `createRoute`.
-- `getRouteKeys(xnsName, start, end)` pages through keys (`end` exclusive; clamped to array length).
-- Failed `createRoute` (e.g. duplicate key) does not add a key to the list.
-- `getRouteKeys` reverts when `start > end`; returns empty when `start` is past the log range.
+- Per-name append-only list of route keys on successful `createRoute`.
+- Pagination: `start` inclusive, `end` exclusive; clamp `end` to length; empty slice when `start` past end.
+- `getRouteEntries` returns `routeKey`, stored `routeLabel`, and full `RouteRecord`.
+- `xnsName` string overloads for count/keys/entries match tuple overloads.
+
+#### Reverts
+
+- `"XNSRoutes: invalid route key slice"` when `start > end`.
 
 ---
 
-## `isValidRouteScope` / `isValidRouteLabel` / `isValidRouteScopeAndLabel`
+## `isValidRouteLabel`
 
 #### Functionality
 
-- Pure views mirror `_isValidRouteScope` / `_isValidRouteLabel` / `_validateRoutePrefixAndRoute`: empty `routeScope` is allowed; non-empty prefix and route must satisfy slug length and charset rules.
+- Pure view mirrors `_isValidRouteLabel`: 1–32 chars, charset and hyphen rules.
 
 ---
 
-## `isRouteBookFrozen`
+## `isValidTarget` (removed)
 
-#### Functionality
-
-- For a given `xnsName`, `isRouteBookFrozen(xnsName)` matches whether `freezeRouteBook` was applied.
+Target validation is only `target.length > 0` inline in `createRoute` / `updateRoute`. There is no protocol max length and no `isValidTarget` view. Contents are not validated; `routeType` interprets the opaque payload offchain.
 
 ---
 
-## Bare XNS name canonicalization
+## Key semantics
 
-#### Functionality
-
-- Routes created with a bare label (e.g. `"action"`) resolve when queried with the canonical name (e.g. `"action.xns"`).
-- Bare and canonical names share the same route book (second create for the same key reverts).
-- Events emit `canonicalXNSName` in the canonical form.
-
----
-
-## Route keying (regression)
-
-#### Functionality
-
-- Routes under different `xnsName`, `routeScope`, or routeLabel are independent: key is `keccak256(abi.encodePacked(xnsName, "/", route))` if `routeScope` is empty, else `keccak256(abi.encodePacked(xnsName, "/", routeScope, ":", route))` (empty `routeScope` is distinct from any non-empty `routeScope` for the same routeLabel given XNS label rules).
+- `xnsNameKey = keccak256(abi.encodePacked(label, "@", namespace))`
+- `routeKey = keccak256(abi.encodePacked(label, "@", namespace, "/", routeLabel))` (hash of `label@namespace/routeLabel`)
+- Routes under different `label`, `namespace`, or `routeLabel` are independent.
+- Existence: `getRouteRecord(...).target.length == 0` means the route is not registered.

@@ -1,7 +1,7 @@
 [
+  "function getAddress(string,string) view returns (address)",
   "function getAddress(string) view returns (address)",
-  "function isValidLabelOrNamespace(string) view returns (bool)",
+  "function getNamespacePrice(string) pure returns (uint256)",
   "function registerName(string,string) payable",
-  "function setLabelInvalid(string,bool)",
-  "function setResolution(string,address)"
+  "function setResolution(string,string,address)"
 ]

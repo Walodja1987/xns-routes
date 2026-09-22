@@ -1,4 +1,6 @@
 [
+  "function getAddress(string,string) view returns (address)",
   "function getAddress(string) view returns (address)",
+  "function getNamespacePrice(string) view returns (uint256)",
   "function registerName(string,string) payable"
 ]

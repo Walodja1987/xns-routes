@@ -31,7 +31,11 @@ yarn test:hh
 
 ## Deploy Scripts
 
-Set `XNS_CONTRACT_ADDRESS` (Hardhat var or env) to your XNS registry. The deploy script sends `getNamespacePrice("xns")` as the deployment tx value so the constructor can call XNS `registerName("routes","xns")` (see `XNSRoutes` NatSpec).
+Set `XNS_CONTRACT_ADDRESS` (Hardhat var or env) only when overriding the default. For Ethereum mainnet and Sepolia, the deploy script uses `XNS_ADDRESS` in `constants/addresses.ts` (`0x6e797ba2d3103aF167918e71a7E01DE40D45f74b`). The deployment tx sends `getNamespacePrice("xns")` as value so the constructor can call XNS `registerName("routes","xns")` (see `XNSRoutes` NatSpec).
+
+The initial ERC-173 contract owner defaults to the deployer. To use a different non-zero
+address, set `XNS_ROUTES_INITIAL_OWNER` as a Hardhat var or environment variable. Ownership
+uses a two-step transfer and grants no authority over route state.
 
 ```bash
 yarn deploy:xns-routes:hh
@@ -60,16 +64,29 @@ npx hardhat run scripts/examples/<script_name>.ts --network <network_name>
 
 ### XNSRoutes (read)
 
+- [resolveRoute.ts](../scripts/examples/resolveRoute.ts) — demonstrates frozen+active, active-only, and raw resolution policies
+- [listRoutes.ts](../scripts/examples/listRoutes.ts) — paginates through `getRouteEntries`
 - [routeExists.ts](../scripts/examples/routeExists.ts) — uses `getRouteRecord(...).target != 0`
 - [getRouteRecord.ts](../scripts/examples/getRouteRecord.ts)
-- [isRouteBookFrozen.ts](../scripts/examples/isRouteBookFrozen.ts)
+- [getRouteKey.ts](../scripts/examples/getRouteKey.ts) — compares tuple, string, and local key derivation
+- [isRouteBookClosed.ts](../scripts/examples/isRouteBookClosed.ts)
+- [parseRoute.ts](../scripts/examples/parseRoute.ts) — demonstrates `splitRoute` and `splitXNSName`
+- [isValidRouteLabel.ts](../scripts/examples/isValidRouteLabel.ts)
 
-### XNSRoutes (write — caller must be XNS-resolved owner of `xnsName`, except activate/deactivate which require `activeController`)
+### XNSRoutes (write — caller must be XNS-resolved owner of `xnsName`)
 
 - [createRoute.ts](../scripts/examples/createRoute.ts)
+- [updateRoute.ts](../scripts/examples/updateRoute.ts)
 - [activateRoute.ts](../scripts/examples/activateRoute.ts)
 - [deactivateRoute.ts](../scripts/examples/deactivateRoute.ts)
-- [freezeRouteBook.ts](../scripts/examples/freezeRouteBook.ts)
+- [freezeRoute.ts](../scripts/examples/freezeRoute.ts)
+- [batchFreezeRoutes.ts](../scripts/examples/batchFreezeRoutes.ts)
+- [closeRouteBook.ts](../scripts/examples/closeRouteBook.ts)
+
+### Contract identity ownership (does not grant route authority)
+
+- [transferOwnership.ts](../scripts/examples/transferOwnership.ts) — starts a two-step transfer
+- [acceptOwnership.ts](../scripts/examples/acceptOwnership.ts) — pending owner accepts
 
 > Note: each script has a `USER INPUTS` section at the top.
 
@@ -77,4 +94,5 @@ npx hardhat run scripts/examples/<script_name>.ts --network <network_name>
 
 Before running examples, set deployed addresses in `constants/addresses.ts`:
 
+- `XNS_ADDRESS` — XNSv2 registry (`ethMain` / `sepolia`: `0x6e797ba2d3103aF167918e71a7E01DE40D45f74b`)
 - `XNS_ROUTES_ADDRESS.hardhat` / `localhost` / `ethMain` / `sepolia`

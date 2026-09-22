@@ -1,7 +1,7 @@
-// Canonical XNS registry addresses (for deploy / scripts / fork tests)
+// Canonical XNSv2 registry addresses (for deploy / scripts / fork tests)
 export const XNS_ADDRESS: Record<string, string> = {
-  ethMain: "0x648E4F05aF2b7eB85109A8dc8AE81D8E006457D8",
-  sepolia: "0x708a6a410Ea26E536F6534Ac5c98FDD73a4BFe23",
+  ethMain: "0x6e797ba2d3103aF167918e71a7E01DE40D45f74b",
+  sepolia: "0x6e797ba2d3103aF167918e71a7E01DE40D45f74b",
 };
 
 // XNSRoutes contract addresses by network (see scripts/deploy/deployXNSRoutes.ts)

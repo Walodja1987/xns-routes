@@ -1,13 +1,13 @@
 /**
- * Mark an existing route as active. Emits `RouteActiveStatusUpdated` only if `isActive` changes.
- * Caller must be the XNS name owner for `label@namespace`.
- * Allowed even after the individual route is frozen or its route book is closed.
+ * Permanently close the route book under an XNS name (no new routes).
+ * Caller must be the address XNS currently resolves for `label@namespace`.
+ * Existing routes remain updatable until individually frozen; activation may still be toggled.
  *
  * USAGE:
- * `npx hardhat run scripts/examples/activateRoute.ts --network <network_name>`
+ * `npx hardhat run scripts/examples/closeRouteBook.ts --network <network_name>`
  *
  * EXAMPLE:
- * `npx hardhat run scripts/examples/activateRoute.ts --network sepolia`
+ * `npx hardhat run scripts/examples/closeRouteBook.ts --network sepolia`
  *
  * REQUIRED SETUP:
  * - MNEMONIC, network RPC (see docs/DEV_NOTES.md)
@@ -28,7 +28,6 @@ const RED = "\x1b[31m";
 
 const label = "xns";
 const namespace = "action";
-const routeLabel = "register-name";
 const signerIndex = 0;
 
 async function main() {
@@ -50,16 +49,15 @@ async function main() {
   console.log(`Signer: ${GREEN}${signer.address}${RESET}`);
   const balance = await hre.ethers.provider.getBalance(signer.address);
   console.log(`Balance: ${GREEN}${formatEther(balance)} ETH${RESET}`);
-  console.log(`xnsName: ${GREEN}${xnsName}${RESET}`);
-  console.log(`routeLabel: ${GREEN}${routeLabel}${RESET}\n`);
+  console.log(`xnsName: ${GREEN}${xnsName}${RESET}\n`);
 
-  const tx = await routes.connect(signer).activateRoute(label, namespace, routeLabel);
+  const tx = await routes.connect(signer)["closeRouteBook(string)"](xnsName);
   console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
-  const record = await routes["getRouteRecord(string,string,string)"](label, namespace, routeLabel);
-  console.log(`${GREEN}✓ Confirmed. isActive=${record.isActive}${RESET}\n`);
+  const closed = await routes["isRouteBookClosed(string)"](xnsName);
+  console.log(`${GREEN}✓ Confirmed. routeBookClosed=${closed}${RESET}\n`);
 }
 
 main().catch((error: unknown) => {

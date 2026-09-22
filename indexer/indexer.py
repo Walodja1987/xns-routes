@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Simple SQLite indexer for XNSRoutes events.
+"""Simple SQLite indexer for XNSRoutes events (XNSv2).
 
-Route-scoped events (`RouteCreated`, `RouteActiveStatusUpdated`) include indexed `xnsNameKey`
-(`keccak256(bytes(canonicalXNSName))`) and `routeKey` (same as on-chain `_routeKey`) as log topics.
-`RouteCreated` indexes `target`; remaining fields are non-indexed in log data. Use topics for narrow
-`eth_getLogs` filters; decoded `args` expose the same fields by name.
+Route-scoped events include indexed `xnsNameKey`
+(`keccak256(abi.encodePacked(label, "@", namespace))`) and `routeKey` as log topics.
+`RouteCreated` / `RouteUpdated` also index `targetHash` (`keccak256(target)`); the full
+`target` bytes are not in the log — resolve via `getRouteRecord` / eth_call when needed.
 
 Usage examples:
   python indexer/indexer.py sync --rpc-url https://... --contract 0x... --from-block 12345678
-  python indexer/indexer.py list --rpc-url https://... --contract 0x... --xns-name bob.xns
-  python indexer/indexer.py export --rpc-url https://... --contract 0x... --xns-name bob.xns --out routes.json
+  python indexer/indexer.py list --rpc-url https://... --contract 0x... --xns-name xns@action
+  python indexer/indexer.py export --rpc-url https://... --contract 0x... --xns-name xns@action --out routes.json
 """
 
 from __future__ import annotations
@@ -29,9 +29,9 @@ from web3 import Web3
 EVENT_NAMES = (
     "RouteCreated",
     "RouteActiveStatusUpdated",
-    "RouteBookFrozen",
-    "ActiveControllerTransferAccepted",
-    "ActiveControllerRenounced",
+    "RouteUpdated",
+    "RouteFrozen",
+    "RouteBookClosed",
 )
 
 
@@ -59,6 +59,10 @@ def get_web3(rpc_url: str) -> Web3:
     return w3
 
 
+def xns_name_from_parts(label: str, namespace: str) -> str:
+    return f"{label}@{namespace}"
+
+
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(
         """
@@ -75,32 +79,34 @@ def init_db(conn: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS routes (
             chain_id INTEGER NOT NULL,
             contract TEXT NOT NULL,
-            xns_name TEXT NOT NULL,
-            route_scope TEXT NOT NULL,
+            label TEXT NOT NULL,
+            namespace TEXT NOT NULL,
             route_label TEXT NOT NULL,
             target TEXT,
+            target_hash TEXT,
             route_type INTEGER,
             is_active INTEGER,
-            active_controller TEXT,
+            is_frozen INTEGER NOT NULL DEFAULT 0,
             updated_block INTEGER NOT NULL,
             updated_tx_hash TEXT NOT NULL,
             updated_log_index INTEGER NOT NULL,
-            PRIMARY KEY (chain_id, contract, xns_name, route_scope, route_label)
+            PRIMARY KEY (chain_id, contract, label, namespace, route_label)
         );
 
         CREATE TABLE IF NOT EXISTS route_books (
             chain_id INTEGER NOT NULL,
             contract TEXT NOT NULL,
-            xns_name TEXT NOT NULL,
-            is_frozen INTEGER NOT NULL DEFAULT 0,
+            label TEXT NOT NULL,
+            namespace TEXT NOT NULL,
+            is_closed INTEGER NOT NULL DEFAULT 0,
             updated_block INTEGER NOT NULL,
             updated_tx_hash TEXT NOT NULL,
             updated_log_index INTEGER NOT NULL,
-            PRIMARY KEY (chain_id, contract, xns_name)
+            PRIMARY KEY (chain_id, contract, label, namespace)
         );
 
         CREATE INDEX IF NOT EXISTS idx_routes_lookup
-        ON routes(chain_id, contract, xns_name, route_scope, route_label);
+        ON routes(chain_id, contract, label, namespace, route_label);
         """
     )
     conn.commit()
@@ -129,14 +135,15 @@ def upsert_route(
     conn: sqlite3.Connection,
     chain_id: int,
     contract: str,
-    xns_name: str,
-    route_scope: str,
+    label: str,
+    namespace: str,
     route_label: str,
     *,
     target: str | None = None,
+    target_hash: str | None = None,
     route_type: int | None = None,
     is_active: int | None = None,
-    active_controller: str | None = None,
+    is_frozen: int | None = None,
     block_number: int,
     tx_hash: str,
     log_index: int,
@@ -144,16 +151,17 @@ def upsert_route(
     conn.execute(
         """
         INSERT INTO routes(
-            chain_id, contract, xns_name, route_scope, route_label,
-            target, route_type, is_active, active_controller,
+            chain_id, contract, label, namespace, route_label,
+            target, target_hash, route_type, is_active, is_frozen,
             updated_block, updated_tx_hash, updated_log_index
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(chain_id, contract, xns_name, route_scope, route_label)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 0), ?, ?, ?)
+        ON CONFLICT(chain_id, contract, label, namespace, route_label)
         DO UPDATE SET
             target = COALESCE(excluded.target, routes.target),
+            target_hash = COALESCE(excluded.target_hash, routes.target_hash),
             route_type = COALESCE(excluded.route_type, routes.route_type),
             is_active = COALESCE(excluded.is_active, routes.is_active),
-            active_controller = COALESCE(excluded.active_controller, routes.active_controller),
+            is_frozen = COALESCE(excluded.is_frozen, routes.is_frozen),
             updated_block = excluded.updated_block,
             updated_tx_hash = excluded.updated_tx_hash,
             updated_log_index = excluded.updated_log_index
@@ -161,13 +169,14 @@ def upsert_route(
         (
             chain_id,
             contract,
-            xns_name,
-            route_scope,
+            label,
+            namespace,
             route_label,
             target,
+            target_hash,
             route_type,
             is_active,
-            active_controller,
+            is_frozen,
             block_number,
             tx_hash,
             log_index,
@@ -175,11 +184,12 @@ def upsert_route(
     )
 
 
-def upsert_route_book_frozen(
+def upsert_route_book_closed(
     conn: sqlite3.Connection,
     chain_id: int,
     contract: str,
-    xns_name: str,
+    label: str,
+    namespace: str,
     *,
     block_number: int,
     tx_hash: str,
@@ -188,17 +198,17 @@ def upsert_route_book_frozen(
     conn.execute(
         """
         INSERT INTO route_books(
-            chain_id, contract, xns_name, is_frozen,
+            chain_id, contract, label, namespace, is_closed,
             updated_block, updated_tx_hash, updated_log_index
-        ) VALUES (?, ?, ?, 1, ?, ?, ?)
-        ON CONFLICT(chain_id, contract, xns_name)
+        ) VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+        ON CONFLICT(chain_id, contract, label, namespace)
         DO UPDATE SET
-            is_frozen = 1,
+            is_closed = 1,
             updated_block = excluded.updated_block,
             updated_tx_hash = excluded.updated_tx_hash,
             updated_log_index = excluded.updated_log_index
         """,
-        (chain_id, contract, xns_name, block_number, tx_hash, log_index),
+        (chain_id, contract, label, namespace, block_number, tx_hash, log_index),
     )
 
 
@@ -227,54 +237,68 @@ def decode_logs(contract: Any, logs: list[dict[str, Any]]) -> list[dict[str, Any
 
 def apply_event(conn: sqlite3.Connection, chain_id: int, contract: str, evt: dict[str, Any]) -> None:
     a = evt["args"]
+    name = evt["name"]
+    block_number = evt["blockNumber"]
+    tx_hash = evt["transactionHash"]
+    log_index = evt["logIndex"]
+
+    if name == "RouteBookClosed":
+        upsert_route_book_closed(
+            conn,
+            chain_id=chain_id,
+            contract=contract,
+            label=a["label"],
+            namespace=a["namespace"],
+            block_number=block_number,
+            tx_hash=tx_hash,
+            log_index=log_index,
+        )
+        return
+
     common = {
         "chain_id": chain_id,
         "contract": contract,
-        "xns_name": a["canonicalXNSName"],
-        "route_scope": a["routeScope"],
+        "label": a["label"],
+        "namespace": a["namespace"],
         "route_label": a["routeLabel"],
-        "block_number": evt["blockNumber"],
-        "tx_hash": evt["transactionHash"],
-        "log_index": evt["logIndex"],
+        "block_number": block_number,
+        "tx_hash": tx_hash,
+        "log_index": log_index,
     }
 
-    name = evt["name"]
     if name == "RouteCreated":
         upsert_route(
             conn,
             **common,
-            target=Web3.to_checksum_address(a["target"]),
+            target_hash=Web3.to_hex(a["targetHash"])
+            if not isinstance(a["targetHash"], str)
+            else a["targetHash"],
             route_type=int(a["routeType"]),
             is_active=1 if a["isActive"] else 0,
-            active_controller=Web3.to_checksum_address(a["activeController"]),
+            is_frozen=0,
         )
     elif name == "RouteActiveStatusUpdated":
         upsert_route(conn, **common, is_active=1 if a["isActive"] else 0)
-    elif name == "RouteBookFrozen":
-        upsert_route_book_frozen(
-            conn,
-            chain_id=chain_id,
-            contract=contract,
-            xns_name=a["canonicalXNSName"],
-            block_number=evt["blockNumber"],
-            tx_hash=evt["transactionHash"],
-            log_index=evt["logIndex"],
-        )
-    elif name == "ActiveControllerTransferAccepted":
+    elif name == "RouteUpdated":
         upsert_route(
             conn,
             **common,
-            active_controller=Web3.to_checksum_address(a["newActiveController"]),
+            target_hash=Web3.to_hex(a["targetHash"])
+            if not isinstance(a["targetHash"], str)
+            else a["targetHash"],
+            route_type=int(a["routeType"]),
         )
-    elif name == "ActiveControllerRenounced":
-        upsert_route(
-            conn,
-            **common,
-            is_active=0,
-            active_controller=Web3.to_checksum_address(
-                "0x000000000000000000000000000000000000dEaD"
-            ),
-        )
+    elif name == "RouteFrozen":
+        upsert_route(conn, **common, is_frozen=1)
+
+
+def parse_xns_name(xns_name: str) -> tuple[str, str]:
+    if "@" not in xns_name:
+        raise ValueError(f"Expected label@namespace, got: {xns_name}")
+    label, namespace = xns_name.split("@", 1)
+    if not label or not namespace:
+        raise ValueError(f"Invalid XNS name: {xns_name}")
+    return label, namespace
 
 
 def run_sync(ctx: Context, from_block: int, once: bool, finality: int) -> None:
@@ -317,27 +341,28 @@ def print_routes(ctx: Context, xns_name: str) -> None:
     w3 = get_web3(ctx.rpc_url)
     chain_id = int(w3.eth.chain_id)
     contract_addr = Web3.to_checksum_address(ctx.contract)
+    label, namespace = parse_xns_name(xns_name)
     conn = sqlite3.connect(ctx.db_path)
     init_db(conn)
 
     book = conn.execute(
         """
-        SELECT is_frozen FROM route_books
-        WHERE chain_id = ? AND contract = ? AND xns_name = ?
+        SELECT is_closed FROM route_books
+        WHERE chain_id = ? AND contract = ? AND label = ? AND namespace = ?
         """,
-        (chain_id, contract_addr, xns_name),
+        (chain_id, contract_addr, label, namespace),
     ).fetchone()
-    book_frozen = bool(book[0]) if book else False
+    book_closed = bool(book[0]) if book else False
 
     rows = conn.execute(
         """
-        SELECT route_scope, route_label, target, route_type, is_active, active_controller,
+        SELECT route_label, target, target_hash, route_type, is_active,
                updated_block, updated_tx_hash
         FROM routes
-        WHERE chain_id = ? AND contract = ? AND xns_name = ?
-        ORDER BY route_scope, route_label
+        WHERE chain_id = ? AND contract = ? AND label = ? AND namespace = ?
+        ORDER BY route_label
         """,
-        (chain_id, contract_addr, xns_name),
+        (chain_id, contract_addr, label, namespace),
     ).fetchall()
     conn.close()
 
@@ -345,14 +370,13 @@ def print_routes(ctx: Context, xns_name: str) -> None:
         print("No indexed routes found. Run sync first.")
         return
 
-    print(f"routeBookFrozen={book_frozen}")
+    print(f"routeBookClosed={book_closed}")
     for r in rows:
-        scope, label, target, route_type, is_active, active_controller, blk, tx = r
+        route_label, target, target_hash, route_type, is_active, blk, tx = r
         print(
-            f"  {xns_name}/{(scope + ':') if scope else ''}{label}  "
-            f"target={target} type={route_type} active={bool(is_active)} "
-            f"controller={active_controller} "
-            f"@block={blk} tx={tx[:10]}..."
+            f"  {xns_name_from_parts(label, namespace)}/{route_label}  "
+            f"target={target} targetHash={target_hash} type={route_type} "
+            f"active={bool(is_active)} @block={blk} tx={tx[:10]}..."
         )
 
 
@@ -364,31 +388,32 @@ def export_routes(ctx: Context, xns_name: str | None, out_path: Path) -> None:
     init_db(conn)
 
     if xns_name:
+        label, namespace = parse_xns_name(xns_name)
         rows = conn.execute(
             """
-            SELECT xns_name, route_scope, route_label, target, route_type, is_active, active_controller,
+            SELECT label, namespace, route_label, target, target_hash, route_type, is_active,
                    updated_block, updated_tx_hash, updated_log_index
             FROM routes
-            WHERE chain_id = ? AND contract = ? AND xns_name = ?
-            ORDER BY xns_name, route_scope, route_label
+            WHERE chain_id = ? AND contract = ? AND label = ? AND namespace = ?
+            ORDER BY label, namespace, route_label
             """,
-            (chain_id, contract_addr, xns_name),
+            (chain_id, contract_addr, label, namespace),
         ).fetchall()
     else:
         rows = conn.execute(
             """
-            SELECT xns_name, route_scope, route_label, target, route_type, is_active, active_controller,
+            SELECT label, namespace, route_label, target, target_hash, route_type, is_active,
                    updated_block, updated_tx_hash, updated_log_index
             FROM routes
             WHERE chain_id = ? AND contract = ?
-            ORDER BY xns_name, route_scope, route_label
+            ORDER BY label, namespace, route_label
             """,
             (chain_id, contract_addr),
         ).fetchall()
 
     books = conn.execute(
         """
-        SELECT xns_name, is_frozen, updated_block, updated_tx_hash, updated_log_index
+        SELECT label, namespace, is_closed, updated_block, updated_tx_hash, updated_log_index
         FROM route_books
         WHERE chain_id = ? AND contract = ?
         """,
@@ -407,23 +432,26 @@ def export_routes(ctx: Context, xns_name: str | None, out_path: Path) -> None:
         "lastProcessedBlock": int(cp[0]) if cp else None,
         "routeBooks": [
             {
-                "xnsName": b[0],
-                "isRouteBookFrozen": bool(b[1]),
-                "updatedBlock": b[2],
-                "updatedTxHash": b[3],
-                "updatedLogIndex": b[4],
+                "xnsName": xns_name_from_parts(b[0], b[1]),
+                "label": b[0],
+                "namespace": b[1],
+                "isRouteBookClosed": bool(b[2]),
+                "updatedBlock": b[3],
+                "updatedTxHash": b[4],
+                "updatedLogIndex": b[5],
             }
             for b in books
         ],
         "routes": [
             {
-                "xnsName": r[0],
-                "routeScope": r[1],
+                "xnsName": xns_name_from_parts(r[0], r[1]),
+                "label": r[0],
+                "namespace": r[1],
                 "routeLabel": r[2],
                 "target": r[3],
-                "routeType": r[4],
-                "isActive": bool(r[5]) if r[5] is not None else None,
-                "activeController": r[6],
+                "targetHash": r[4],
+                "routeType": r[5],
+                "isActive": bool(r[6]) if r[6] is not None else None,
                 "updatedBlock": r[7],
                 "updatedTxHash": r[8],
                 "updatedLogIndex": r[9],
@@ -460,11 +488,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p_sync.add_argument("--once", action="store_true", help="Run one catch-up pass and exit")
 
     p_list = sub.add_parser("list", help="List indexed routes for one xnsName")
-    p_list.add_argument("--xns-name", required=True, help="e.g. bob.xns")
+    p_list.add_argument("--xns-name", required=True, help="e.g. xns@action")
 
     p_export = sub.add_parser("export", help="Export indexed routes as JSON")
     p_export.add_argument("--out", required=True, help="Output JSON file path")
-    p_export.add_argument("--xns-name", help="Optional xnsName filter")
+    p_export.add_argument("--xns-name", help="Optional xnsName filter (label@namespace)")
 
     return parser.parse_args(argv)
 

@@ -1,6 +1,6 @@
 /**
- * Register a new route under `(xnsName, routeScope, routeLabel)`. Reverts if that key already exists.
- * Caller must be the address XNS currently resolves for `xnsName`.
+ * Register a new route under `(label, namespace, routeLabel)`. Reverts if that key already exists.
+ * Caller must be the address XNS currently resolves for `label@namespace`.
  *
  * USAGE:
  * `npx hardhat run scripts/examples/createRoute.ts --network <network_name>`
@@ -25,33 +25,30 @@ const RED = "\x1b[31m";
                             USER INPUTS
 //////////////////////////////////////////////////////////////*/
 
-const xnsName = "xns.action";
-/** Optional route scope (path segment before `:`), e.g. `eth` in `xns.action/eth:register-name/...` */
-const routeScope = "eth";
+const label = "xns";
+const namespace = "action";
 const routeLabel = "register-name";
 
-/** Build contract address for this route */
-const target = "0x0000000000000000000000000000000000000001";
-
-/** Parser hint; semantics are offchain (0 = target is the answer, 1 = query target, 2 = executable calldata) */
-const routeType = 0;
-
 /**
- * Optional explicit `activeController`. When set, calls `createRouteWithController`
- * instead of `createRoute` (which defaults to activeController=XNS name owner; both use isActive=true).
+ * Opaque `bytes` target (non-empty; no protocol max length). For a 20-byte EVM address
+ * payload, pass the address hex and convert with `ethers.getBytes` / `ethers.hexlify`.
  */
-const useControllerOverride = false;
-const activeControllerOverride = "0x0000000000000000000000000000000000000002";
+const targetAddress = "0x0000000000000000000000000000000000000001";
+
+/** Application-defined parser hint; numeric meanings are not standardized by XNSRoutes. */
+const routeType = 0;
 
 /** Signer index (0 = first account from mnemonic) */
 const signerIndex = 0;
 
 async function main() {
   const networkName = hre.network.name;
+  const { ethers } = hre;
 
-  if (!hre.ethers.isAddress(target)) {
-    throw new Error(`Invalid target address: ${target}`);
+  if (!ethers.isAddress(targetAddress)) {
+    throw new Error(`Invalid target address: ${targetAddress}`);
   }
+  const target = ethers.hexlify(ethers.getBytes(targetAddress));
 
   const contractAddress = XNS_ROUTES_ADDRESS[networkName];
   if (!contractAddress) {
@@ -60,46 +57,33 @@ async function main() {
     );
   }
 
-  const routes = await hre.ethers.getContractAt("XNSRoutes", contractAddress);
-  const signers = await hre.ethers.getSigners();
+  const routes = await ethers.getContractAt("XNSRoutes", contractAddress);
+  const signers = await ethers.getSigners();
   const signer = signers[signerIndex];
+
+  const xnsName = `${label}@${namespace}`;
 
   console.log(`\nNetwork: ${GREEN}${networkName}${RESET}`);
   console.log(`XNSRoutes: ${GREEN}${contractAddress}${RESET}`);
   console.log(`Signer: ${GREEN}${signer.address}${RESET}`);
-  const balance = await hre.ethers.provider.getBalance(signer.address);
+  const balance = await ethers.provider.getBalance(signer.address);
   console.log(`Balance: ${GREEN}${formatEther(balance)} ETH${RESET}`);
   console.log(`xnsName: ${GREEN}${xnsName}${RESET}`);
-  console.log(`routeScope: ${GREEN}${routeScope}${RESET}`);
   console.log(`routeLabel: ${GREEN}${routeLabel}${RESET}`);
-  console.log(`target: ${GREEN}${target}${RESET}`);
+  console.log(`target: ${GREEN}${target}${RESET} (${ethers.getBytes(target).length} bytes)`);
   console.log(`routeType: ${GREEN}${routeType}${RESET}`);
-  if (useControllerOverride) {
-    console.log(`activeController: ${GREEN}${activeControllerOverride}${RESET} (override)\n`);
-  } else {
-    console.log(`isActive: ${GREEN}true (default)${RESET}`);
-    console.log(`activeController: ${GREEN}XNS name owner (default)${RESET}\n`);
-  }
+  console.log(`isActive: ${GREEN}true (default)${RESET}\n`);
 
-  const tx = useControllerOverride
-    ? await routes
-        .connect(signer)
-        .createRouteWithController(
-          xnsName,
-          routeScope,
-          routeLabel,
-          target,
-          routeType,
-          activeControllerOverride,
-        )
-    : await routes.connect(signer).createRoute(xnsName, routeScope, routeLabel, target, routeType);
+  const tx = await routes
+    .connect(signer)
+    .createRoute(label, namespace, routeLabel, target, routeType);
   console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
-  const record = await routes.getRouteRecord(xnsName, routeScope, routeLabel);
+  const record = await routes["getRouteRecord(string,string,string)"](label, namespace, routeLabel);
   console.log(
-    `${GREEN}✓ Confirmed. getRouteRecord → target=${record.target} routeType=${record.routeType} isActive=${record.isActive} activeController=${record.activeController}${RESET}\n`,
+    `${GREEN}✓ Confirmed. getRouteRecord → target=${record.target} routeType=${record.routeType} isActive=${record.isActive}${RESET}\n`,
   );
 }
 

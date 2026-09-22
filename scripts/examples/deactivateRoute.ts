@@ -1,7 +1,7 @@
 /**
  * Mark an existing route as inactive. Emits `RouteActiveStatusUpdated` only if `isActive` changes.
- * Caller must be `record.activeController` for the route.
- * Allowed even after route or route book freeze.
+ * Caller must be the XNS name owner for `label@namespace`.
+ * Allowed even after the individual route is frozen or its route book is closed.
  *
  * USAGE:
  * `npx hardhat run scripts/examples/deactivateRoute.ts --network <network_name>`
@@ -26,8 +26,8 @@ const RED = "\x1b[31m";
                             USER INPUTS
 //////////////////////////////////////////////////////////////*/
 
-const xnsName = "xns.action";
-const routeScope = "eth";
+const label = "xns";
+const namespace = "action";
 const routeLabel = "register-name";
 const signerIndex = 0;
 
@@ -43,6 +43,7 @@ async function main() {
   const routes = await hre.ethers.getContractAt("XNSRoutes", contractAddress);
   const signers = await hre.ethers.getSigners();
   const signer = signers[signerIndex];
+  const xnsName = `${label}@${namespace}`;
 
   console.log(`\nNetwork: ${GREEN}${networkName}${RESET}`);
   console.log(`XNSRoutes: ${GREEN}${contractAddress}${RESET}`);
@@ -50,15 +51,14 @@ async function main() {
   const balance = await hre.ethers.provider.getBalance(signer.address);
   console.log(`Balance: ${GREEN}${formatEther(balance)} ETH${RESET}`);
   console.log(`xnsName: ${GREEN}${xnsName}${RESET}`);
-  console.log(`routeScope: ${GREEN}${routeScope}${RESET}`);
-  console.log(`routeLabel: ${GREEN}${route}${RESET}\n`);
+  console.log(`routeLabel: ${GREEN}${routeLabel}${RESET}\n`);
 
-  const tx = await routes.connect(signer).deactivateRoute(xnsName, routeScope, route);
+  const tx = await routes.connect(signer).deactivateRoute(label, namespace, routeLabel);
   console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
-  const record = await routes.getRouteRecord(xnsName, routeScope, routeLabel);
+  const record = await routes["getRouteRecord(string,string,string)"](label, namespace, routeLabel);
   console.log(`${GREEN}✓ Confirmed. isActive=${record.isActive}${RESET}\n`);
 }
 
