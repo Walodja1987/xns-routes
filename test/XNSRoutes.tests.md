@@ -37,7 +37,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Events
 
-- Should emit `RouteCreated` with indexed `xnsNameKey` (`keccak256(abi.encodePacked(label, "@", namespace))`), `routeKey`, then `label`, `namespace`, `routeLabel`, `target`, `routeType`, and `isActive` (non-indexed, full values in log data).
+- Should emit `RouteCreated` with indexed `xnsNameKey`, `routeKey`, and `targetHash` (`keccak256(target)`), then `label`, `namespace`, `routeLabel`, `routeType`, and `isActive` in log data. Full `target` is not logged — read it from storage via `getRouteRecord` / resolve.
 
 #### Reverts
 
@@ -70,7 +70,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 - XNS name owner can update `target` (`bytes`, non-empty; no protocol max length) and `routeType` for an existing route while `record.isFrozen` is false.
 - Closing the route book does **not** block `updateRoute`.
-- Emits `RouteUpdated` only when values actually change.
+- Emits `RouteUpdated` only when values actually change (indexed `targetHash = keccak256(newTarget)`; full `target` is not in the log).
 
 #### Reverts
 
@@ -175,6 +175,19 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 ---
 
+## `getRouteKey`
+
+#### Functionality
+
+- `getRouteKey(label, namespace, routeLabel)` returns `keccak256(abi.encodePacked(label, "@", namespace, "/", routeLabel))`.
+- `getRouteKey(route)` parses an exact `label@namespace/routeLabel` string and returns the same key.
+
+#### Reverts
+
+- `"XNSRoutes: invalid route"` for the string overload when the route string is malformed.
+
+---
+
 ## Route key list (`getRouteKeyCount`, `getRouteKeys`, `getRouteEntries`)
 
 #### Functionality
@@ -207,6 +220,6 @@ Target validation is only `target.length > 0` inline in `createRoute` / `updateR
 ## Key semantics
 
 - `xnsNameKey = keccak256(abi.encodePacked(label, "@", namespace))`
-- `routeKey = keccak256(abi.encode(xnsNameKey, keccak256(bytes(routeLabel))))`
+- `routeKey = keccak256(abi.encodePacked(label, "@", namespace, "/", routeLabel))` (hash of `label@namespace/routeLabel`)
 - Routes under different `label`, `namespace`, or `routeLabel` are independent.
 - Existence: `getRouteRecord(...).target.length == 0` means the route is not registered.

@@ -99,7 +99,10 @@ No reverse lookup is provided because multiple routes may point to the same targ
   - `resolveRouteIfActive` (requires `isActive`, ignores freeze);
   - `resolveRoute` (ignores `isActive` and freeze).
 - XNS name key: `keccak256(abi.encodePacked(label, " AT ", namespace))`.
-- Route key: `keccak256(abi.encode(xnsNameKey, keccak256(bytes(routeLabel))))`.
+- Route key: `keccak256` of `label`, the at-sign, `namespace`, `/`, `routeLabel`
+  (the hash of the canonical route string `label AT namespace/routeLabel`).
+  Unambiguous because XNSv2 forbids the at-sign and `/` in `label` and `namespace`,
+  and a route label cannot contain `/`. See `_routeKey`.
 - The route list can be queried with `getRouteKeyCount`, `getRouteKeys`, and `getRouteEntries`.
   `getRouteEntries` returns each route's key plus stored `routeLabel` and metadata.
 
@@ -318,6 +321,38 @@ The string must be exactly `label AT namespace/routeLabel` (no extra `/` segment
 
 ```solidity
 function getRouteRecord(string route) external view returns (struct XNSRoutes.RouteRecord record)
+```
+
+
+
+
+### getRouteKey
+
+
+Returns the canonical route key for separate XNS components.
+
+Equal to the hash of the UTF-8 string `label AT namespace/routeLabel`.
+
+```solidity
+function getRouteKey(string label, string namespace, string routeLabel) external pure returns (bytes32 routeKey)
+```
+
+
+
+
+### getRouteKey
+
+
+Returns the canonical route key for a complete route string.
+
+Example:
+
+    getRouteKey("alice AT pay/treasury")
+
+The string must be exactly `label AT namespace/routeLabel` (no extra `/` segments).
+
+```solidity
+function getRouteKey(string route) external pure returns (bytes32 routeKey)
 ```
 
 
@@ -576,12 +611,14 @@ function isValidRouteLabel(string routeLabel) external pure returns (bool valid)
 ### RouteCreated
 
 
-
+Emitted when a new route is created.
 
 ```solidity
-event RouteCreated(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel, bytes target, uint32 routeType, bool isActive)
+event RouteCreated(bytes32 xnsNameKey, bytes32 routeKey, bytes32 targetHash, string label, string namespace, string routeLabel, uint32 routeType, bool isActive)
 ```
 
+_Emitted by `createRoute`. `targetHash` is `keccak256(target)`; the full
+`target` is not logged — read it from storage._
 
 
 
@@ -589,12 +626,13 @@ event RouteCreated(bytes32 xnsNameKey, bytes32 routeKey, string label, string na
 ### RouteActiveStatusUpdated
 
 
-
+Emitted when the active status of a route changes.
 
 ```solidity
 event RouteActiveStatusUpdated(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel, bool isActive)
 ```
 
+_Emitted by `activateRoute` and `deactivateRoute` (only when `isActive` changes)._
 
 
 
@@ -602,12 +640,14 @@ event RouteActiveStatusUpdated(bytes32 xnsNameKey, bytes32 routeKey, string labe
 ### RouteUpdated
 
 
-
+Emitted when the target or route type of a mutable route changes.
 
 ```solidity
-event RouteUpdated(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel, bytes target, uint32 routeType)
+event RouteUpdated(bytes32 xnsNameKey, bytes32 routeKey, bytes32 targetHash, string label, string namespace, string routeLabel, uint32 routeType)
 ```
 
+_Emitted by `updateRoute`. `targetHash` is `keccak256(newTarget)`; the full
+`target` is not logged — read it from storage._
 
 
 
@@ -615,12 +655,13 @@ event RouteUpdated(bytes32 xnsNameKey, bytes32 routeKey, string label, string na
 ### RouteFrozen
 
 
-
+Emitted when a route becomes permanently frozen.
 
 ```solidity
 event RouteFrozen(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel)
 ```
 
+_Emitted by `freezeRoute` and `batchFreezeRoutes` (only when newly frozen)._
 
 
 
@@ -628,12 +669,13 @@ event RouteFrozen(bytes32 xnsNameKey, bytes32 routeKey, string label, string nam
 ### RouteBookClosed
 
 
-
+Emitted when no additional routes may be created under an XNS name.
 
 ```solidity
 event RouteBookClosed(bytes32 xnsNameKey, string label, string namespace)
 ```
 
+_Emitted by both `closeRouteBook` overloads (only the first successful close)._
 
 
 

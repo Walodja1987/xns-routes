@@ -47,7 +47,7 @@ Validation rules:
 | **label** | `alice` | XNSv2 name label |
 | **namespace** | `pay` | XNSv2 namespace |
 | **route label** | `treasury` | Required slug after `/` |
-| **route key** | `bytes32` | `keccak256(abi.encode(xnsNameKey, keccak256(bytes(routeLabel))))` |
+| **route key** | `bytes32` | `keccak256(abi.encodePacked(label, "@", namespace, "/", routeLabel))` — hash of `label@namespace/routeLabel` |
 
 Contract tuple APIs use `(label, namespace, routeLabel)` — equivalent to parsing a route. String helpers: `splitRoute`, `splitXNSName`, `getRouteRecord(string route)` (exact route string only; no params suffix).
 
@@ -275,6 +275,8 @@ The registry stores each route's **`routeLabel` on-chain** and keeps a per-name 
 
 **Views (see NatSpec / [docs/API.md](docs/API.md))**
 
+- `getRouteKey(label, namespace, routeLabel)` — derive the canonical route storage key
+- `getRouteKey(route)` — same from an exact route string
 - `getRouteKeyCount(label, namespace)` — number of routes for that name
 - `getRouteEntries(label, namespace, start, end)` — **preferred**: page through routes with key, `routeLabel`, and full metadata (`end` **exclusive**; clamped to array length; empty slice when `start` is past the end)
 - `getRouteKeys(label, namespace, start, end)` — page through storage keys only (same pagination rules as `getRouteEntries`)

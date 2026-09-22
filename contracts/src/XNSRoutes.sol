@@ -110,7 +110,10 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 ///   - `resolveRouteIfActive` (requires `isActive`, ignores freeze);
 ///   - `resolveRoute` (ignores `isActive` and freeze).
 /// - XNS name key: `keccak256(abi.encodePacked(label, " AT ", namespace))`.
-/// - Route key: `keccak256(abi.encode(xnsNameKey, keccak256(bytes(routeLabel))))`.
+/// - Route key: `keccak256` of `label`, the at-sign, `namespace`, `/`, `routeLabel`
+///   (the hash of the canonical route string `label AT namespace/routeLabel`).
+///   Unambiguous because XNSv2 forbids the at-sign and `/` in `label` and `namespace`,
+///   and a route label cannot contain `/`. See `_routeKey`.
 /// - The route list can be queried with `getRouteKeyCount`, `getRouteKeys`, and `getRouteEntries`.
 ///   `getRouteEntries` returns each route's key plus stored `routeLabel` and metadata.
 contract XNSRoutes {
@@ -140,33 +143,34 @@ contract XNSRoutes {
     /// @notice XNSv2 registry used for name ownership resolution.
     IXNSMinimal public immutable XNS;
 
-    /// @dev XNS name key => whether its route book has been permanently closed.
+    /// @dev Whether the route book for an XNS name is permanently closed.
     ///
     /// XNS name key: keccak256(abi.encodePacked(label, " AT ", namespace))
-    ///
-    mapping(bytes32 => bool) private _routeBookClosed;
+    mapping(bytes32 xnsNameKey => bool isClosed) private _routeBookClosed;
 
-    /// @dev Route key => route record.
-    mapping(bytes32 => RouteRecord) private _routes;
+    /// @dev Canonical route key => route record.
+    mapping(bytes32 routeKey => RouteRecord record) private _routes;
 
-    /// @dev XNS name key => all route keys created under that XNS name.
-    mapping(bytes32 => bytes32[]) private _routeKeysByXNSName;
+    /// @dev Append-only list of route keys created under an XNS name.
+    mapping(bytes32 xnsNameKey => bytes32[] routeKeys) private _routeKeysByXNSName;
 
     // -------------------------------------------------------------------------
     // Events
     // -------------------------------------------------------------------------
 
+    /// @dev Emitted by `createRoute`.
     event RouteCreated(
         bytes32 indexed xnsNameKey,
         bytes32 indexed routeKey,
+        bytes32 indexed targetHash,
         string label,
         string namespace,
         string routeLabel,
-        bytes target,
         uint32 routeType,
         bool isActive
     );
 
+    /// @dev Emitted by `activateRoute` and `deactivateRoute` (only when `isActive` changes).
     event RouteActiveStatusUpdated(
         bytes32 indexed xnsNameKey,
         bytes32 indexed routeKey,
@@ -176,16 +180,18 @@ contract XNSRoutes {
         bool isActive
     );
 
+    /// @dev Emitted by `updateRoute`.
     event RouteUpdated(
         bytes32 indexed xnsNameKey,
         bytes32 indexed routeKey,
+        bytes32 indexed targetHash,
         string label,
         string namespace,
         string routeLabel,
-        bytes target,
         uint32 routeType
     );
 
+    /// @dev Emitted by `freezeRoute` and `batchFreezeRoutes`.
     event RouteFrozen(
         bytes32 indexed xnsNameKey,
         bytes32 indexed routeKey,
@@ -194,6 +200,7 @@ contract XNSRoutes {
         string routeLabel
     );
 
+    /// @dev Emitted by `closeRouteBook`.
     event RouteBookClosed(
         bytes32 indexed xnsNameKey,
         string label,
@@ -282,7 +289,7 @@ contract XNSRoutes {
         require(target.length > 0, "XNSRoutes: invalid target");
         require(!_routeBookClosed[xnsNameKey], "XNSRoutes: route book closed");
 
-        bytes32 routeKey = _routeKey(xnsNameKey, routeLabel);
+        bytes32 routeKey = _routeKey(label, namespace, routeLabel);
 
         require(
             _routes[routeKey].target.length == 0,
@@ -302,10 +309,10 @@ contract XNSRoutes {
         emit RouteCreated(
             xnsNameKey,
             routeKey,
+            keccak256(target),
             label,
             namespace,
             routeLabel,
-            target,
             routeType,
             true
         );
@@ -367,7 +374,7 @@ contract XNSRoutes {
         bool active
     ) private {
         bytes32 xnsNameKey = _requireXNSNameOwner(label, namespace);
-        bytes32 routeKey = _routeKey(xnsNameKey, routeLabel);
+        bytes32 routeKey = _routeKey(label, namespace, routeLabel);
 
         RouteRecord storage record = _routes[routeKey];
 
@@ -408,7 +415,7 @@ contract XNSRoutes {
         uint32 newRouteType
     ) external {
         bytes32 xnsNameKey = _requireXNSNameOwner(label, namespace);
-        bytes32 routeKey = _routeKey(xnsNameKey, routeLabel);
+        bytes32 routeKey = _routeKey(label, namespace, routeLabel);
 
         RouteRecord storage record = _routes[routeKey];
 
@@ -426,10 +433,10 @@ contract XNSRoutes {
             emit RouteUpdated(
                 xnsNameKey,
                 routeKey,
+                keccak256(newTarget),
                 label,
                 namespace,
                 routeLabel,
-                newTarget,
                 newRouteType
             );
         }
@@ -483,7 +490,7 @@ contract XNSRoutes {
         string calldata namespace,
         string calldata routeLabel
     ) private {
-        bytes32 routeKey = _routeKey(xnsNameKey, routeLabel);
+        bytes32 routeKey = _routeKey(label, namespace, routeLabel);
 
         RouteRecord storage record = _routes[routeKey];
 
@@ -575,10 +582,8 @@ contract XNSRoutes {
         string calldata namespace,
         string calldata routeLabel
     ) external view returns (RouteRecord memory record) {
-        bytes32 xnsNameKey = _xnsNameKey(label, namespace);
-
         return _copyRouteRecord(
-            _routes[_routeKey(xnsNameKey, routeLabel)]
+            _routes[_routeKey(label, namespace, routeLabel)]
         );
     }
 
@@ -598,11 +603,43 @@ contract XNSRoutes {
             string memory routeLabel
         ) = _splitRoute(route);
 
-        bytes32 xnsNameKey = _xnsNameKey(label, namespace);
-
         return _copyRouteRecord(
-            _routes[_routeKey(xnsNameKey, routeLabel)]
+            _routes[_routeKey(label, namespace, routeLabel)]
         );
+    }
+
+    // -------------------------------------------------------------------------
+    // Route key derivation
+    // -------------------------------------------------------------------------
+
+    /// @notice Returns the canonical route key for separate XNS components.
+    ///
+    /// Equal to the hash of the UTF-8 string `label AT namespace/routeLabel`.
+    function getRouteKey(
+        string calldata label,
+        string calldata namespace,
+        string calldata routeLabel
+    ) external pure returns (bytes32 routeKey) {
+        return _routeKey(label, namespace, routeLabel);
+    }
+
+    /// @notice Returns the canonical route key for a complete route string.
+    ///
+    /// Example:
+    ///
+    ///     getRouteKey("alice AT pay/treasury")
+    ///
+    /// The string must be exactly `label AT namespace/routeLabel` (no extra `/` segments).
+    function getRouteKey(
+        string calldata route
+    ) external pure returns (bytes32 routeKey) {
+        (
+            string memory label,
+            string memory namespace,
+            string memory routeLabel
+        ) = _splitRoute(route);
+
+        return _routeKey(label, namespace, routeLabel);
     }
 
     // -------------------------------------------------------------------------
@@ -954,10 +991,7 @@ contract XNSRoutes {
         uint32 routeType
     ) {
         RouteRecord storage record = _routes[
-            _routeKey(
-                _xnsNameKey(label, namespace),
-                routeLabel
-            )
+            _routeKey(label, namespace, routeLabel)
         ];
 
         require(
@@ -991,10 +1025,7 @@ contract XNSRoutes {
         uint32 routeType
     ) {
         RouteRecord storage record = _routes[
-            _routeKey(
-                _xnsNameKey(label, namespace),
-                routeLabel
-            )
+            _routeKey(label, namespace, routeLabel)
         ];
 
         require(
@@ -1023,10 +1054,7 @@ contract XNSRoutes {
         uint32 routeType
     ) {
         RouteRecord storage record = _routes[
-            _routeKey(
-                _xnsNameKey(label, namespace),
-                routeLabel
-            )
+            _routeKey(label, namespace, routeLabel)
         ];
 
         require(
@@ -1088,17 +1116,23 @@ contract XNSRoutes {
         );
     }
 
-    /// @dev Derives a route key from the XNS name key and route-label hash.
+    /// @dev Canonical route key: hash of `label AT namespace/routeLabel`.
     ///
-    /// Using `abi.encode` creates an unambiguous fixed-size encoding.
+    /// `abi.encodePacked` of label, the at-sign, namespace, `/`, and routeLabel.
+    /// Unambiguous because XNSv2 forbids the at-sign and `/` in `label` and
+    /// `namespace`, and a route label cannot contain `/`.
     function _routeKey(
-        bytes32 xnsNameKey,
+        string memory label,
+        string memory namespace,
         string memory routeLabel
     ) private pure returns (bytes32) {
         return keccak256(
-            abi.encode(
-                xnsNameKey,
-                keccak256(bytes(routeLabel))
+            abi.encodePacked(
+                label,
+                "@",
+                namespace,
+                "/",
+                routeLabel
             )
         );
     }

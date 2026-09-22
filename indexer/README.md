@@ -9,10 +9,11 @@ Compact SQLite-based indexer for `XNSRoutes` events (XNSv2). No TheGraph, no ext
 - Stores state + checkpoint in a local SQLite file
 - Lets you list or export routes
 
-On-chain events index `xnsNameKey` and `routeKey` (see `XNSRoutes.sol`) so external indexers or
-custom `eth_getLogs` queries can filter by XNS name hash and/or canonical route key; this tool
-decodes full event payloads from the ABI and does not rely on topic layout beyond what `web3.py`
-provides.
+On-chain events index `xnsNameKey`, `routeKey`, and (for create/update) `targetHash`
+(see `XNSRoutes.sol`) so external indexers or custom `eth_getLogs` queries can filter by
+XNS name hash, route key, and/or known target hash. Full `target` bytes are **not** in
+create/update logs — read them via `getRouteRecord` when needed. This tool decodes event
+payloads from the ABI and does not rely on topic layout beyond what `web3.py` provides.
 
 ## Requirements
 

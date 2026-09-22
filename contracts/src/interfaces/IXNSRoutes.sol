@@ -20,10 +20,10 @@ interface IXNSRoutes {
     event RouteCreated(
         bytes32 indexed xnsNameKey,
         bytes32 indexed routeKey,
+        bytes32 indexed targetHash,
         string label,
         string namespace,
         string routeLabel,
-        bytes target,
         uint32 routeType,
         bool isActive
     );
@@ -40,10 +40,10 @@ interface IXNSRoutes {
     event RouteUpdated(
         bytes32 indexed xnsNameKey,
         bytes32 indexed routeKey,
+        bytes32 indexed targetHash,
         string label,
         string namespace,
         string routeLabel,
-        bytes target,
         uint32 routeType
     );
 
@@ -112,6 +112,14 @@ interface IXNSRoutes {
     ) external view returns (RouteRecord memory record);
 
     function getRouteRecord(string calldata route) external view returns (RouteRecord memory record);
+
+    function getRouteKey(
+        string calldata label,
+        string calldata namespace,
+        string calldata routeLabel
+    ) external pure returns (bytes32 routeKey);
+
+    function getRouteKey(string calldata route) external pure returns (bytes32 routeKey);
 
     function resolveRouteIfFrozenAndActive(
         string calldata label,

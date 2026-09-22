@@ -40,17 +40,21 @@ describe("XNSRoutes", function () {
     return `${label}@${namespace}/${routeLabel}`;
   }
 
+  /** `keccak256(target)` as emitted in `RouteCreated` / `RouteUpdated`. */
+  function hashTarget(target: string): string {
+    return ethers.keccak256(target);
+  }
+
   /** Matches `XNSRoutes._xnsNameKey`: `keccak256(abi.encodePacked(label, "@", namespace))`. */
   function xnsNameKey(label: string, namespace: string): string {
     return ethers.solidityPackedKeccak256(["string", "string", "string"], [label, "@", namespace]);
   }
 
-  /** Matches `XNSRoutes._routeKey`: `keccak256(abi.encode(xnsNameKey, keccak256(bytes(routeLabel))))`. */
+  /** Matches `XNSRoutes._routeKey`: `keccak256(abi.encodePacked(label, "@", namespace, "/", routeLabel))`. */
   function routeStorageKey(label: string, namespace: string, routeLabel: string): string {
-    const nameKey = xnsNameKey(label, namespace);
-    const routeLabelHash = ethers.keccak256(ethers.toUtf8Bytes(routeLabel));
-    return ethers.keccak256(
-      ethers.AbiCoder.defaultAbiCoder().encode(["bytes32", "bytes32"], [nameKey, routeLabelHash]),
+    return ethers.solidityPackedKeccak256(
+      ["string", "string", "string", "string", "string"],
+      [label, "@", namespace, "/", routeLabel],
     );
   }
 
@@ -205,10 +209,10 @@ describe("XNSRoutes", function () {
         .withArgs(
           xnsNameKey(LABEL, NAMESPACE),
           routeStorageKey(LABEL, NAMESPACE, ROUTE_LABEL),
+          hashTarget(buildTarget),
           LABEL,
           NAMESPACE,
           ROUTE_LABEL,
-          buildTarget,
           RT0,
           true,
         );
@@ -431,10 +435,10 @@ describe("XNSRoutes", function () {
         .withArgs(
           xnsNameKey(LABEL, NAMESPACE),
           routeStorageKey(LABEL, NAMESPACE, ROUTE_LABEL),
+          hashTarget(updatedTarget),
           LABEL,
           NAMESPACE,
           ROUTE_LABEL,
-          updatedTarget,
           newType,
         );
 
@@ -523,10 +527,10 @@ describe("XNSRoutes", function () {
         .withArgs(
           xnsNameKey(LABEL, NAMESPACE),
           routeStorageKey(LABEL, NAMESPACE, ROUTE_LABEL),
+          hashTarget(newTarget),
           LABEL,
           NAMESPACE,
           ROUTE_LABEL,
-          newTarget,
           1,
         );
 
@@ -1003,6 +1007,39 @@ describe("XNSRoutes", function () {
     it("Should revert when namespace is empty", async function () {
       const { routes } = await loadFixture(deployFixture);
       await expect(routes.splitXNSName("xns@")).to.be.revertedWith(XR.invalidXnsName);
+    });
+  });
+
+  describe("getRouteKey", function () {
+    it("Should match the off-chain route key helper for tuple input", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      const expected = routeStorageKey(LABEL, NAMESPACE, ROUTE_LABEL);
+
+      expect(await routes.getRouteKey(LABEL, NAMESPACE, ROUTE_LABEL)).to.equal(expected);
+    });
+
+    it("Should match the off-chain route key helper for a complete route string", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      const fullPath = formatRoute(LABEL, NAMESPACE, ROUTE_LABEL);
+      const expected = routeStorageKey(LABEL, NAMESPACE, ROUTE_LABEL);
+
+      expect(await routes["getRouteKey(string)"](fullPath)).to.equal(expected);
+    });
+
+    it("Should agree between tuple and string overloads", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      const fullPath = formatRoute(LABEL, NAMESPACE, ROUTE_LABEL);
+
+      const fromTuple = await routes.getRouteKey(LABEL, NAMESPACE, ROUTE_LABEL);
+      const fromString = await routes["getRouteKey(string)"](fullPath);
+      expect(fromString).to.equal(fromTuple);
+    });
+
+    it("Should revert the string overload when a params suffix is present", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      const parametrized = `${formatRoute(LABEL, NAMESPACE, ROUTE_LABEL)}/amount=10`;
+
+      await expect(routes["getRouteKey(string)"](parametrized)).to.be.revertedWith(XR.invalidRoute);
     });
   });
 
