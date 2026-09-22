@@ -1,25 +1,17 @@
 /**
- * Check whether a route exists under an XNS name.
- *
- * Existence: `getRouteRecord(...).target.length == 0` (empty bytes / `"0x"`).
+ * Permanently freeze one route's target and route type.
+ * Caller must be the current XNS owner of `label@namespace`.
  *
  * USAGE:
- * `npx hardhat run scripts/examples/routeExists.ts --network <network_name>`
- *
- * EXAMPLE:
- * `npx hardhat run scripts/examples/routeExists.ts --network sepolia`
- *
- * REQUIRED SETUP:
- * - MNEMONIC, network RPC (see docs/DEV_NOTES.md)
- * - Set `XNS_ROUTES_ADDRESS.<network>` in constants/addresses.ts
+ * `npx hardhat run scripts/examples/freezeRoute.ts --network <network_name>`
  */
 
 import hre from "hardhat";
+import { formatEther } from "ethers";
 import { XNS_ROUTES_ADDRESS } from "../../constants/addresses";
 
 const RESET = "\x1b[0m";
 const GREEN = "\x1b[32m";
-const YELLOW = "\x1b[33m";
 const RED = "\x1b[31m";
 
 /*//////////////////////////////////////////////////////////////
@@ -29,9 +21,11 @@ const RED = "\x1b[31m";
 const label = "xns";
 const namespace = "action";
 const routeLabel = "register-name";
+const signerIndex = 0;
 
 async function main() {
   const networkName = hre.network.name;
+  const { ethers } = hre;
   const contractAddress = XNS_ROUTES_ADDRESS[networkName];
   if (!contractAddress) {
     throw new Error(
@@ -39,22 +33,23 @@ async function main() {
     );
   }
 
-  const routes = await hre.ethers.getContractAt("XNSRoutes", contractAddress);
-  const xnsName = `${label}@${namespace}`;
+  const routes = await ethers.getContractAt("XNSRoutes", contractAddress);
+  const signer = (await ethers.getSigners())[signerIndex];
 
   console.log(`\nNetwork: ${GREEN}${networkName}${RESET}`);
   console.log(`XNSRoutes: ${GREEN}${contractAddress}${RESET}`);
-  console.log(`xnsName: ${GREEN}${xnsName}${RESET}`);
-  console.log(`routeLabel: ${GREEN}${routeLabel}${RESET}\n`);
+  console.log(`Signer: ${GREEN}${signer.address}${RESET}`);
+  console.log(
+    `Balance: ${GREEN}${formatEther(await ethers.provider.getBalance(signer.address))} ETH${RESET}`,
+  );
+  console.log(`Route: ${GREEN}${label}@${namespace}/${routeLabel}${RESET}\n`);
+
+  const tx = await routes.connect(signer).freezeRoute(label, namespace, routeLabel);
+  console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}`);
+  await tx.wait();
 
   const record = await routes["getRouteRecord(string,string,string)"](label, namespace, routeLabel);
-  const exists = hre.ethers.getBytes(record.target).length > 0;
-
-  if (exists) {
-    console.log(`${GREEN}✓${RESET} Route exists.\n`);
-  } else {
-    console.log(`${YELLOW}⚠${RESET} Route does not exist.\n`);
-  }
+  console.log(`${GREEN}✓ Confirmed. isFrozen=${record.isFrozen}${RESET}\n`);
 }
 
 main().catch((error: unknown) => {

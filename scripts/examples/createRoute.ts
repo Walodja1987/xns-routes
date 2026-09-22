@@ -35,7 +35,7 @@ const routeLabel = "register-name";
  */
 const targetAddress = "0x0000000000000000000000000000000000000001";
 
-/** Parser hint; semantics are offchain (0 = EVM address, 1 = resolver, 2 = app-defined) */
+/** Application-defined parser hint; numeric meanings are not standardized by XNSRoutes. */
 const routeType = 0;
 
 /** Signer index (0 = first account from mnemonic) */
@@ -74,12 +74,14 @@ async function main() {
   console.log(`routeType: ${GREEN}${routeType}${RESET}`);
   console.log(`isActive: ${GREEN}true (default)${RESET}\n`);
 
-  const tx = await routes.connect(signer).createRoute(label, namespace, routeLabel, target, routeType);
+  const tx = await routes
+    .connect(signer)
+    .createRoute(label, namespace, routeLabel, target, routeType);
   console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
-  const record = await routes.getRouteRecord(label, namespace, routeLabel);
+  const record = await routes["getRouteRecord(string,string,string)"](label, namespace, routeLabel);
   console.log(
     `${GREEN}✓ Confirmed. getRouteRecord → target=${record.target} routeType=${record.routeType} isActive=${record.isActive}${RESET}\n`,
   );

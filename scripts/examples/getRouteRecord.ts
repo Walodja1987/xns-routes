@@ -45,14 +45,14 @@ async function main() {
   console.log(`xnsName: ${GREEN}${xnsName}${RESET}`);
   console.log(`routeLabel: ${GREEN}${routeLabel}${RESET}\n`);
 
-  const record = await routes.getRouteRecord(label, namespace, routeLabel);
+  const record = await routes["getRouteRecord(string,string,string)"](label, namespace, routeLabel);
   // Existence: empty bytes (`target.length == 0` / `"0x"`).
   if (record.target === "0x" || hre.ethers.getBytes(record.target).length === 0) {
     console.log(`${YELLOW}⚠${RESET} Route not found (empty record).\n`);
     return;
   }
 
-  const bookClosed = await routes.isRouteBookClosed(xnsName);
+  const bookClosed = await routes["isRouteBookClosed(string)"](xnsName);
 
   console.log(
     `target:    ${GREEN}${record.target}${RESET} (${hre.ethers.getBytes(record.target).length} bytes)`,

@@ -1,7 +1,7 @@
 /**
  * Mark an existing route as active. Emits `RouteActiveStatusUpdated` only if `isActive` changes.
  * Caller must be the XNS name owner for `label@namespace`.
- * Allowed even after route book freeze.
+ * Allowed even after the individual route is frozen or its route book is closed.
  *
  * USAGE:
  * `npx hardhat run scripts/examples/activateRoute.ts --network <network_name>`
@@ -58,7 +58,7 @@ async function main() {
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
-  const record = await routes.getRouteRecord(label, namespace, routeLabel);
+  const record = await routes["getRouteRecord(string,string,string)"](label, namespace, routeLabel);
   console.log(`${GREEN}✓ Confirmed. isActive=${record.isActive}${RESET}\n`);
 }
 

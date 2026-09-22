@@ -51,12 +51,12 @@ async function main() {
   console.log(`Balance: ${GREEN}${formatEther(balance)} ETH${RESET}`);
   console.log(`xnsName: ${GREEN}${xnsName}${RESET}\n`);
 
-  const tx = await routes.connect(signer).closeRouteBook(xnsName);
+  const tx = await routes.connect(signer)["closeRouteBook(string)"](xnsName);
   console.log(`Transaction hash: ${GREEN}${tx.hash}${RESET}\n`);
   console.log("Waiting for confirmation...\n");
   await tx.wait();
 
-  const closed = await routes.isRouteBookClosed(xnsName);
+  const closed = await routes["isRouteBookClosed(string)"](xnsName);
   console.log(`${GREEN}✓ Confirmed. routeBookClosed=${closed}${RESET}\n`);
 }
 

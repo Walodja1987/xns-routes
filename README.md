@@ -105,17 +105,17 @@ createRoute(
   "action",        // namespace
   "register-name", // routeLabel
   abi.encodePacked(address(builder)), // target (bytes; e.g. 20-byte EVM address)
-  0                // routeType (offchain-defined; 0 = EVM address payload)
+  0                // application-defined routeType; meanings are not standardized
 );
 // Sets isActive = true.
-// target and routeType are mutable until the route or route book is frozen.
+// target and routeType are mutable until the route is frozen.
 ```
 
 ---
 
 ### 2. Build Contract
 
-For EVM builder-style routes, `target` is typically a 20-byte contract address (`routeType = 0` or `1`). That contract can return a transaction template:
+For EVM builder-style routes, `target` is typically a 20-byte contract address under an application-defined `routeType`. That contract can return a transaction template:
 
 ```solidity
 function build(...)
@@ -163,7 +163,7 @@ A wallet:
 
 Each route has:
 
-- `target` → opaque endpoint payload, non-empty `bytes` with no protocol max length (**mutable** until the route is frozen; e.g. 20-byte EVM address for `routeType = 0`)
+- `target` → opaque endpoint payload, non-empty `bytes` with no protocol max length (**mutable** until the route is frozen; e.g. a 20-byte EVM address under an application-defined `routeType`)
 - `routeType` → off-chain interpretation hint (**mutable** until the route is frozen)
 - `isActive` → usable or disabled (toggled by the XNS name owner)
 - `isFrozen` → permanently locks `target` / `routeType` for that route

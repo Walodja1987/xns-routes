@@ -40,8 +40,11 @@ async function main() {
 
   const routes = await hre.ethers.getContractAt("XNSRoutes", contractAddress);
   const xnsName = `${label}@${namespace}`;
-  const xnsNameKey = solidityPackedKeccak256(["string", "string", "string"], [label, "@", namespace]);
-  const closed = await routes.isRouteBookClosed(xnsName);
+  const xnsNameKey = solidityPackedKeccak256(
+    ["string", "string", "string"],
+    [label, "@", namespace],
+  );
+  const closed = await routes["isRouteBookClosed(string)"](xnsName);
 
   console.log(`\nNetwork: ${GREEN}${networkName}${RESET}`);
   console.log(`XNSRoutes: ${GREEN}${contractAddress}${RESET}`);
