@@ -33,6 +33,10 @@ yarn test:hh
 
 Set `XNS_CONTRACT_ADDRESS` (Hardhat var or env) only when overriding the default. For Ethereum mainnet and Sepolia, the deploy script uses `XNS_ADDRESS` in `constants/addresses.ts` (`0x6e797ba2d3103aF167918e71a7E01DE40D45f74b`). The deployment tx sends `getNamespacePrice("xns")` as value so the constructor can call XNS `registerName("routes","xns")` (see `XNSRoutes` NatSpec).
 
+The initial ERC-173 contract owner defaults to the deployer. To use a different non-zero
+address, set `XNS_ROUTES_INITIAL_OWNER` as a Hardhat var or environment variable. Ownership
+uses a two-step transfer and grants no authority over route state.
+
 ```bash
 yarn deploy:xns-routes:hh
 ```

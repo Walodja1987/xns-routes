@@ -7,6 +7,10 @@ This is an automatically generated documentation (using `solidity-docgen` packag
 
 A simple named-endpoint registry attached to XNS names.
 
+The ERC-173-compatible `owner()` is an identity/administrative pointer for external
+integrations only. It has no authority over routes. Route mutations are authorized
+exclusively through current XNS name ownership.
+
 XNS name owners can create named routes under their XNS name which resolve to opaque
 endpoint payloads (`bytes`). Routes may represent EVM addresses, other-chain addresses,
 identifiers, or other application-defined data — interpreted via `routeType`.
@@ -46,11 +50,11 @@ the XNS name owner until that route is frozen (`isFrozen`).
 The exact semantics of `routeType` are intentionally not enforced by this contract.
 Applications may define their own interpretation conventions.
 
-Example route types:
-- `0` = `target` is a 20-byte EVM address.
-- `1` = `target` is a resolver/view contract address (20 bytes).
-- `2` = `target` is interpreted according to another application-level convention
-  (e.g. Bitcoin address UTF-8, Solana pubkey, etc.).
+Example route types (illustrative):
+- `0` = `target` is an EVM address.
+- `1` = `target` is a Bitcoin address.
+- `2` = `target` is a Solana pubkey.
+- etc.
 
 This contract does not validate `target` contents beyond requiring non-empty.
 
@@ -363,8 +367,7 @@ function getRouteKey(string route) external pure returns (bytes32 routeKey)
 
 Resolves a frozen and active route using separate XNS components.
 
-Preferred production resolver: the binding is permanently locked (`isFrozen`)
-and currently usable (`isActive`).
+Recommended for integrations that require an immutable endpoint binding.
 
 ```solidity
 function resolveRouteIfFrozenAndActive(string label, string namespace, string routeLabel) external view returns (bytes target, uint32 routeType)
@@ -611,14 +614,13 @@ function isValidRouteLabel(string routeLabel) external pure returns (bool valid)
 ### RouteCreated
 
 
-Emitted when a new route is created.
+
 
 ```solidity
 event RouteCreated(bytes32 xnsNameKey, bytes32 routeKey, bytes32 targetHash, string label, string namespace, string routeLabel, uint32 routeType, bool isActive)
 ```
 
-_Emitted by `createRoute`. `targetHash` is `keccak256(target)`; the full
-`target` is not logged — read it from storage._
+_Emitted by `createRoute`._
 
 
 
@@ -626,7 +628,7 @@ _Emitted by `createRoute`. `targetHash` is `keccak256(target)`; the full
 ### RouteActiveStatusUpdated
 
 
-Emitted when the active status of a route changes.
+
 
 ```solidity
 event RouteActiveStatusUpdated(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel, bool isActive)
@@ -640,14 +642,13 @@ _Emitted by `activateRoute` and `deactivateRoute` (only when `isActive` changes)
 ### RouteUpdated
 
 
-Emitted when the target or route type of a mutable route changes.
+
 
 ```solidity
 event RouteUpdated(bytes32 xnsNameKey, bytes32 routeKey, bytes32 targetHash, string label, string namespace, string routeLabel, uint32 routeType)
 ```
 
-_Emitted by `updateRoute`. `targetHash` is `keccak256(newTarget)`; the full
-`target` is not logged — read it from storage._
+_Emitted by `updateRoute`._
 
 
 
@@ -655,13 +656,13 @@ _Emitted by `updateRoute`. `targetHash` is `keccak256(newTarget)`; the full
 ### RouteFrozen
 
 
-Emitted when a route becomes permanently frozen.
+
 
 ```solidity
 event RouteFrozen(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel)
 ```
 
-_Emitted by `freezeRoute` and `batchFreezeRoutes` (only when newly frozen)._
+_Emitted by `freezeRoute` and `batchFreezeRoutes`._
 
 
 
@@ -669,13 +670,13 @@ _Emitted by `freezeRoute` and `batchFreezeRoutes` (only when newly frozen)._
 ### RouteBookClosed
 
 
-Emitted when no additional routes may be created under an XNS name.
+
 
 ```solidity
 event RouteBookClosed(bytes32 xnsNameKey, string label, string namespace)
 ```
 
-_Emitted by both `closeRouteBook` overloads (only the first successful close)._
+_Emitted by `closeRouteBook`._
 
 
 

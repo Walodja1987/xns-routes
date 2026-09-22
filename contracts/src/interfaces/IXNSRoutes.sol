@@ -57,7 +57,21 @@ interface IXNSRoutes {
 
     event RouteBookClosed(bytes32 indexed xnsNameKey, string label, string namespace);
 
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+    event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
+
     function XNS() external view returns (address);
+
+    function owner() external view returns (address);
+
+    function pendingOwner() external view returns (address);
+
+    function transferOwnership(address newOwner) external;
+
+    function acceptOwnership() external;
+
+    function renounceOwnership() external;
 
     function createRoute(
         string calldata label,
@@ -111,7 +125,9 @@ interface IXNSRoutes {
         string calldata routeLabel
     ) external view returns (RouteRecord memory record);
 
-    function getRouteRecord(string calldata route) external view returns (RouteRecord memory record);
+    function getRouteRecord(
+        string calldata route
+    ) external view returns (RouteRecord memory record);
 
     function getRouteKey(
         string calldata label,
@@ -193,7 +209,10 @@ interface IXNSRoutes {
 
     function splitRoute(
         string calldata route
-    ) external pure returns (string memory label, string memory namespace, string memory routeLabel);
+    )
+        external
+        pure
+        returns (string memory label, string memory namespace, string memory routeLabel);
 
     function splitXNSName(
         string calldata xnsName

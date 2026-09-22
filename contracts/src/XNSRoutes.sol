@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -17,6 +19,10 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// @title XNSRoutes
 /// @author Wladimir Weinbender (DIVA Technologies AG)
 /// @notice A simple named-endpoint registry attached to XNS names.
+///
+/// The ERC-173-compatible `owner()` is an identity/administrative pointer for external
+/// integrations only. It has no authority over routes. Route mutations are authorized
+/// exclusively through current XNS name ownership.
 ///
 /// XNS name owners can create named routes under their XNS name which resolve to opaque
 /// endpoint payloads (`bytes`). Routes may represent EVM addresses, other-chain addresses,
@@ -57,11 +63,11 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// The exact semantics of `routeType` are intentionally not enforced by this contract.
 /// Applications may define their own interpretation conventions.
 ///
-/// Example route types:
-/// - `0` = `target` is a 20-byte EVM address.
-/// - `1` = `target` is a resolver/view contract address (20 bytes).
-/// - `2` = `target` is interpreted according to another application-level convention
-///   (e.g. Bitcoin address UTF-8, Solana pubkey, etc.).
+/// Example route types (illustrative):
+/// - `0` = `target` is an EVM address.
+/// - `1` = `target` is a Bitcoin address.
+/// - `2` = `target` is a Solana pubkey.
+/// - etc.
 ///
 /// This contract does not validate `target` contents beyond requiring non-empty.
 ///
@@ -116,7 +122,7 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 ///   and a route label cannot contain `/`. See `_routeKey`.
 /// - The route list can be queried with `getRouteKeyCount`, `getRouteKeys`, and `getRouteEntries`.
 ///   `getRouteEntries` returns each route's key plus stored `routeLabel` and metadata.
-contract XNSRoutes {
+contract XNSRoutes is Ownable2Step {
     // -------------------------------------------------------------------------
     // Types
     // -------------------------------------------------------------------------
@@ -201,26 +207,26 @@ contract XNSRoutes {
     );
 
     /// @dev Emitted by `closeRouteBook`.
-    event RouteBookClosed(
-        bytes32 indexed xnsNameKey,
-        string label,
-        string namespace
-    );
+    event RouteBookClosed(bytes32 indexed xnsNameKey, string label, string namespace);
 
     // -------------------------------------------------------------------------
     // Constructor
     // -------------------------------------------------------------------------
 
-    /// @notice Sets the XNSv2 registry and registers `routes AT xns` for this contract.
+    /// @notice Sets the contract owner and XNSv2 registry, then registers `routes AT xns`.
+    ///
+    /// Ownership uses a two-step transfer and grants no authority over route state.
     ///
     /// **Requirements:**
     /// - `xnsContract` must not be the zero address.
+    /// - `initialOwner` must not be the zero address.
     /// - `msg.value` must be sufficient for XNS `registerName("routes", "xns")` (query
     ///   `getNamespacePrice("xns")` on the XNS contract before deploying).
     /// - The `xns` namespace must already exist on the XNS registry.
     ///
+    /// @param initialOwner Initial ERC-173 owner used as an external identity pointer.
     /// @param xnsContract Address of the XNSv2 registry.
-    constructor(address xnsContract) payable {
+    constructor(address initialOwner, address xnsContract) payable Ownable(initialOwner) {
         require(xnsContract != address(0), "XNSRoutes: 0x XNS address");
 
         XNS = IXNSMinimal(xnsContract);
@@ -266,14 +272,7 @@ contract XNSRoutes {
     ) external {
         bytes32 xnsNameKey = _requireXNSNameOwner(label, namespace);
 
-        _createRoute(
-            xnsNameKey,
-            label,
-            namespace,
-            routeLabel,
-            target,
-            routeType
-        );
+        _createRoute(xnsNameKey, label, namespace, routeLabel, target, routeType);
     }
 
     /// @dev Shared route-creation implementation.
@@ -291,10 +290,7 @@ contract XNSRoutes {
 
         bytes32 routeKey = _routeKey(label, namespace, routeLabel);
 
-        require(
-            _routes[routeKey].target.length == 0,
-            "XNSRoutes: route already exists"
-        );
+        require(_routes[routeKey].target.length == 0, "XNSRoutes: route already exists");
 
         _routes[routeKey] = RouteRecord({
             target: target,
@@ -336,12 +332,7 @@ contract XNSRoutes {
         string calldata namespace,
         string calldata routeLabel
     ) external {
-        _updateRouteActiveStatus(
-            label,
-            namespace,
-            routeLabel,
-            true
-        );
+        _updateRouteActiveStatus(label, namespace, routeLabel, true);
     }
 
     /// @notice Deactivates an existing route.
@@ -358,12 +349,7 @@ contract XNSRoutes {
         string calldata namespace,
         string calldata routeLabel
     ) external {
-        _updateRouteActiveStatus(
-            label,
-            namespace,
-            routeLabel,
-            false
-        );
+        _updateRouteActiveStatus(label, namespace, routeLabel, false);
     }
 
     /// @dev Shared implementation for route activation/deactivation.
@@ -423,10 +409,7 @@ contract XNSRoutes {
         require(!record.isFrozen, "XNSRoutes: route frozen");
         require(newTarget.length > 0, "XNSRoutes: invalid target");
 
-        if (
-            keccak256(record.target) != keccak256(newTarget) ||
-            record.routeType != newRouteType
-        ) {
+        if (keccak256(record.target) != keccak256(newTarget) || record.routeType != newRouteType) {
             record.target = newTarget;
             record.routeType = newRouteType;
 
@@ -499,13 +482,7 @@ contract XNSRoutes {
         if (!record.isFrozen) {
             record.isFrozen = true;
 
-            emit RouteFrozen(
-                xnsNameKey,
-                routeKey,
-                label,
-                namespace,
-                routeLabel
-            );
+            emit RouteFrozen(xnsNameKey, routeKey, label, namespace, routeLabel);
         }
     }
 
@@ -522,20 +499,13 @@ contract XNSRoutes {
     /// Requires `msg.sender` to own `label AT namespace`.
     ///
     /// Emits `RouteBookClosed` only if the route book was not already closed.
-    function closeRouteBook(
-        string calldata label,
-        string calldata namespace
-    ) external {
+    function closeRouteBook(string calldata label, string calldata namespace) external {
         bytes32 xnsNameKey = _requireXNSNameOwner(label, namespace);
 
         if (!_routeBookClosed[xnsNameKey]) {
             _routeBookClosed[xnsNameKey] = true;
 
-            emit RouteBookClosed(
-                xnsNameKey,
-                label,
-                namespace
-            );
+            emit RouteBookClosed(xnsNameKey, label, namespace);
         }
     }
 
@@ -551,11 +521,7 @@ contract XNSRoutes {
         if (!_routeBookClosed[xnsNameKey]) {
             _routeBookClosed[xnsNameKey] = true;
 
-            emit RouteBookClosed(
-                xnsNameKey,
-                label,
-                namespace
-            );
+            emit RouteBookClosed(xnsNameKey, label, namespace);
         }
     }
 
@@ -570,9 +536,7 @@ contract XNSRoutes {
     /// @notice Returns a route record directly by route key.
     ///
     /// `record.target.length == 0` means the route does not exist.
-    function getRouteRecord(
-        bytes32 routeKey
-    ) external view returns (RouteRecord memory record) {
+    function getRouteRecord(bytes32 routeKey) external view returns (RouteRecord memory record) {
         return _copyRouteRecord(_routes[routeKey]);
     }
 
@@ -582,9 +546,7 @@ contract XNSRoutes {
         string calldata namespace,
         string calldata routeLabel
     ) external view returns (RouteRecord memory record) {
-        return _copyRouteRecord(
-            _routes[_routeKey(label, namespace, routeLabel)]
-        );
+        return _copyRouteRecord(_routes[_routeKey(label, namespace, routeLabel)]);
     }
 
     /// @notice Returns a route record using a complete route string.
@@ -597,15 +559,11 @@ contract XNSRoutes {
     function getRouteRecord(
         string calldata route
     ) external view returns (RouteRecord memory record) {
-        (
-            string memory label,
-            string memory namespace,
-            string memory routeLabel
-        ) = _splitRoute(route);
-
-        return _copyRouteRecord(
-            _routes[_routeKey(label, namespace, routeLabel)]
+        (string memory label, string memory namespace, string memory routeLabel) = _splitRoute(
+            route
         );
+
+        return _copyRouteRecord(_routes[_routeKey(label, namespace, routeLabel)]);
     }
 
     // -------------------------------------------------------------------------
@@ -630,14 +588,10 @@ contract XNSRoutes {
     ///     getRouteKey("alice AT pay/treasury")
     ///
     /// The string must be exactly `label AT namespace/routeLabel` (no extra `/` segments).
-    function getRouteKey(
-        string calldata route
-    ) external pure returns (bytes32 routeKey) {
-        (
-            string memory label,
-            string memory namespace,
-            string memory routeLabel
-        ) = _splitRoute(route);
+    function getRouteKey(string calldata route) external pure returns (bytes32 routeKey) {
+        (string memory label, string memory namespace, string memory routeLabel) = _splitRoute(
+            route
+        );
 
         return _routeKey(label, namespace, routeLabel);
     }
@@ -648,21 +602,13 @@ contract XNSRoutes {
 
     /// @notice Resolves a frozen and active route using separate XNS components.
     ///
-    /// Preferred production resolver: the binding is permanently locked (`isFrozen`)
-    /// and currently usable (`isActive`).
+    /// Recommended for integrations that require an immutable endpoint binding.
     function resolveRouteIfFrozenAndActive(
         string calldata label,
         string calldata namespace,
         string calldata routeLabel
-    ) external view returns (
-        bytes memory target,
-        uint32 routeType
-    ) {
-        return _resolveRouteIfFrozenAndActive(
-            label,
-            namespace,
-            routeLabel
-        );
+    ) external view returns (bytes memory target, uint32 routeType) {
+        return _resolveRouteIfFrozenAndActive(label, namespace, routeLabel);
     }
 
     /// @notice Resolves a frozen and active route using a complete route string.
@@ -674,21 +620,12 @@ contract XNSRoutes {
     /// The string must be exactly `label AT namespace/routeLabel` (no extra `/` segments).
     function resolveRouteIfFrozenAndActive(
         string calldata route
-    ) external view returns (
-        bytes memory target,
-        uint32 routeType
-    ) {
-        (
-            string memory label,
-            string memory namespace,
-            string memory routeLabel
-        ) = _splitRoute(route);
-
-        return _resolveRouteIfFrozenAndActive(
-            label,
-            namespace,
-            routeLabel
+    ) external view returns (bytes memory target, uint32 routeType) {
+        (string memory label, string memory namespace, string memory routeLabel) = _splitRoute(
+            route
         );
+
+        return _resolveRouteIfFrozenAndActive(label, namespace, routeLabel);
     }
 
     /// @notice Resolves an active route using separate XNS components.
@@ -698,15 +635,8 @@ contract XNSRoutes {
         string calldata label,
         string calldata namespace,
         string calldata routeLabel
-    ) external view returns (
-        bytes memory target,
-        uint32 routeType
-    ) {
-        return _resolveRouteIfActive(
-            label,
-            namespace,
-            routeLabel
-        );
+    ) external view returns (bytes memory target, uint32 routeType) {
+        return _resolveRouteIfActive(label, namespace, routeLabel);
     }
 
     /// @notice Resolves an active route using a complete route string.
@@ -720,21 +650,12 @@ contract XNSRoutes {
     /// Unlike `resolveRouteIfFrozenAndActive`, this ignores whether the route is frozen.
     function resolveRouteIfActive(
         string calldata route
-    ) external view returns (
-        bytes memory target,
-        uint32 routeType
-    ) {
-        (
-            string memory label,
-            string memory namespace,
-            string memory routeLabel
-        ) = _splitRoute(route);
-
-        return _resolveRouteIfActive(
-            label,
-            namespace,
-            routeLabel
+    ) external view returns (bytes memory target, uint32 routeType) {
+        (string memory label, string memory namespace, string memory routeLabel) = _splitRoute(
+            route
         );
+
+        return _resolveRouteIfActive(label, namespace, routeLabel);
     }
 
     /// @notice Resolves a route regardless of its active status.
@@ -742,15 +663,8 @@ contract XNSRoutes {
         string calldata label,
         string calldata namespace,
         string calldata routeLabel
-    ) external view returns (
-        bytes memory target,
-        uint32 routeType
-    ) {
-        return _resolveRoute(
-            label,
-            namespace,
-            routeLabel
-        );
+    ) external view returns (bytes memory target, uint32 routeType) {
+        return _resolveRoute(label, namespace, routeLabel);
     }
 
     /// @notice Resolves a route regardless of active status using a complete route string.
@@ -762,21 +676,12 @@ contract XNSRoutes {
     /// The string must be exactly `label AT namespace/routeLabel` (no extra `/` segments).
     function resolveRoute(
         string calldata route
-    ) external view returns (
-        bytes memory target,
-        uint32 routeType
-    ) {
-        (
-            string memory label,
-            string memory namespace,
-            string memory routeLabel
-        ) = _splitRoute(route);
-
-        return _resolveRoute(
-            label,
-            namespace,
-            routeLabel
+    ) external view returns (bytes memory target, uint32 routeType) {
+        (string memory label, string memory namespace, string memory routeLabel) = _splitRoute(
+            route
         );
+
+        return _resolveRoute(label, namespace, routeLabel);
     }
 
     // -------------------------------------------------------------------------
@@ -788,9 +693,7 @@ contract XNSRoutes {
         string calldata label,
         string calldata namespace
     ) external view returns (bool closed) {
-        return _routeBookClosed[
-            _xnsNameKey(label, namespace)
-        ];
+        return _routeBookClosed[_xnsNameKey(label, namespace)];
     }
 
     /// @notice Convenience overload accepting a complete XNS name.
@@ -798,17 +701,10 @@ contract XNSRoutes {
     /// Example:
     ///
     ///     isRouteBookClosed("alice AT pay")
-    function isRouteBookClosed(
-        string calldata xnsName
-    ) external view returns (bool closed) {
-        (
-            string memory label,
-            string memory namespace
-        ) = _splitXNSName(xnsName);
+    function isRouteBookClosed(string calldata xnsName) external view returns (bool closed) {
+        (string memory label, string memory namespace) = _splitXNSName(xnsName);
 
-        return _routeBookClosed[
-            _xnsNameKey(label, namespace)
-        ];
+        return _routeBookClosed[_xnsNameKey(label, namespace)];
     }
 
     /// @notice Returns the number of routes ever created under an XNS name.
@@ -816,23 +712,14 @@ contract XNSRoutes {
         string calldata label,
         string calldata namespace
     ) external view returns (uint256 count) {
-        return _routeKeysByXNSName[
-            _xnsNameKey(label, namespace)
-        ].length;
+        return _routeKeysByXNSName[_xnsNameKey(label, namespace)].length;
     }
 
     /// @notice Convenience overload accepting `label AT namespace`.
-    function getRouteKeyCount(
-        string calldata xnsName
-    ) external view returns (uint256 count) {
-        (
-            string memory label,
-            string memory namespace
-        ) = _splitXNSName(xnsName);
+    function getRouteKeyCount(string calldata xnsName) external view returns (uint256 count) {
+        (string memory label, string memory namespace) = _splitXNSName(xnsName);
 
-        return _routeKeysByXNSName[
-            _xnsNameKey(label, namespace)
-        ].length;
+        return _routeKeysByXNSName[_xnsNameKey(label, namespace)].length;
     }
 
     /// @notice Returns route keys `[start:end]` for an XNS name.
@@ -844,11 +731,7 @@ contract XNSRoutes {
         uint256 start,
         uint256 end
     ) external view returns (bytes32[] memory keys) {
-        return _sliceRouteKeys(
-            _routeKeysByXNSName[_xnsNameKey(label, namespace)],
-            start,
-            end
-        );
+        return _sliceRouteKeys(_routeKeysByXNSName[_xnsNameKey(label, namespace)], start, end);
     }
 
     /// @notice Convenience overload accepting `label AT namespace`.
@@ -859,11 +742,7 @@ contract XNSRoutes {
     ) external view returns (bytes32[] memory keys) {
         (string memory label, string memory namespace) = _splitXNSName(xnsName);
 
-        return _sliceRouteKeys(
-            _routeKeysByXNSName[_xnsNameKey(label, namespace)],
-            start,
-            end
-        );
+        return _sliceRouteKeys(_routeKeysByXNSName[_xnsNameKey(label, namespace)], start, end);
     }
 
     /// @notice Returns full route entries `[start:end]` for an XNS name.
@@ -943,11 +822,7 @@ contract XNSRoutes {
     )
         external
         pure
-        returns (
-            string memory label,
-            string memory namespace,
-            string memory routeLabel
-        )
+        returns (string memory label, string memory namespace, string memory routeLabel)
     {
         return _splitRoute(route);
     }
@@ -955,14 +830,7 @@ contract XNSRoutes {
     /// @notice Parses `label AT namespace`.
     function splitXNSName(
         string calldata xnsName
-    )
-        external
-        pure
-        returns (
-            string memory label,
-            string memory namespace
-        )
-    {
+    ) external pure returns (string memory label, string memory namespace) {
         return _splitXNSName(xnsName);
     }
 
@@ -971,9 +839,7 @@ contract XNSRoutes {
     // -------------------------------------------------------------------------
 
     /// @notice Returns whether a route label satisfies the XNS Routes label rules.
-    function isValidRouteLabel(
-        string calldata routeLabel
-    ) external pure returns (bool valid) {
+    function isValidRouteLabel(string calldata routeLabel) external pure returns (bool valid) {
         return _isValidRouteLabel(routeLabel);
     }
 
@@ -986,33 +852,16 @@ contract XNSRoutes {
         string memory label,
         string memory namespace,
         string memory routeLabel
-    ) private view returns (
-        bytes memory target,
-        uint32 routeType
-    ) {
-        RouteRecord storage record = _routes[
-            _routeKey(label, namespace, routeLabel)
-        ];
+    ) private view returns (bytes memory target, uint32 routeType) {
+        RouteRecord storage record = _routes[_routeKey(label, namespace, routeLabel)];
 
-        require(
-            record.target.length > 0,
-            "XNSRoutes: route not found"
-        );
+        require(record.target.length > 0, "XNSRoutes: route not found");
 
-        require(
-            record.isFrozen,
-            "XNSRoutes: route not frozen"
-        );
+        require(record.isFrozen, "XNSRoutes: route not frozen");
 
-        require(
-            record.isActive,
-            "XNSRoutes: route inactive"
-        );
+        require(record.isActive, "XNSRoutes: route inactive");
 
-        return (
-            record.target,
-            record.routeType
-        );
+        return (record.target, record.routeType);
     }
 
     /// @dev Resolves an active route (ignores freeze).
@@ -1020,28 +869,14 @@ contract XNSRoutes {
         string memory label,
         string memory namespace,
         string memory routeLabel
-    ) private view returns (
-        bytes memory target,
-        uint32 routeType
-    ) {
-        RouteRecord storage record = _routes[
-            _routeKey(label, namespace, routeLabel)
-        ];
+    ) private view returns (bytes memory target, uint32 routeType) {
+        RouteRecord storage record = _routes[_routeKey(label, namespace, routeLabel)];
 
-        require(
-            record.target.length > 0,
-            "XNSRoutes: route not found"
-        );
+        require(record.target.length > 0, "XNSRoutes: route not found");
 
-        require(
-            record.isActive,
-            "XNSRoutes: route inactive"
-        );
+        require(record.isActive, "XNSRoutes: route inactive");
 
-        return (
-            record.target,
-            record.routeType
-        );
+        return (record.target, record.routeType);
     }
 
     /// @dev Resolves a route regardless of active status.
@@ -1049,23 +884,12 @@ contract XNSRoutes {
         string memory label,
         string memory namespace,
         string memory routeLabel
-    ) private view returns (
-        bytes memory target,
-        uint32 routeType
-    ) {
-        RouteRecord storage record = _routes[
-            _routeKey(label, namespace, routeLabel)
-        ];
+    ) private view returns (bytes memory target, uint32 routeType) {
+        RouteRecord storage record = _routes[_routeKey(label, namespace, routeLabel)];
 
-        require(
-            record.target.length > 0,
-            "XNSRoutes: route not found"
-        );
+        require(record.target.length > 0, "XNSRoutes: route not found");
 
-        return (
-            record.target,
-            record.routeType
-        );
+        return (record.target, record.routeType);
     }
 
     /// @dev Requires msg.sender to be the current XNS owner of `label AT namespace`.
@@ -1075,10 +899,7 @@ contract XNSRoutes {
         string calldata label,
         string calldata namespace
     ) private view returns (bytes32 xnsNameKey) {
-        require(
-            msg.sender == XNS.getAddress(label, namespace),
-            "XNSRoutes: not XNS name owner"
-        );
+        require(msg.sender == XNS.getAddress(label, namespace), "XNSRoutes: not XNS name owner");
 
         return _xnsNameKey(label, namespace);
     }
@@ -1088,10 +909,7 @@ contract XNSRoutes {
         string memory label,
         string memory namespace
     ) private view returns (bytes32 xnsNameKey) {
-        require(
-            msg.sender == XNS.getAddress(label, namespace),
-            "XNSRoutes: not XNS name owner"
-        );
+        require(msg.sender == XNS.getAddress(label, namespace), "XNSRoutes: not XNS name owner");
 
         return _xnsNameKey(label, namespace);
     }
@@ -1107,13 +925,7 @@ contract XNSRoutes {
         string memory label,
         string memory namespace
     ) private pure returns (bytes32) {
-        return keccak256(
-            abi.encodePacked(
-                label,
-                "@",
-                namespace
-            )
-        );
+        return keccak256(abi.encodePacked(label, "@", namespace));
     }
 
     /// @dev Canonical route key: hash of `label AT namespace/routeLabel`.
@@ -1126,15 +938,7 @@ contract XNSRoutes {
         string memory namespace,
         string memory routeLabel
     ) private pure returns (bytes32) {
-        return keccak256(
-            abi.encodePacked(
-                label,
-                "@",
-                namespace,
-                "/",
-                routeLabel
-            )
-        );
+        return keccak256(abi.encodePacked(label, "@", namespace, "/", routeLabel));
     }
 
     /// @dev Parses:
@@ -1147,11 +951,7 @@ contract XNSRoutes {
     )
         private
         pure
-        returns (
-            string memory label,
-            string memory namespace,
-            string memory routeLabel
-        )
+        returns (string memory label, string memory namespace, string memory routeLabel)
     {
         bytes calldata b = bytes(route);
         uint256 len = b.length;
@@ -1162,59 +962,30 @@ contract XNSRoutes {
 
         for (uint256 i = 0; i < len; ++i) {
             if (b[i] == 0x2F) {
-                require(
-                    slashIndex == type(uint256).max,
-                    "XNSRoutes: invalid route"
-                );
+                require(slashIndex == type(uint256).max, "XNSRoutes: invalid route");
                 slashIndex = i;
             }
         }
 
-        require(
-            slashIndex != type(uint256).max,
-            "XNSRoutes: invalid route"
-        );
+        require(slashIndex != type(uint256).max, "XNSRoutes: invalid route");
 
-        require(
-            slashIndex > 0,
-            "XNSRoutes: invalid route"
-        );
+        require(slashIndex > 0, "XNSRoutes: invalid route");
 
-        string memory xnsName =
-            _calldataSubstringToString(
-                b,
-                0,
-                slashIndex
-            );
+        string memory xnsName = _calldataSubstringToString(b, 0, slashIndex);
 
         (label, namespace) = _splitXNSNameMemory(xnsName);
 
         uint256 routeStart = slashIndex + 1;
 
-        require(
-            routeStart < len,
-            "XNSRoutes: invalid route"
-        );
+        require(routeStart < len, "XNSRoutes: invalid route");
 
-        routeLabel =
-            _calldataSubstringToString(
-                b,
-                routeStart,
-                len
-            );
+        routeLabel = _calldataSubstringToString(b, routeStart, len);
     }
 
     /// @dev Parses `label AT namespace` from calldata.
     function _splitXNSName(
         string calldata xnsName
-    )
-        private
-        pure
-        returns (
-            string memory label,
-            string memory namespace
-        )
-    {
+    ) private pure returns (string memory label, string memory namespace) {
         bytes calldata b = bytes(xnsName);
         uint256 len = b.length;
 
@@ -1224,48 +995,26 @@ contract XNSRoutes {
 
         for (uint256 i = 0; i < len; ++i) {
             if (b[i] == 0x40) {
-                require(
-                    atIndex == type(uint256).max,
-                    "XNSRoutes: invalid XNS name"
-                );
+                require(atIndex == type(uint256).max, "XNSRoutes: invalid XNS name");
 
                 atIndex = i;
             }
         }
 
         require(
-            atIndex != type(uint256).max &&
-            atIndex > 0 &&
-            atIndex + 1 < len,
+            atIndex != type(uint256).max && atIndex > 0 && atIndex + 1 < len,
             "XNSRoutes: invalid XNS name"
         );
 
-        label =
-            _calldataSubstringToString(
-                b,
-                0,
-                atIndex
-            );
+        label = _calldataSubstringToString(b, 0, atIndex);
 
-        namespace =
-            _calldataSubstringToString(
-                b,
-                atIndex + 1,
-                len
-            );
+        namespace = _calldataSubstringToString(b, atIndex + 1, len);
     }
 
     /// @dev Memory equivalent of `_splitXNSName`.
     function _splitXNSNameMemory(
         string memory xnsName
-    )
-        private
-        pure
-        returns (
-            string memory label,
-            string memory namespace
-        )
-    {
+    ) private pure returns (string memory label, string memory namespace) {
         bytes memory b = bytes(xnsName);
         uint256 len = b.length;
 
@@ -1275,19 +1024,14 @@ contract XNSRoutes {
 
         for (uint256 i = 0; i < len; ++i) {
             if (b[i] == 0x40) {
-                require(
-                    atIndex == type(uint256).max,
-                    "XNSRoutes: invalid XNS name"
-                );
+                require(atIndex == type(uint256).max, "XNSRoutes: invalid XNS name");
 
                 atIndex = i;
             }
         }
 
         require(
-            atIndex != type(uint256).max &&
-            atIndex > 0 &&
-            atIndex + 1 < len,
+            atIndex != type(uint256).max && atIndex > 0 && atIndex + 1 < len,
             "XNSRoutes: invalid XNS name"
         );
 
@@ -1330,13 +1074,14 @@ contract XNSRoutes {
     function _copyRouteRecord(
         RouteRecord storage s
     ) private view returns (RouteRecord memory record) {
-        return RouteRecord({
-            target: s.target,
-            routeType: s.routeType,
-            isActive: s.isActive,
-            isFrozen: s.isFrozen,
-            routeLabel: s.routeLabel
-        });
+        return
+            RouteRecord({
+                target: s.target,
+                routeType: s.routeType,
+                isActive: s.isActive,
+                isFrozen: s.isFrozen,
+                routeLabel: s.routeLabel
+            });
     }
 
     /// @dev Returns `arr[start:end]`, with `end` clamped to array length.
@@ -1368,9 +1113,7 @@ contract XNSRoutes {
     /// - [a-z0-9-] only.
     /// - No leading/trailing '-'.
     /// - No consecutive '--'.
-    function _isValidRouteLabel(
-        string memory routeLabel
-    ) private pure returns (bool isValid) {
+    function _isValidRouteLabel(string memory routeLabel) private pure returns (bool isValid) {
         bytes memory b = bytes(routeLabel);
         uint256 len = b.length;
 
@@ -1381,38 +1124,22 @@ contract XNSRoutes {
         for (uint256 i = 0; i < len; ++i) {
             bytes1 c = b[i];
 
-            bool isLowercaseLetter =
-                c >= 0x61 && c <= 0x7A;
+            bool isLowercaseLetter = c >= 0x61 && c <= 0x7A;
 
-            bool isDigit =
-                c >= 0x30 && c <= 0x39;
+            bool isDigit = c >= 0x30 && c <= 0x39;
 
-            bool isHyphen =
-                c == 0x2D;
+            bool isHyphen = c == 0x2D;
 
-            if (
-                !(
-                    isLowercaseLetter ||
-                    isDigit ||
-                    isHyphen
-                )
-            ) {
+            if (!(isLowercaseLetter || isDigit || isHyphen)) {
                 return false;
             }
 
-            if (
-                isHyphen &&
-                i > 0 &&
-                b[i - 1] == 0x2D
-            ) {
+            if (isHyphen && i > 0 && b[i - 1] == 0x2D) {
                 return false;
             }
         }
 
-        if (
-            b[0] == 0x2D ||
-            b[len - 1] == 0x2D
-        ) {
+        if (b[0] == 0x2D || b[len - 1] == 0x2D) {
             return false;
         }
 

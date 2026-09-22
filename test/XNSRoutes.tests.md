@@ -15,14 +15,24 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 
 #### Functionality
 
+- Sets the non-zero `initialOwner` as the ERC-173 contract owner.
 - Stores the non-zero XNS registry address and exposes it via `XNS()`.
 - Calls XNS `registerName("routes","xns")` with the constructor’s `msg.value`, so `routes@xns` resolves to the new registry (`address(this)`).
 - On the mock, `getAddress("routes", "xns")` returns the deployed `XNSRoutes` address after deployment.
 
 #### Reverts
 
+- Should revert with OpenZeppelin `OwnableInvalidOwner(address(0))` when `initialOwner` is zero.
 - Should revert with `"XNSRoutes: 0x XNS address"` when `xnsContract` is `address(0)`.
 - Reverts if XNS rejects registration (e.g. insufficient `msg.value`, name taken, exclusivity rules on the real contract).
+
+---
+
+## Contract ownership
+
+- Ownership transfers use the two-step `transferOwnership` / `acceptOwnership` flow.
+- `pendingOwner()` is set until the nominated account accepts.
+- Contract ownership grants no route authority; route mutations still require current XNS name ownership.
 
 ---
 

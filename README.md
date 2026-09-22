@@ -41,13 +41,13 @@ Validation rules:
 
 ## 📖 Route vocabulary
 
-| Term | Example | Notes |
-|------|---------|--------|
-| **route** | `alice@pay/treasury` | On-chain identity: `label@namespace/routeLabel`. Used by `splitRoute`, `routeKey`, and registry lookups |
-| **label** | `alice` | XNSv2 name label |
-| **namespace** | `pay` | XNSv2 namespace |
-| **route label** | `treasury` | Required slug after `/` |
-| **route key** | `bytes32` | `keccak256(abi.encodePacked(label, "@", namespace, "/", routeLabel))` — hash of `label@namespace/routeLabel` |
+| Term            | Example              | Notes                                                                                                        |
+| --------------- | -------------------- | ------------------------------------------------------------------------------------------------------------ |
+| **route**       | `alice@pay/treasury` | On-chain identity: `label@namespace/routeLabel`. Used by `splitRoute`, `routeKey`, and registry lookups      |
+| **label**       | `alice`              | XNSv2 name label                                                                                             |
+| **namespace**   | `pay`                | XNSv2 namespace                                                                                              |
+| **route label** | `treasury`           | Required slug after `/`                                                                                      |
+| **route key**   | `bytes32`            | `keccak256(abi.encodePacked(label, "@", namespace, "/", routeLabel))` — hash of `label@namespace/routeLabel` |
 
 Contract tuple APIs use `(label, namespace, routeLabel)` — equivalent to parsing a route. String helpers: `splitRoute`, `splitXNSName`, `getRouteRecord(string route)` (exact route string only; no params suffix).
 
@@ -55,13 +55,21 @@ Contract tuple APIs use `(label, namespace, routeLabel)` — equivalent to parsi
 
 ## 🧠 Mental Model
 
-| Component      | Meaning                                                                                    |
-| -------------- | ------------------------------------------------------------------------------------------ |
-| XNS name       | Identity / publisher (`label@namespace`)                                                   |
-| Route label    | Action slug (e.g. `transfer-usdt`); 1-32 chars                                             |
-| Build contract | How the transaction is built (`target`)                                                    |
+| Component      | Meaning                                        |
+| -------------- | ---------------------------------------------- |
+| XNS name       | Identity / publisher (`label@namespace`)       |
+| Route label    | Action slug (e.g. `transfer-usdt`); 1-32 chars |
+| Build contract | How the transaction is built (`target`)        |
 
 > **XNS names resolve identities. Routes resolve actions.**
+
+### Contract ownership
+
+`XNSRoutes` exposes ERC-173-compatible `owner()` with OpenZeppelin's two-step ownership
+transfer (`transferOwnership` → `acceptOwnership`). The owner is an external identity /
+administrative pointer only and has **no authority over route state**. Creating, updating,
+freezing, activating, deactivating, and closing route books remain authorized exclusively
+through current XNS name ownership.
 
 ---
 
@@ -122,6 +130,7 @@ function build(...)
 ```
 
 Non-EVM endpoints (e.g. Bitcoin) can store the destination directly in `bytes target` under another `routeType`. Large payloads (e.g. calldata) are allowed; owners pay the gas/storage cost.
+
 ---
 
 ### 3. Wallet Flow
@@ -321,7 +330,10 @@ On-chain XNS registry and deployed `XNSRoutes` slots live in [constants/addresse
 - Script: [scripts/deploy/deployXNSRoutes.ts](scripts/deploy/deployXNSRoutes.ts)
 - Shortcuts: `yarn deploy:xns-routes:hh`, `yarn deploy:xns-routes:sepolia`, `yarn deploy:xns-routes:ethMain`
 
-Set `XNS_CONTRACT_ADDRESS` (Hardhat vars or environment) to your XNS registry before deploying. See [docs/DEV_NOTES.md](docs/DEV_NOTES.md).
+Set `XNS_CONTRACT_ADDRESS` (Hardhat vars or environment) to your XNS registry before deploying.
+The initial contract owner defaults to the deployer; optionally set
+`XNS_ROUTES_INITIAL_OWNER` to another non-zero address. See
+[docs/DEV_NOTES.md](docs/DEV_NOTES.md).
 
 The deploy script reads `getNamespacePrice("xns")` and sends that ETH with the deployment tx: the `XNSRoutes` constructor calls XNS `registerName("routes","xns")` so **`routes@xns` resolves to the new registry contract**. Ensure the deploy account holds enough ETH for the quoted price (XNS refunds overpayment).
 

@@ -144,17 +144,18 @@ describe("XNSRoutes", function () {
   interface Fixture {
     routes: XNSRoutes;
     mockXns: MockXNS;
+    contractOwner: SignerWithAddress;
     owner: SignerWithAddress;
     other: SignerWithAddress;
     buildTarget: string;
   }
 
   async function deployFixture(): Promise<Fixture> {
-    const [, owner, other] = await ethers.getSigners();
+    const [contractOwner, owner, other] = await ethers.getSigners();
     const mockXns = await ethers.deployContract("MockXNS");
     await mockXns.waitForDeployment();
     const mockAddr = String(mockXns.target);
-    const routes = await ethers.deployContract("XNSRoutes", [mockAddr], {
+    const routes = await ethers.deployContract("XNSRoutes", [contractOwner.address, mockAddr], {
       value: 0n,
     });
     await routes.waitForDeployment();
@@ -167,6 +168,7 @@ describe("XNSRoutes", function () {
     return {
       routes,
       mockXns,
+      contractOwner,
       owner,
       other,
       buildTarget,
@@ -179,22 +181,59 @@ describe("XNSRoutes", function () {
   }
 
   describe("constructor", function () {
+    it("Should set the provided initial owner", async function () {
+      const { routes, contractOwner } = await loadFixture(deployFixture);
+      expect(await routes.owner()).to.equal(contractOwner.address);
+    });
+
     it("Should store the XNS registry and expose it via XNS()", async function () {
       const { routes, mockXns } = await loadFixture(deployFixture);
       expect(await routes.XNS()).to.equal(String(mockXns.target));
     });
 
-    it("Should revert with zero XNS address when xnsContract is zero address", async function () {
+    it("Should revert when initialOwner is the zero address", async function () {
+      const mockXns = await ethers.deployContract("MockXNS");
       const XNSRoutes = await ethers.getContractFactory("XNSRoutes");
-      await expect(XNSRoutes.deploy(ethers.ZeroAddress, { value: 0n })).to.be.revertedWith(
-        XR.zeroXnsAddress,
-      );
+
+      await expect(XNSRoutes.deploy(ethers.ZeroAddress, String(mockXns.target), { value: 0n }))
+        .to.be.revertedWithCustomError(XNSRoutes, "OwnableInvalidOwner")
+        .withArgs(ethers.ZeroAddress);
+    });
+
+    it("Should revert with zero XNS address when xnsContract is zero address", async function () {
+      const [contractOwner] = await ethers.getSigners();
+      const XNSRoutes = await ethers.getContractFactory("XNSRoutes");
+      await expect(
+        XNSRoutes.deploy(contractOwner.address, ethers.ZeroAddress, { value: 0n }),
+      ).to.be.revertedWith(XR.zeroXnsAddress);
     });
 
     it("Should register routes@xns to the deployed registry via constructor", async function () {
       const { routes, mockXns } = await loadFixture(deployFixture);
       const resolved = await getXnsAddress(mockXns, "routes", "xns");
       expect(resolved).to.equal(String(routes.target));
+    });
+  });
+
+  describe("contract ownership", function () {
+    it("Should transfer ownership using the two-step flow", async function () {
+      const { routes, contractOwner, other } = await loadFixture(deployFixture);
+
+      await routes.connect(contractOwner).transferOwnership(other.address);
+      expect(await routes.owner()).to.equal(contractOwner.address);
+      expect(await routes.pendingOwner()).to.equal(other.address);
+
+      await routes.connect(other).acceptOwnership();
+      expect(await routes.owner()).to.equal(other.address);
+      expect(await routes.pendingOwner()).to.equal(ethers.ZeroAddress);
+    });
+
+    it("Should not grant the contract owner authority over another owner's routes", async function () {
+      const { routes, contractOwner, buildTarget } = await loadFixture(deployFixture);
+
+      await expect(
+        routes.connect(contractOwner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0),
+      ).to.be.revertedWith(XR.notXnsNameOwner);
     });
   });
 
@@ -299,9 +338,9 @@ describe("XNSRoutes", function () {
       expect((await routes.getRouteRecord(LABEL, NAMESPACE, ROUTE_LABEL)).target).to.equal(t1);
       expect((await routes.getRouteRecord(LABEL, NAMESPACE, "other-route")).target).to.equal(t2);
       expect((await routes.getRouteRecord(LABEL, "pay", ROUTE_LABEL)).target).to.equal(t2);
-      expect((await routes.getRouteRecord(OTHER_LABEL, OTHER_NAMESPACE, ROUTE_LABEL)).target).to.equal(
-        t2,
-      );
+      expect(
+        (await routes.getRouteRecord(OTHER_LABEL, OTHER_NAMESPACE, ROUTE_LABEL)).target,
+      ).to.equal(t2);
     });
 
     it("Should revert with RouteAlreadyExists when createRoute is called twice for same key", async function () {
@@ -520,9 +559,7 @@ describe("XNSRoutes", function () {
 
       await closeRouteBookTuple(routes.connect(owner), LABEL, NAMESPACE);
 
-      await expect(
-        routes.connect(owner).updateRoute(LABEL, NAMESPACE, ROUTE_LABEL, newTarget, 1),
-      )
+      await expect(routes.connect(owner).updateRoute(LABEL, NAMESPACE, ROUTE_LABEL, newTarget, 1))
         .to.emit(routes, "RouteUpdated")
         .withArgs(
           xnsNameKey(LABEL, NAMESPACE),
@@ -632,7 +669,9 @@ describe("XNSRoutes", function () {
         );
 
       expect((await routes.getRouteRecord(LABEL, NAMESPACE, ROUTE_LABEL)).isFrozen).to.equal(true);
-      expect((await routes.getRouteRecord(LABEL, NAMESPACE, "other-route")).isFrozen).to.equal(true);
+      expect((await routes.getRouteRecord(LABEL, NAMESPACE, "other-route")).isFrozen).to.equal(
+        true,
+      );
     });
 
     it("Should skip already-frozen routes without emitting for them", async function () {
@@ -1062,10 +1101,7 @@ describe("XNSRoutes", function () {
       expect(keys.length).to.equal(1);
       expect(keys[0]).to.equal(rk);
 
-      const [target, routeType, isActive] = await getRouteRecordSingle(
-        routes,
-        rk,
-      );
+      const [target, routeType, isActive] = await getRouteRecordSingle(routes, rk);
       expect(target).to.equal(buildTarget);
       expect(routeType).to.equal(RT0);
       expect(isActive).to.equal(true);
