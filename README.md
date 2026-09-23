@@ -92,18 +92,19 @@ The character rules for a route label are the same as for XNS names:
 
 A route is registered under an XNS name:
 
-```solidity
-createRoute(
-  "alice",                              // label
-  "pay",                                // namespace
-  "treasury",                           // routeLabel
-  abi.encodePacked(address(0xAbc...)),  // target (bytes; e.g. 20-byte EVM address)
-  0                                     // application-defined routeType; meanings are defined outside of the contract
-);
+```ts
+import { getBytes } from "ethers";
 
+await routes.createRoute(
+  "alice", // label
+  "pay", // namespace
+  "treasury", // routeLabel
+  getBytes("0xAbc0000000000000000000000000000000000Def"), // target (bytes; e.g. 20-byte EVM address)
+  0, // routeType — meanings are defined in routeTypes/, not by the contract
+);
 ```
 
-Newly created routes are `isActive = true` by default. `target` and `routeType` are mutable until the route is frozen.
+Newly created routes are `isActive = true` by default. `target` and `routeType` are mutable until the route is [frozen](#-route-state-model).
 
 ---
 
@@ -120,7 +121,7 @@ An application:
 1. Calls one of the resolve variants(`resolveRouteIfFrozenAndActive`, `resolveRouteIfActive`, or `resolveRoute`)
 2. Receives `(target, routeType)`
 
-XNS Routes only supports forward resolution only as multiple routes may point at the same endpoint.
+XNS Routes only supports forward resolution as multiple routes may point at the same endpoint.
 
 ---
 
@@ -154,7 +155,7 @@ Each route has:
 - `isFrozen` → permanently locks `target` / `routeType` for that route
 - `routeLabel` → immutable slug
 
-The XNS name owner can call `updateRoute` to change `target` and `routeType` until the route's `isFrozen` flag is set. Closing the route book does **not** block updates.
+The XNS name owner can call `updateRoute` to change `target` and `routeType` until the route's `isFrozen` flag is set.
 
 `isActive` and `isFrozen` are independent: a frozen route can still be deactivated (and reactivated) without changing its endpoint.
 
