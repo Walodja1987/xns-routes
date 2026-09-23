@@ -20,7 +20,8 @@
 3. [How It Works](#-how-it-works) \
    3.1 [Define a Route](#1-define-a-route) \
    3.2 [Resolve a Route](#2-resolve-a-route) \
-   3.3 [Interpret the endpoint](#3-interpret-the-endpoint)
+   3.3 [Interpret the endpoint](#3-interpret-the-endpoint) \
+   3.4 [Route type registry](routeTypes/README.md)
 4. [Route State Model](#-route-state-model)
 5. [Route freeze](#-route-freeze) \
    5.1 [Per-route freeze](#per-route-freeze) \
@@ -125,15 +126,18 @@ XNS Routes only supports forward resolution only as multiple routes may point at
 
 ### 3. Interpret the endpoint
 
-`routeType` tells the application how to read `target`. Illustrative conventions (not enforced on-chain):
+`routeType` tells the application how to read `target`. Conventions are documented in
+[`routeTypes/`](routeTypes/README.md) (not enforced on-chain):
 
-| `routeType` | Example `target`        | Meaning              |
-| ----------- | ----------------------- | -------------------- |
-| `0`         | 20-byte EVM address     | Ethereum endpoint    |
-| `1`         | Bitcoin address bytes   | Bitcoin endpoint     |
-| `2`         | Solana pubkey bytes     | Solana endpoint      |
+| `routeType` | Meaning          | Spec                   |
+| ----------- | ---------------- | ---------------------- |
+| `0`         | EVM address      | [routeTypes/0.md](routeTypes/0.md) |
+| `1`         | Bitcoin address  | [routeTypes/1.md](routeTypes/1.md) |
+| `2`         | Solana pubkey    | [routeTypes/2.md](routeTypes/2.md) |
 
-New route types can be defined without changing the XNS Routes contract. The registry stores the endpoint and its type; applications decide how to interpret it.
+New public types can be proposed via a GitHub issue (see [routeTypes/README.md](routeTypes/README.md#propose-a-new-route-type))
+without changing the XNS Routes contract. The registry stores the endpoint and its type;
+applications decide how to interpret it.
 
 ---
 
@@ -265,6 +269,7 @@ They enable:
 ## 📦 Repo Contents
 
 - `XNSRoutes.sol` — named-endpoint registry (includes on-chain enumeration helpers; see below)
+- [`routeTypes/`](routeTypes/README.md) — public `routeType` conventions (`0`, `1`, `2`, …)
 - optional example build contracts:
   - `XNSRegisterNameBuilder`
   - `USDTTransferEthBuilder`
@@ -376,6 +381,9 @@ Each script has a `USER INPUTS` section at the top. Fill in [constants/addresses
 ## 🤝 Contributing
 
 Ideas, improvements, and new endpoint conventions are welcome.
+
+To propose a new public `routeType`, open a **New route type** GitHub issue and follow the
+format of the specs in [`routeTypes/`](routeTypes/README.md).
 
 This is an early-stage standard — feedback is highly valuable.
 

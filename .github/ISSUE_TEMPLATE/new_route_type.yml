@@ -1,0 +1,72 @@
+name: "New route type"
+description: "Propose a public routeType convention for the routeTypes/ registry."
+title: "[Route-Type]: "
+labels:
+  - enhancement
+assignees:
+  - walodja1987
+body:
+  - attributes:
+      value: |
+        Propose a new public `routeType` for [routeTypes/](../../routeTypes/README.md).
+        Follow the same sections as existing specs (`0.md`, `1.md`, `2.md`).
+        Conventions are **not** enforced by `XNSRoutes.sol`.
+    type: markdown
+
+  - attributes:
+      label: "Proposed id"
+      description: "Leave blank for maintainer assignment, or request an unused id in 0–999999."
+      placeholder: "(unassigned)"
+    id: proposed-id
+    type: input
+    validations:
+      required: false
+
+  - attributes:
+      label: "Name"
+      description: "Short human-readable name (e.g. EVM address)."
+      placeholder: "EVM address"
+    id: name
+    type: input
+    validations:
+      required: true
+
+  - attributes:
+      label: "Summary"
+      description: "One or two sentences describing what `target` represents."
+    id: summary
+    type: textarea
+    validations:
+      required: true
+
+  - attributes:
+      label: "Encoding"
+      description: "Prose rules for routeType and target (length/format), plus at least one TypeScript example."
+    id: encoding
+    type: textarea
+    validations:
+      required: true
+
+  - attributes:
+      label: "Decoding rules"
+      description: "How apps should parse and validate `target` for this type."
+    id: decoding
+    type: textarea
+    validations:
+      required: true
+
+  - attributes:
+      label: "Non-goals"
+      description: "What this type explicitly does not cover."
+    id: non-goals
+    type: textarea
+    validations:
+      required: true
+
+  - attributes:
+      label: "Why existing types are insufficient"
+      description: "Explain why 0 / 1 / 2 (or other accepted types) cannot be reused."
+    id: why-new
+    type: textarea
+    validations:
+      required: true
