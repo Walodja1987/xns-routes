@@ -30,7 +30,7 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 ///
 /// Route format:
 ///
-///     label AT namespace/routeLabel
+/// label AT namespace/routeLabel
 ///
 /// Examples:
 /// - `alice AT pay/treasury`
@@ -122,6 +122,8 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 ///   and a route label cannot contain `/`. See `_routeKey`.
 /// - The route list can be queried with `getRouteKeyCount`, `getRouteKeys`, and `getRouteEntries`.
 ///   `getRouteEntries` returns each route's key plus stored `routeLabel` and metadata.
+///
+/// @dev The comments use AT instead of @ as solc treats @ as a documentation tag in NatSpec.
 contract XNSRoutes is Ownable2Step {
     // -------------------------------------------------------------------------
     // Types
