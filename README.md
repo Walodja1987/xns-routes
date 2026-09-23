@@ -44,42 +44,34 @@
 
 ---
 
-## ✨ What are Routes?
+## ✨ What are XNS Routes?
 
-**One identity. Multiple named endpoints.**
-
-An XNS name is a permanent identity. Routes publish typed endpoints underneath it.
-
-Instead of sharing raw addresses across wallets, docs, and config files, name owners publish human-readable destinations such as `alice@pay/personal` or `aave@defi/treasury`.
-
-XNS Routes extends an XNS name with a simple path:
-
-**Grammar:**
+Routes are typed endpoints underneath an [XNS name](https://github.com/Walodja1987/XNSv2/blob/main/README.md#xns--the-name-layer-on-ethereum). XNS Routes extends an XNS name with a simple path:
 
 ```text
 route = label@namespace/routeLabel
 ```
 
-Examples:
+If you own `alice@eth`, you can publish routes under that name **for free**:
 
 ```text
-alice@pay/personal
-alice@pay/business
-alice@pay/bitcoin
-aave@defi/treasury
-acme@company/payroll
+alice@eth/treasury           → 0xdf2…3e7          (EVM address)
+alice@eth/my-wallet-2        → 0xabc…901          (another EVM address)
+alice@eth/bitcoin-wallet-1   → bc1q…              (Bitcoin address)
+alice@eth/solana-main        → 7Ec…               (Solana pubkey)
+alice@eth/claim-airdrop      → 0xa9059cbb…        (calldata)
 ```
 
-Each route:
+Each route points to an opaque **endpoint payload** (`bytes target`) plus a **`routeType`** that tells applications how to interpret it.
 
-- belongs to an **XNS name** (`label@namespace`)
-- has a required **route label** (e.g. `treasury`)
-- stores an opaque **endpoint payload** (`bytes target`) plus a **`routeType`** that tells applications how to interpret it
+Routes can have parameters like URLs. They are not stored on-chain, but can be used to derive the return data.
+Example shared link:
 
-Application-layer params (e.g. `/amount=10`) are **not** part of the on-chain format.
-Apps must strip them before calling string helpers (`splitRoute`, `getRouteRecord(string)`, `resolveRoute*`).
+```text
+usdt@action/transfer-usdt/to=0x1234…abcd/amount=100
+```
 
-Validation rules:
+The character rules for a route label are the same as for XNS names:
 
 - `routeLabel` must be `1-32` chars
 - charset: lowercase `a-z`, digits `0-9`, and `-`
@@ -262,6 +254,16 @@ Use `isRouteBookClosed(...)` for the book flag and `record.isFrozen` (via `getRo
 ## 🧱 Optional: build contracts
 
 Some applications may treat `target` as the address of a helper that builds a transaction template (view `build(...)` returning chain, destination, value, and data). That pattern is supported by the generic `(target, routeType)` model but is **not** the primary use case of Routes.
+
+Example shared link:
+
+```text
+usdt@action/transfer-usdt/to=0x1234…abcd/amount=100
+```
+
+Only `usdt@action/transfer-usdt` is registered on-chain. The `/to=…/amount=…` params can be
+passed to the view contract pointed to by the route’s `target` to generate and return
+calldata — e.g. an ERC-20 `transfer(to, amount)` payload.
 
 Example builders in this repo:
 
