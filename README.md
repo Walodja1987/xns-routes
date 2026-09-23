@@ -1,35 +1,83 @@
 # XNS Routes
 
-**Routes turn XNS names into onchain actions.**
+```
+///////////////////////////////////////////////////////////////////////////////////////////////
+//                                                                                           //
+//   __   __ _   _   _____         ___    _____    ____   _    _  _______  ______   _____    //
+//   \ \ / /| \ | | / ____|       /  /   |  __ \  / __ \ | |  | ||__   __||  ____| / ____|   //
+//    \ V / |  \| || (___        /  /    | |__) || |  | || |  | |   | |   | |__   | (___     //
+//     > <  | . ` | \___ \      /  /     |  _  / | |  | || |  | |   | |   |  __|   \___ \    //
+//    / . \ | |\  | ____) |    /  /      | | \ \ | |__| || |__| |   | |   | |____  ____) |   //
+//   /_/ \_\|_| \_||_____/    /_ /       |_|  \_\ \____/  \____/    |_|   |______||_____/    //
+//                                                                                           //
+///////////////////////////////////////////////////////////////////////////////////////////////
+```
 
-Instead of sharing raw calldata or relying on a single frontend, protocols and users can publish **human-readable, verifiable commands** that build transactions.
+## Table of contents
+
+1. [What are Routes?](#-what-are-routes)
+2. [Route vocabulary](#-route-vocabulary)
+3. [Mental Model](#-mental-model) \
+   3.1 [Contract ownership](#contract-ownership)
+4. [Why Routes?](#-why-routes)
+5. [How It Works](#-how-it-works) \
+   5.1 [Define a Route](#1-define-a-route) \
+   5.2 [Resolve a Route](#2-resolve-a-route) \
+   5.3 [Interpret the endpoint](#3-interpret-the-endpoint)
+6. [Route State Model](#-route-state-model)
+7. [Route freeze](#-route-freeze) \
+   7.1 [Per-route freeze](#per-route-freeze) \
+   7.2 [Route-book close](#route-book-close)
+8. [Optional: build contracts](#-optional-build-contracts)
+9. [Suggested route label](#-suggested-route-label)
+10. [Design Principles](#-design-principles)
+11. [Vision](#-vision)
+12. [Repo Contents](#-repo-contents)
+13. [On-chain route discovery](#-on-chain-route-discovery)
+14. [API reference](#-api-reference)
+15. [Network addresses](#-network-addresses)
+16. [Deploy](#-deploy)
+17. [Example scripts](#-example-scripts)
+18. [Notes](#-notes)
+19. [Contributing](#-contributing)
+20. [Summary](#-summary)
 
 ---
 
 ## ✨ What are Routes?
 
-Routes are registered under an XNSv2 name using **route** strings.
+**One identity. Multiple named endpoints.**
+
+An XNS name is a permanent identity. Routes publish typed endpoints underneath it.
+
+Instead of sharing raw addresses across wallets, docs, and config files, name owners publish human-readable destinations such as `alice@pay/personal` or `aave@defi/treasury`.
+
+XNS Routes extends an XNS name with a simple path:
 
 **Grammar:**
 
 ```text
-route = label "@" namespace "/" routeLabel
+route = label@namespace/routeLabel
 ```
 
-Application-layer params (e.g. `/amount=10`) are **not** part of the on-chain format.
-Apps must strip them before calling string helpers (`splitRoute`, `getRouteRecord(string)`, `resolveRoute*`).
+Examples:
 
-```
-xns@action/register-name
-usdt@action/transfer-usdt
+```text
+alice@pay/personal
+alice@pay/business
+alice@pay/bitcoin
+aave@defi/treasury
+acme@company/payroll
 ```
 
 Each route:
 
-- belongs to an **XNS name** (`label@namespace`, e.g. `xns@action`)
-- has a required **route label** (e.g. `transfer-usdt`)
-- points to an opaque **endpoint payload** (`bytes target`, interpreted via `routeType`)
-- produces transaction calldata off-chain
+- belongs to an **XNS name** (`label@namespace`)
+- has a required **route label** (e.g. `treasury`)
+- stores an opaque **endpoint payload** (`bytes target`) plus a **`routeType`** that tells applications how to interpret it
+
+Application-layer params (e.g. `/amount=10`) are **not** part of the on-chain format.
+Apps must strip them before calling string helpers (`splitRoute`, `getRouteRecord(string)`, `resolveRoute*`).
 
 Validation rules:
 
@@ -55,13 +103,20 @@ Contract tuple APIs use `(label, namespace, routeLabel)` — equivalent to parsi
 
 ## 🧠 Mental Model
 
-| Component      | Meaning                                        |
-| -------------- | ---------------------------------------------- |
-| XNS name       | Identity / publisher (`label@namespace`)       |
-| Route label    | Action slug (e.g. `transfer-usdt`); 1-32 chars |
-| Build contract | How the transaction is built (`target`)        |
+| Component   | Meaning                                                           |
+| ----------- | ----------------------------------------------------------------- |
+| XNS name    | Identity / publisher (`label@namespace`) — **who**                |
+| Route label | Named endpoint under that identity (e.g. `treasury`) — **where**  |
+| `target`    | Opaque endpoint payload (`bytes`)                                 |
+| `routeType` | How applications should interpret `target`                        |
 
-> **XNS names resolve identities. Routes resolve actions.**
+> **XNS names resolve identities. Routes resolve named endpoints.**
+
+The registry answers one question:
+
+> **What endpoint did the owner of this XNS name publish under this route?**
+
+It does not interpret payment amounts, execute returned data, or decide what an endpoint means. Those decisions belong to applications and route-type conventions.
 
 ### Contract ownership
 
@@ -77,19 +132,19 @@ through current XNS name ownership.
 
 ### For Users
 
-- ✅ Human-readable transaction actions
-- ✅ No need to understand calldata or ABI
-- ✅ Safer transaction signing (wallet can verify)
-- ✅ Reusable commands (links, QR codes, etc.)
+- ✅ One recognizable identity with multiple destinations
+- ✅ Publish payment, chain, or account endpoints under a single name
+- ✅ Update endpoints until frozen; deactivate without deleting
+- ✅ Shareable, human-readable destinations (links, QR codes, etc.)
 
 ---
 
 ### For Developers / Protocols
 
-- ✅ Publish canonical actions (e.g. `borrow`, `swap`, `transfer`)
-- ✅ Reduce wallet integration complexity
-- ✅ Make actions portable across apps
-- ✅ Enable verifiable transaction generation
+- ✅ Publish canonical endpoints (treasury, pool, router, governance, …)
+- ✅ Replace scattered raw addresses in docs and config with named routes
+- ✅ Support EVM and non-EVM endpoints via `routeType` + opaque `target`
+- ✅ Keep the on-chain primitive minimal — apps own interpretation
 
 ---
 
@@ -101,61 +156,55 @@ A route is registered under an XNS name:
 
 ```solidity
 createRoute(
-  "xns",           // label
-  "action",        // namespace
-  "register-name", // routeLabel
-  abi.encodePacked(address(builder)), // target (bytes; e.g. 20-byte EVM address)
-  0                // application-defined routeType; meanings are not standardized
+  "alice",                              // label
+  "pay",                                // namespace
+  "treasury",                           // routeLabel
+  abi.encodePacked(address(0xAbc...)),  // target (bytes; e.g. 20-byte EVM address)
+  0                                     // application-defined routeType; meanings are not standardized
 );
 // Sets isActive = true.
 // target and routeType are mutable until the route is frozen.
 ```
 
----
+The same pattern works for organizations and protocols:
 
-### 2. Build Contract
-
-For EVM builder-style routes, `target` is typically a 20-byte contract address under an application-defined `routeType`. That contract can return a transaction template:
-
-```solidity
-function build(...)
-    external
-    view
-    returns (
-        uint256 targetChainId,
-        address target,
-        uint256 value,
-        bytes memory data
-    );
+```text
+aave@defi/treasury
+aave@defi/governance
+aave@defi/v3-pool
 ```
 
-Non-EVM endpoints (e.g. Bitcoin) can store the destination directly in `bytes target` under another `routeType`. Large payloads (e.g. calldata) are allowed; owners pay the gas/storage cost.
-
 ---
 
-### 3. Wallet Flow
+### 2. Resolve a Route
 
 Given:
 
+```text
+alice@pay/treasury
 ```
-xns@action/register-name
-```
 
-(with optional off-chain params like `/label=bro/namespace=og` stripped by the app before calling Routes)
+An application:
 
-A wallet:
+1. Resolves ownership of `alice@pay` via XNSv2 (implicitly: only the current name owner can have published the route)
+2. Calls `resolveRouteIfFrozenAndActive` (or `resolveRouteIfActive` when unfrozen drafts are acceptable)
+3. Receives `(target, routeType)`
 
-1. Strips any application-layer params from the shared link
-2. Resolves `xns@action` via XNSv2
-3. Resolves `(label, namespace, routeLabel)` via `resolveRouteIfFrozenAndActive` (or `resolveRouteIfActive` when unfrozen drafts are acceptable)
-4. Calls `build(...)` using the off-chain params
-5. Gets:
-   - target chain
-   - contract address
-   - value
-   - calldata
+Forward resolution only — multiple route labels may point at the same endpoint. There is no reverse index.
 
-6. Verifies and executes the transaction
+---
+
+### 3. Interpret the endpoint
+
+`routeType` tells the application how to read `target`. Illustrative conventions (not enforced on-chain):
+
+| `routeType` | Example `target`        | Meaning              |
+| ----------- | ----------------------- | -------------------- |
+| `0`         | 20-byte EVM address     | Ethereum endpoint    |
+| `1`         | Bitcoin address bytes   | Bitcoin endpoint     |
+| `2`         | Solana pubkey bytes     | Solana endpoint      |
+
+New route types can be defined without changing the XNS Routes contract. The registry stores the endpoint and its type; applications decide how to interpret it.
 
 ---
 
@@ -163,13 +212,15 @@ A wallet:
 
 Each route has:
 
-- `target` → opaque endpoint payload, non-empty `bytes` with no protocol max length (**mutable** until the route is frozen; e.g. a 20-byte EVM address under an application-defined `routeType`)
+- `target` → opaque endpoint payload, non-empty `bytes` with no protocol max length (**mutable** until the route is frozen)
 - `routeType` → off-chain interpretation hint (**mutable** until the route is frozen)
 - `isActive` → usable or disabled (toggled by the XNS name owner)
 - `isFrozen` → permanently locks `target` / `routeType` for that route
 - `routeLabel` → immutable slug
 
 The XNS name owner can call `updateRoute` to change `target` and `routeType` until the route's `isFrozen` flag is set. Closing the route book does **not** block updates.
+
+`isActive` and `isFrozen` are independent: a frozen route can still be deactivated (and reactivated) without changing its endpoint.
 
 `routeLabel` cannot be renamed; create another route instead. Routes are never deleted.
 
@@ -180,8 +231,8 @@ The XNS name owner can call `updateRoute` to change `target` and `routeType` unt
 ### Per-route freeze
 
 ```solidity
-freezeRoute("xns", "action", "register-name");
-// or batchFreezeRoutes("xns", "action", ["register-name", "treasury"]);
+freezeRoute("alice", "pay", "treasury");
+// or batchFreezeRoutes("alice", "pay", ["treasury", "personal"]);
 ```
 
 - Permanently locks that route's `target` / `routeType`
@@ -190,41 +241,38 @@ freezeRoute("xns", "action", "register-name");
 ### Route-book close
 
 ```solidity
-closeRouteBook("xns@action");
-// or closeRouteBook("xns", "action");
+closeRouteBook("alice@pay");
+// or closeRouteBook("alice", "pay");
 ```
 
 - No new routes can be added under that name
 - Existing routes stay updatable until individually frozen
 - XNS name owner can still toggle `isActive`
 
-> Useful for finalized app registries, audited contract maps, or limited route collections.
+> Useful for finalized endpoint sets, audited contract maps, or limited route collections.
 
 Use `isRouteBookClosed(...)` for the book flag and `record.isFrozen` (via `getRouteRecord`) for per-route freeze.
 
+**Freeze a route** when its endpoint should become permanent.
+
+**Close the route book** when the set of available routes should become permanent.
+
 ---
 
-## 🧱 Build Contracts
+## 🧱 Optional: build contracts
+
+Some applications may treat `target` as the address of a helper that builds a transaction template (view `build(...)` returning chain, destination, value, and data). That pattern is supported by the generic `(target, routeType)` model but is **not** the primary use case of Routes.
+
+Example builders in this repo:
+
+- `XNSRegisterNameBuilder` — `xns@action/register-name`
+- `USDTTransferEthBuilder` — `usdt@action/transfer-usdt`
 
 Build contracts:
 
-- define how parameters map to calldata
-- return a transaction template
+- define how parameters map to a transaction template
 - are reusable across routes
-
-### Example: XNS Name Registration
-
-```
-xns@action/register-name/label=bro/namespace=og
-```
-
----
-
-### Example: USDT Transfer
-
-```
-usdt@action/transfer-usdt/to=0x.../amount=100
-```
+- must be audited if widely used; wallets should verify route + builder before execution
 
 ---
 
@@ -247,10 +295,10 @@ function suggestedRouteName() external pure returns (string memory);
 
 ## 🌍 Design Principles
 
-- **Name-owned** → routes belong to XNS names
-- **Composable** → builders are reusable
-- **Verifiable** → wallets can independently rebuild tx
-- **Human-readable** → no opaque calldata
+- **Name-owned** → routes belong to XNS names; no separate route owners or route NFTs
+- **Minimal** → registry stops at typed endpoint resolution
+- **Generic** → `target` + `routeType`; apps define interpretation
+- **Forward-only** → resolve route → endpoint; no reverse index
 - **Optionally immutable** → `target` / `routeType` updateable until freeze; then permanent
 
 ---
@@ -259,20 +307,20 @@ function suggestedRouteName() external pure returns (string memory);
 
 Routes extend XNS from:
 
-> **name resolution → action resolution**
+> **name resolution → named endpoint resolution**
 
 They enable:
 
-- protocol-native action APIs
-- wallet-native transaction building
-- shareable onchain commands
+- multiple payment and account destinations under one identity
+- protocol-native endpoint directories
+- wallets and apps that resolve `label@namespace/routeLabel` without hardcoding addresses
 
 ---
 
 ## 📦 Repo Contents
 
-- `XNSRoutes.sol` — route registry contract (includes on-chain enumeration helpers; see below)
-- example build contracts:
+- `XNSRoutes.sol` — named-endpoint registry (includes on-chain enumeration helpers; see below)
+- optional example build contracts:
   - `XNSRegisterNameBuilder`
   - `USDTTransferEthBuilder`
 
@@ -299,7 +347,7 @@ The registry stores each route's **`routeLabel` on-chain** and keeps a per-name 
 - `splitRoute` — parse `label@namespace/routeLabel` into components
 - `splitXNSName` — parse `label@namespace` into components
 
-Use **`resolveRouteIfFrozenAndActive`** for production execution paths that only trust published (frozen), live routes; use **`resolveRouteIfActive`** when unfrozen drafts are acceptable; use **`resolveRoute`** when you need the binding regardless of flags. Use **`getRouteRecord`** for route metadata. Resolver overloads revert when the route is missing, inactive (active-gated), or not frozen (`resolveRouteIfFrozenAndActive`). `getRouteRecord` returns an **empty record** (`target.length == 0`) when the route is missing.
+Use **`resolveRouteIfFrozenAndActive`** for production paths that only trust published (frozen), live routes; use **`resolveRouteIfActive`** when unfrozen drafts are acceptable; use **`resolveRoute`** when you need the binding regardless of flags. Use **`getRouteRecord`** for route metadata. Resolver overloads revert when the route is missing, inactive (active-gated), or not frozen (`resolveRouteIfFrozenAndActive`). `getRouteRecord` returns an **empty record** (`target.length == 0`) when the route is missing.
 
 `target` and `routeType` are **mutable until the route is frozen** (`record.isFrozen`). Route book close blocks **new** routes only; the XNS name owner can still update existing routes and toggle `isActive`.
 
@@ -364,18 +412,15 @@ Each script has a `USER INPUTS` section at the top. Fill in [constants/addresses
 
 ## ⚠️ Notes
 
-- Build contracts must be audited if widely used
-- Always verify route + builder before execution
-- Wallets should clearly display:
-  - route
-  - target contract
-  - calldata summary
+- Routes store typed endpoints; applications interpret `target` via `routeType`
+- Prefer frozen + active routes for production resolution (`resolveRouteIfFrozenAndActive`)
+- If using optional build contracts: audit them, and verify route + builder before execution
 
 ---
 
 ## 🤝 Contributing
 
-Ideas, improvements, and new builders are welcome.
+Ideas, improvements, and new endpoint conventions are welcome.
 
 This is an early-stage standard — feedback is highly valuable.
 
@@ -383,4 +428,4 @@ This is an early-stage standard — feedback is highly valuable.
 
 ## 🧩 Summary
 
-> **Routes make blockchain actions human-readable, shareable, and verifiable.**
+> **XNS provides the permanent identity. XNS Routes gives that identity named endpoints.**

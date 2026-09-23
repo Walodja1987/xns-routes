@@ -28,7 +28,7 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// endpoint payloads (`bytes`). Routes may represent EVM addresses, other-chain addresses,
 /// identifiers, or other application-defined data — interpreted via `routeType`.
 ///
-/// Route format:
+/// ### Route format
 ///
 /// label AT namespace/routeLabel
 ///

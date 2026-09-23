@@ -15,7 +15,7 @@ XNS name owners can create named routes under their XNS name which resolve to op
 endpoint payloads (`bytes`). Routes may represent EVM addresses, other-chain addresses,
 identifiers, or other application-defined data — interpreted via `routeType`.
 
-Route format:
+### Route format
 
 label@namespace/routeLabel
 
