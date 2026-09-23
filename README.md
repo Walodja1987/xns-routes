@@ -15,32 +15,30 @@
 
 ## Table of contents
 
-1. [What are Routes?](#-what-are-routes)
-2. [Route vocabulary](#-route-vocabulary)
-3. [Mental Model](#-mental-model) \
-   3.1 [Contract ownership](#contract-ownership)
-4. [Why Routes?](#-why-routes)
-5. [How It Works](#-how-it-works) \
-   5.1 [Define a Route](#1-define-a-route) \
-   5.2 [Resolve a Route](#2-resolve-a-route) \
-   5.3 [Interpret the endpoint](#3-interpret-the-endpoint)
-6. [Route State Model](#-route-state-model)
-7. [Route freeze](#-route-freeze) \
-   7.1 [Per-route freeze](#per-route-freeze) \
-   7.2 [Route-book close](#route-book-close)
-8. [Optional: build contracts](#-optional-build-contracts)
-9. [Suggested route label](#-suggested-route-label)
-10. [Design Principles](#-design-principles)
-11. [Vision](#-vision)
-12. [Repo Contents](#-repo-contents)
-13. [On-chain route discovery](#-on-chain-route-discovery)
-14. [API reference](#-api-reference)
-15. [Network addresses](#-network-addresses)
-16. [Deploy](#-deploy)
-17. [Example scripts](#-example-scripts)
-18. [Notes](#-notes)
-19. [Contributing](#-contributing)
-20. [Summary](#-summary)
+1. [What are XNS Routes?](#-what-are-xns-routes)
+2. [Why XNS Routes?](#-why-xns-routes)
+3. [How It Works](#-how-it-works) \
+   3.1 [Define a Route](#1-define-a-route) \
+   3.2 [Resolve a Route](#2-resolve-a-route) \
+   3.3 [Interpret the endpoint](#3-interpret-the-endpoint)
+4. [Route State Model](#-route-state-model)
+5. [Route freeze](#-route-freeze) \
+   5.1 [Per-route freeze](#per-route-freeze) \
+   5.2 [Route-book close](#route-book-close)
+6. [Optional: build contracts](#-optional-build-contracts)
+7. [Suggested route label](#-suggested-route-label)
+8. [Design Principles](#-design-principles)
+9. [Vision](#-vision)
+10. [Repo Contents](#-repo-contents)
+11. [On-chain route discovery](#-on-chain-route-discovery)
+12. [API reference](#-api-reference)
+13. [Network addresses](#-network-addresses)
+14. [Deploy](#-deploy)
+15. [Contract ownership](#-contract-ownership)
+16. [Example scripts](#-example-scripts)
+17. [Notes](#-notes)
+18. [Contributing](#-contributing)
+19. [Summary](#-summary)
 
 ---
 
@@ -79,64 +77,11 @@ The character rules for a route label are the same as for XNS names:
 
 ---
 
-## 📖 Route vocabulary
-
-| Term            | Example              | Notes                                                                                                        |
-| --------------- | -------------------- | ------------------------------------------------------------------------------------------------------------ |
-| **route**       | `alice@pay/treasury` | On-chain identity: `label@namespace/routeLabel`. Used by `splitRoute`, `routeKey`, and registry lookups      |
-| **label**       | `alice`              | XNSv2 name label                                                                                             |
-| **namespace**   | `pay`                | XNSv2 namespace                                                                                              |
-| **route label** | `treasury`           | Required slug after `/`                                                                                      |
-| **route key**   | `bytes32`            | `keccak256(abi.encodePacked(label, "@", namespace, "/", routeLabel))` — hash of `label@namespace/routeLabel` |
-
-Contract tuple APIs use `(label, namespace, routeLabel)` — equivalent to parsing a route. String helpers: `splitRoute`, `splitXNSName`, `getRouteRecord(string route)` (exact route string only; no params suffix).
-
----
-
-## 🧠 Mental Model
-
-| Component   | Meaning                                                           |
-| ----------- | ----------------------------------------------------------------- |
-| XNS name    | Identity / publisher (`label@namespace`) — **who**                |
-| Route label | Named endpoint under that identity (e.g. `treasury`) — **where**  |
-| `target`    | Opaque endpoint payload (`bytes`)                                 |
-| `routeType` | How applications should interpret `target`                        |
-
-> **XNS names resolve identities. Routes resolve named endpoints.**
-
-The registry answers one question:
-
-> **What endpoint did the owner of this XNS name publish under this route?**
-
-It does not interpret payment amounts, execute returned data, or decide what an endpoint means. Those decisions belong to applications and route-type conventions.
-
-### Contract ownership
-
-`XNSRoutes` exposes ERC-173-compatible `owner()` with OpenZeppelin's two-step ownership
-transfer (`transferOwnership` → `acceptOwnership`). The owner is an external identity /
-administrative pointer only and has **no authority over route state**. Creating, updating,
-freezing, activating, deactivating, and closing route books remain authorized exclusively
-through current XNS name ownership.
-
----
-
-## 🚀 Why Routes?
-
-### For Users
+## 🚀 Why XNS Routes?
 
 - ✅ One recognizable identity with multiple destinations
-- ✅ Publish payment, chain, or account endpoints under a single name
-- ✅ Update endpoints until frozen; deactivate without deleting
 - ✅ Shareable, human-readable destinations (links, QR codes, etc.)
-
----
-
-### For Developers / Protocols
-
-- ✅ Publish canonical endpoints (treasury, pool, router, governance, …)
-- ✅ Replace scattered raw addresses in docs and config with named routes
-- ✅ Support EVM and non-EVM endpoints via `routeType` + opaque `target`
-- ✅ Keep the on-chain primitive minimal — apps own interpretation
+- ✅ Support EVM and non-EVM endpoints
 
 ---
 
@@ -152,19 +97,12 @@ createRoute(
   "pay",                                // namespace
   "treasury",                           // routeLabel
   abi.encodePacked(address(0xAbc...)),  // target (bytes; e.g. 20-byte EVM address)
-  0                                     // application-defined routeType; meanings are not standardized
+  0                                     // application-defined routeType; meanings are defined outside of the contract
 );
-// Sets isActive = true.
-// target and routeType are mutable until the route is frozen.
+
 ```
 
-The same pattern works for organizations and protocols:
-
-```text
-aave@defi/treasury
-aave@defi/governance
-aave@defi/v3-pool
-```
+Newly created routes are `isActive = true` by default. `target` and `routeType` are mutable until the route is frozen.
 
 ---
 
@@ -178,11 +116,10 @@ alice@pay/treasury
 
 An application:
 
-1. Resolves ownership of `alice@pay` via XNSv2 (implicitly: only the current name owner can have published the route)
-2. Calls `resolveRouteIfFrozenAndActive` (or `resolveRouteIfActive` when unfrozen drafts are acceptable)
-3. Receives `(target, routeType)`
+1. Calls one of the resolve variants(`resolveRouteIfFrozenAndActive`, `resolveRouteIfActive`, or `resolveRoute`)
+2. Receives `(target, routeType)`
 
-Forward resolution only — multiple route labels may point at the same endpoint. There is no reverse index.
+XNS Routes only supports forward resolution only as multiple routes may point at the same endpoint.
 
 ---
 
@@ -297,6 +234,12 @@ function suggestedRouteName() external pure returns (string memory);
 
 ## 🌍 Design Principles
 
+The registry answers one question:
+
+> **What endpoint did the owner of this XNS name publish under this route?**
+
+It does not interpret payment amounts, execute returned data, or decide what an endpoint means.
+
 - **Name-owned** → routes belong to XNS names; no separate route owners or route NFTs
 - **Minimal** → registry stops at typed endpoint resolution
 - **Generic** → `target` + `routeType`; apps define interpretation
@@ -386,6 +329,16 @@ The initial contract owner defaults to the deployer; optionally set
 [docs/DEV_NOTES.md](docs/DEV_NOTES.md).
 
 The deploy script reads `getNamespacePrice("xns")` and sends that ETH with the deployment tx: the `XNSRoutes` constructor calls XNS `registerName("routes","xns")` so **`routes@xns` resolves to the new registry contract**. Ensure the deploy account holds enough ETH for the quoted price (XNS refunds overpayment).
+
+---
+
+## 🔐 Contract ownership
+
+`XNSRoutes` exposes ERC-173-compatible `owner()` with OpenZeppelin's two-step ownership
+transfer (`transferOwnership` → `acceptOwnership`). The owner is an external identity /
+administrative pointer only and has **no authority over route state**. Creating, updating,
+freezing, activating, deactivating, and closing route books remain authorized exclusively
+through current XNS name ownership.
 
 ---
 
