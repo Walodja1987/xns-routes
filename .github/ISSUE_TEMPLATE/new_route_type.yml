@@ -56,16 +56,8 @@ body:
       required: true
 
   - attributes:
-      label: "Non-goals"
-      description: "What this type explicitly does not cover."
-    id: non-goals
-    type: textarea
-    validations:
-      required: true
-
-  - attributes:
       label: "Why existing types are insufficient"
-      description: "Explain why 0 / 1 / 2 (or other accepted types) cannot be reused."
+      description: "Explain why 0–5 (or other accepted types) cannot be reused."
     id: why-new
     type: textarea
     validations:

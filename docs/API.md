@@ -17,13 +17,13 @@ identifiers, or other application-defined data — interpreted via `routeType`.
 
 ### Route format
 
-label@namespace/routeLabel
+label AT namespace/routeLabel
 
 Examples:
-- `alice@pay/treasury`
-- `alice@pay/treasury-eth`
-- `alice@pay/treasury-arb`
-- `aave@defi/v3-pool`
+- `alice AT pay/treasury`
+- `alice AT pay/treasury-eth`
+- `alice AT pay/treasury-arb`
+- `aave AT defi/v3-pool`
 
 The route label must:
 - Be 1–32 characters long.
@@ -50,10 +50,13 @@ the XNS name owner until that route is frozen (`isFrozen`).
 The exact semantics of `routeType` are intentionally not enforced by this contract.
 Applications may define their own interpretation conventions.
 
-Example route types (illustrative):
-- `0` = `target` is an EVM address.
-- `1` = `target` is a Bitcoin address.
-- `2` = `target` is a Solana pubkey.
+Example route types (illustrative; see `routeTypes/`):
+- `0` = EVM address
+- `1` = Bitcoin address
+- `2` = Solana pubkey
+- `3` = EVM calldata
+- `4` = URI
+- `5` = EVM route builder
 - etc.
 
 This contract does not validate `target` contents beyond requiring non-empty.
@@ -92,7 +95,7 @@ parameters.
 
 Convenience view functions additionally support complete strings such as:
 
-    alice@pay/treasury
+    alice AT pay/treasury
 
 No reverse lookup is provided because multiple routes may point to the same target.
 
@@ -102,13 +105,18 @@ No reverse lookup is provided because multiple routes may point to the same targ
     production callers that only trust published, live bindings;
   - `resolveRouteIfActive` (requires `isActive`, ignores freeze);
   - `resolveRoute` (ignores `isActive` and freeze).
-- XNS name key: `keccak256(abi.encodePacked(label, "@", namespace))`.
+- XNS name key: `keccak256(abi.encodePacked(label, " AT ", namespace))`.
 - Route key: `keccak256` of `label`, the at-sign, `namespace`, `/`, `routeLabel`
-  (the hash of the canonical route string `label@namespace/routeLabel`).
+  (the hash of the canonical route string `label AT namespace/routeLabel`).
   Unambiguous because XNSv2 forbids the at-sign and `/` in `label` and `namespace`,
   and a route label cannot contain `/`. See `_routeKey`.
 - The route list can be queried with `getRouteKeyCount`, `getRouteKeys`, and `getRouteEntries`.
   `getRouteEntries` returns each route's key plus stored `routeLabel` and metadata.
+
+
+_The comments use AT instead of @ as solc treats @ as a documentation tag in NatSpec._
+
+
 
 
 ## Functions
@@ -127,10 +135,10 @@ Example:
 
 creates:
 
-    alice@pay/treasury
+    alice AT pay/treasury
 
 Requirements:
-- `msg.sender` must own `label@namespace`.
+- `msg.sender` must own `label AT namespace`.
 - `routeLabel` must be valid.
 - `target` must be non-empty.
 - The route book must not be closed.
@@ -153,7 +161,7 @@ Activates an existing route.
 Allowed even if the route is frozen — freeze does not lock `isActive`.
 
 **Requirements:**
-- `msg.sender` must own `label@namespace`.
+- `msg.sender` must own `label AT namespace`.
 - The route must exist.
 
 Emits `RouteActiveStatusUpdated` only when `isActive` changes.
@@ -173,7 +181,7 @@ Deactivates an existing route.
 Allowed even if the route is frozen — freeze does not lock `isActive`.
 
 **Requirements:**
-- `msg.sender` must own `label@namespace`.
+- `msg.sender` must own `label AT namespace`.
 - The route must exist.
 
 Emits `RouteActiveStatusUpdated` only when `isActive` changes.
@@ -191,7 +199,7 @@ function deactivateRoute(string label, string namespace, string routeLabel) exte
 Updates `target` and `routeType` for an existing route.
 
 **Requirements:**
-- `msg.sender` must own `label@namespace`.
+- `msg.sender` must own `label AT namespace`.
 - The route must exist.
 - The route must not be frozen (`isFrozen`).
 - `newTarget` must be non-empty.
@@ -213,7 +221,7 @@ Permanently freezes an individual route so `target` and `routeType` cannot chang
 Freezing is irreversible. `isActive` remains independently controllable by the XNS name owner.
 
 **Requirements:**
-- `msg.sender` must own `label@namespace`.
+- `msg.sender` must own `label AT namespace`.
 - The route must exist.
 
 Emits `RouteFrozen` only if the route was not already frozen.
@@ -234,7 +242,7 @@ Same per-route semantics as `freezeRoute`. Already-frozen routes are skipped
 (no event). Missing routes cause the entire call to revert.
 
 **Requirements:**
-- `msg.sender` must own `label@namespace`.
+- `msg.sender` must own `label AT namespace`.
 - Every `routeLabels[i]` must refer to an existing route.
 
 Emits `RouteFrozen` for each route that newly becomes frozen.
@@ -255,7 +263,7 @@ After closing, no additional routes may be created under that name.
 Existing routes are unchanged: they are not frozen, and `isActive` remains
 controllable by the XNS name owner.
 
-Requires `msg.sender` to own `label@namespace`.
+Requires `msg.sender` to own `label AT namespace`.
 
 Emits `RouteBookClosed` only if the route book was not already closed.
 
@@ -269,7 +277,7 @@ function closeRouteBook(string label, string namespace) external
 ### closeRouteBook
 
 
-Permanently closes the route book for `label@namespace`.
+Permanently closes the route book for `label AT namespace`.
 
 Same requirements and effects as `closeRouteBook(label, namespace)`.
 
@@ -315,9 +323,9 @@ Returns a route record using a complete route string.
 
 Example:
 
-    alice@pay/treasury
+    alice AT pay/treasury
 
-The string must be exactly `label@namespace/routeLabel` (no extra `/` segments).
+The string must be exactly `label AT namespace/routeLabel` (no extra `/` segments).
 
 ```solidity
 function getRouteRecord(string route) external view returns (struct XNSRoutes.RouteRecord record)
@@ -331,7 +339,7 @@ function getRouteRecord(string route) external view returns (struct XNSRoutes.Ro
 
 Returns the canonical route key for separate XNS components.
 
-Equal to the hash of the UTF-8 string `label@namespace/routeLabel`.
+Equal to the hash of the UTF-8 string `label AT namespace/routeLabel`.
 
 ```solidity
 function getRouteKey(string label, string namespace, string routeLabel) external pure returns (bytes32 routeKey)
@@ -347,9 +355,9 @@ Returns the canonical route key for a complete route string.
 
 Example:
 
-    getRouteKey("alice@pay/treasury")
+    getRouteKey("alice AT pay/treasury")
 
-The string must be exactly `label@namespace/routeLabel` (no extra `/` segments).
+The string must be exactly `label AT namespace/routeLabel` (no extra `/` segments).
 
 ```solidity
 function getRouteKey(string route) external pure returns (bytes32 routeKey)
@@ -379,9 +387,9 @@ Resolves a frozen and active route using a complete route string.
 
 Example:
 
-    resolveRouteIfFrozenAndActive("alice@pay/treasury")
+    resolveRouteIfFrozenAndActive("alice AT pay/treasury")
 
-The string must be exactly `label@namespace/routeLabel` (no extra `/` segments).
+The string must be exactly `label AT namespace/routeLabel` (no extra `/` segments).
 
 ```solidity
 function resolveRouteIfFrozenAndActive(string route) external view returns (bytes target, uint32 routeType)
@@ -411,9 +419,9 @@ Resolves an active route using a complete route string.
 
 Example:
 
-    resolveRouteIfActive("alice@pay/treasury")
+    resolveRouteIfActive("alice AT pay/treasury")
 
-The string must be exactly `label@namespace/routeLabel` (no extra `/` segments).
+The string must be exactly `label AT namespace/routeLabel` (no extra `/` segments).
 
 Unlike `resolveRouteIfFrozenAndActive`, this ignores whether the route is frozen.
 
@@ -443,9 +451,9 @@ Resolves a route regardless of active status using a complete route string.
 
 Example:
 
-    resolveRoute("alice@pay/treasury")
+    resolveRoute("alice AT pay/treasury")
 
-The string must be exactly `label@namespace/routeLabel` (no extra `/` segments).
+The string must be exactly `label AT namespace/routeLabel` (no extra `/` segments).
 
 ```solidity
 function resolveRoute(string route) external view returns (bytes target, uint32 routeType)
@@ -473,7 +481,7 @@ Convenience overload accepting a complete XNS name.
 
 Example:
 
-    isRouteBookClosed("alice@pay")
+    isRouteBookClosed("alice AT pay")
 
 ```solidity
 function isRouteBookClosed(string xnsName) external view returns (bool closed)
@@ -497,7 +505,7 @@ function getRouteKeyCount(string label, string namespace) external view returns 
 ### getRouteKeyCount
 
 
-Convenience overload accepting `label@namespace`.
+Convenience overload accepting `label AT namespace`.
 
 ```solidity
 function getRouteKeyCount(string xnsName) external view returns (uint256 count)
@@ -523,7 +531,7 @@ function getRouteKeys(string label, string namespace, uint256 start, uint256 end
 ### getRouteKeys
 
 
-Convenience overload accepting `label@namespace`.
+Convenience overload accepting `label AT namespace`.
 
 ```solidity
 function getRouteKeys(string xnsName, uint256 start, uint256 end) external view returns (bytes32[] keys)
@@ -547,7 +555,7 @@ function getRouteEntries(string label, string namespace, uint256 start, uint256 
 ### getRouteEntries
 
 
-Convenience overload accepting `label@namespace`.
+Convenience overload accepting `label AT namespace`.
 
 ```solidity
 function getRouteEntries(string xnsName, uint256 start, uint256 end) external view returns (struct XNSRoutes.RouteEntry[] entries)
@@ -565,7 +573,7 @@ Parses a complete route string into:
 
 Example:
 
-    alice@pay/treasury
+    alice AT pay/treasury
 
 becomes:
 
@@ -583,7 +591,7 @@ function splitRoute(string route) external pure returns (string label, string na
 ### splitXNSName
 
 
-Parses `label@namespace`.
+Parses `label AT namespace`.
 
 ```solidity
 function splitXNSName(string xnsName) external pure returns (string label, string namespace)

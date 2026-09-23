@@ -13,6 +13,9 @@ These definitions are **not** enforced on-chain. The contract only requires
 | `0`         | EVM address    | [0.md](./0.md)               |
 | `1`         | Bitcoin address | [1.md](./1.md)              |
 | `2`         | Solana pubkey  | [2.md](./2.md)               |
+| `3`         | EVM calldata   | [3.md](./3.md)               |
+| `4`         | URI            | [4.md](./4.md)               |
+| `5`         | EVM route builder | [5.md](./5.md)            |
 
 ## Id ranges
 
@@ -26,7 +29,7 @@ Do not reuse assigned public ids. New public ids are assigned when a proposal is
 ## Propose a new route type
 
 1. Open a GitHub issue with the **New route type** template.
-2. Follow the same sections as existing specs (`Summary`, `Encoding`, `Decoding`, `Non-goals`).
+2. Follow the same sections as existing specs (`Summary`, `Encoding`, `Decoding`, `Changelog`).
 3. Explain why an existing type is insufficient.
 4. Leave the numeric id blank unless you are requesting a specific unused id in the public range.
 

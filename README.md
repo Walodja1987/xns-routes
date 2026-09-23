@@ -134,6 +134,9 @@ XNS Routes only supports forward resolution only as multiple routes may point at
 | `0`         | EVM address      | [routeTypes/0.md](routeTypes/0.md) |
 | `1`         | Bitcoin address  | [routeTypes/1.md](routeTypes/1.md) |
 | `2`         | Solana pubkey    | [routeTypes/2.md](routeTypes/2.md) |
+| `3`         | EVM calldata     | [routeTypes/3.md](routeTypes/3.md) |
+| `4`         | URI              | [routeTypes/4.md](routeTypes/4.md) |
+| `5`         | EVM route builder | [routeTypes/5.md](routeTypes/5.md) |
 
 New public types can be proposed via a GitHub issue (see [routeTypes/README.md](routeTypes/README.md#propose-a-new-route-type))
 without changing the XNS Routes contract. The registry stores the endpoint and its type;
@@ -194,7 +197,7 @@ Use `isRouteBookClosed(...)` for the book flag and `record.isFrozen` (via `getRo
 
 ## 🧱 Optional: build contracts
 
-Some applications may treat `target` as the address of a helper that builds a transaction template (view `build(...)` returning chain, destination, value, and data). That pattern is supported by the generic `(target, routeType)` model but is **not** the primary use case of Routes.
+Some applications may treat `target` as the address of a helper that builds a transaction template (view `build(...)` returning chain, destination, value, and data). That is public route type [`5`](routeTypes/5.md) and is supported by the generic `(target, routeType)` model but is **not** the primary use case of Routes.
 
 Example shared link:
 
@@ -269,7 +272,7 @@ They enable:
 ## 📦 Repo Contents
 
 - `XNSRoutes.sol` — named-endpoint registry (includes on-chain enumeration helpers; see below)
-- [`routeTypes/`](routeTypes/README.md) — public `routeType` conventions (`0`, `1`, `2`, …)
+- [`routeTypes/`](routeTypes/README.md) — public `routeType` conventions (`0`–`5`, …)
 - optional example build contracts:
   - `XNSRegisterNameBuilder`
   - `USDTTransferEthBuilder`

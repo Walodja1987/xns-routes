@@ -63,10 +63,13 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// The exact semantics of `routeType` are intentionally not enforced by this contract.
 /// Applications may define their own interpretation conventions.
 ///
-/// Example route types (illustrative):
-/// - `0` = `target` is an EVM address.
-/// - `1` = `target` is a Bitcoin address.
-/// - `2` = `target` is a Solana pubkey.
+/// Example route types (illustrative; see `routeTypes/`):
+/// - `0` = EVM address
+/// - `1` = Bitcoin address
+/// - `2` = Solana pubkey
+/// - `3` = EVM calldata
+/// - `4` = URI
+/// - `5` = EVM route builder
 /// - etc.
 ///
 /// This contract does not validate `target` contents beyond requiring non-empty.
