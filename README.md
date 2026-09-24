@@ -58,9 +58,9 @@ alice@eth/claim-airdrop      → 0xa9059cbb…        (calldata)
 
 Each route points to an opaque **endpoint payload** (`bytes target`) plus a **`routeType`** that tells applications how to interpret it.
 
-Routes can have parameters like URLs (`?key=value&…`). They are not stored on-chain, but can be used to derive return data (e.g. with a type-[`5`](routeTypes/5.md) builder). Strip the query string before calling Routes string helpers.
+Routes can have parameters like URLs (`?key=value&…`). They are not stored on-chain, but can be used to derive return data (e.g. with a type-[`5`](routeTypes/5.md) builder).
 
-Example shared link:
+Example route with parameters:
 
 ```text
 usdt@action/transfer-usdt?to=0x1234…abcd&amount=100
@@ -78,9 +78,11 @@ XNS name owners can publish an unlimited number of routes **for free**.
 
 ## 🚀 Why XNS Routes?
 
-- ✅ One recognizable identity with multiple destinations
-- ✅ Shareable, human-readable destinations (links, QR codes, etc.)
-- ✅ Support EVM and non-EVM endpoints
+- ✅ **One XNS name, many endpoints** — publish several named destinations under alice@eth
+- ✅ **Beyond Ethereum addresses** — also Bitcoin, Solana, calldata, URIs, and more
+- ✅ **Human-readable sharing** — routes turn endpoint payloads into short, reusable names for links and apps
+- ✅ **Optional permanence** — freeze an endpoint or close the complete route set
+- ✅ **No protocol registration fee** — route creation is free, owners only pay network gas
 
 ---
 
@@ -102,7 +104,7 @@ await routes.createRoute(
 );
 ```
 
-Newly created routes are `isActive = true` by default. `target` and `routeType` are mutable until the route is [frozen](#-route-state-model).
+Newly created routes are active by default (i.e., `isActive = true`). `target` and `routeType` are mutable until the route is [frozen](#-route-state-model). 
 
 ---
 
@@ -116,7 +118,7 @@ alice@pay/treasury
 
 An application:
 
-1. Calls one of the resolve variants(`resolveRouteIfFrozenAndActive`, `resolveRouteIfActive`, or `resolveRoute`)
+1. Calls one of the resolve variants (`resolveRouteIfFrozenAndActive`, `resolveRouteIfActive`, or `resolveRoute`)
 2. Receives `(target, routeType)`
 
 XNS Routes only supports forward resolution as multiple routes may point at the same endpoint.
@@ -168,7 +170,7 @@ XNS Routes has two permanence controls:
 * **Route book close:** lock the set of available routes under a name.
 
 The former is useful to signal to users that the endpoint is not going to change.
-The latter is useful for finalized endpoint sets, audited contract maps, or limited route collections.
+The latter is useful for finalized endpoint sets, audited contract maps or limited route collections.
 
 ### Per-route freeze
 
@@ -205,29 +207,13 @@ To get the freeze and book closed state of a route, use `record.isFrozen` (via `
 
 ---
 
-## 🌍 Design Principles
-
-The registry answers one question:
-
-> **What endpoint did the owner of this XNS name publish under this route?**
-
-It does not interpret payment amounts, execute returned data, or decide what an endpoint means.
-
-- **Name-owned** → routes belong to XNS names; no separate route owners or route NFTs
-- **Minimal** → registry stops at typed endpoint resolution
-- **Generic** → `target` + `routeType`; apps define interpretation
-- **Forward-only** → resolve route → endpoint; no reverse index
-- **Optionally immutable** → `target` / `routeType` updateable until freeze; then permanent
-
----
-
 ## 📦 Repo Contents
 
-- `XNSRoutes.sol` — named-endpoint registry (includes on-chain enumeration helpers; see below)
+- [`XNSRoutes.sol`](XNSRoutes.sol) — XNS Routes smart contract
 - [`routeTypes/`](routeTypes/README.md) — public `routeType` conventions (`0`–`5`, …)
 - [`docs/API.md`](docs/API.md) — NatSpec-generated contract API reference
 - [`docs/DEV_NOTES.md`](docs/DEV_NOTES.md) — local setup, networks, and development notes
-- [`scripts/examples/`](scripts/examples/) — Hardhat scripts for create / resolve / freeze / discovery (see [Example scripts](#-example-scripts))
+- [`scripts/examples/`](scripts/examples/) — Hardhat scripts for create / resolve / freeze / discovery
 
 ---
 
@@ -235,36 +221,35 @@ It does not interpret payment amounts, execute returned data, or decide what an 
 
 The registry stores each route's **`routeLabel` on-chain** and keeps a per-name list so integrators can discover and reconstruct human-readable routes using only `eth_call`s—**no subgraph or indexer required**. Full NatSpec: [docs/API.md](docs/API.md).
 
-### State-modifying (executable by the XNS name owner)
+### State-modifying functions (executable by the XNS name owner only)
 
 | Function | Description |
 | -------- | ----------- |
 | `createRoute(label, namespace, routeLabel, target, routeType)` | Register a new route (starts active, unfrozen) |
 | `updateRoute(label, namespace, routeLabel, newTarget, newRouteType)` | Change `target` / `routeType` while not frozen |
-| `activateRoute` / `deactivateRoute` | Toggle `isActive` (allowed after freeze) |
+| `activateRoute` / `deactivateRoute` | Toggle `isActive` |
 | `freezeRoute(label, namespace, routeLabel)` | Permanently lock that route's `target` / `routeType` |
-| `batchFreezeRoutes(label, namespace, routeLabels)` | Freeze many routes under one name |
+| `batchFreezeRoutes(label, namespace, routeLabels[])` | Freeze many routes under one name |
 | `closeRouteBook(label, namespace)` / `closeRouteBook(xnsName)` | Permanently block new routes under that name |
 
-### Views
+### View functions
 
 | Function | Description |
 | -------- | ----------- |
-| `getRouteKey(label, namespace, routeLabel)` / `getRouteKey(route)` | Canonical route storage key |
+| `getRouteKey(label, namespace, routeLabel)` / `(route)` | Canonical route storage key |
 | `getRouteKeyCount(label, namespace)` | Number of routes registered under a name |
 | `getRouteEntries(label, namespace, start, end)` | **Preferred** page of keys + full records (`end` exclusive; clamped; empty if `start` past end) |
 | `getRouteKeys(label, namespace, start, end)` | Page of storage keys only (same pagination rules) |
 | `getRouteRecord(routeKey)` / `(label, namespace, routeLabel)` / `(route)` | Full `RouteRecord` (empty `target` ⇒ not registered) |
 | `isRouteBookClosed(label, namespace)` / `(xnsName)` | Whether new routes can still be added |
-| `resolveRouteIfFrozenAndActive` | `(target, routeType)` if frozen **and** active (preferred production path) |
-| `resolveRouteIfActive` | Same if active (ignores freeze; drafts OK) |
-| `resolveRoute` | Same if the route exists (ignores `isActive` / `isFrozen`) |
-| `splitRoute` / `splitXNSName` | Parse `label@namespace/routeLabel` or `label@namespace` |
-| `isValidRouteLabel` | Whether a label satisfies on-chain rules |
+| `resolveRouteIfFrozenAndActive` | Returns `(target, routeType)` if frozen **and** active (preferred production path) |
+| `resolveRouteIfActive` | Returns `(target, routeType)` if active (ignores freeze; drafts OK) |
+| `resolveRoute` | Returns `(target, routeType)` if the route exists (ignores `isActive` / `isFrozen`) |
+| `splitRoute` | Parse `label@namespace/routeLabel` |
+| `splitXNSName` | Parse `label@namespace` |
+| `isValidRouteLabel` | Whether a route label satisfies on-chain rules |
 
-Component and string overloads exist for several views (see [docs/API.md](docs/API.md)). Resolvers revert when the route is missing or fails the relevant flag checks. `getRouteRecord` returns an empty record (`target.length == 0`) when missing.
-
-`target` and `routeType` are mutable until frozen. Route-book close blocks **new** routes only; the XNS name owner can still update existing routes and toggle `isActive`.
+Resolvers revert when the route is missing or fails the relevant flag checks. `getRouteRecord` returns an empty record (`target.length == 0`) when missing.
 
 **Important semantics**
 
