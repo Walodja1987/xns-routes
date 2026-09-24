@@ -165,11 +165,23 @@ The XNS name owner can call `updateRoute` to change `target` and `routeType` unt
 
 ## 🧊 Route freeze
 
+XNS Routes has two permanence controls: 
+* **Per-route freeze:** lock an individual endpoint.
+* **Route book close:** lock the set of available routes under a name.
+
+The former is useful to signal to users that the endpoint is not going to change.
+The latter is useful for finalized endpoint sets, audited contract maps, or limited route collections.
+
 ### Per-route freeze
 
 ```solidity
 freezeRoute("alice", "pay", "treasury");
-// or batchFreezeRoutes("alice", "pay", ["treasury", "personal"]);
+```
+
+or
+
+```solidity
+batchFreezeRoutes("alice", "pay", ["treasury", "personal"]);
 ```
 
 - Permanently locks that route's `target` / `routeType`
@@ -179,20 +191,19 @@ freezeRoute("alice", "pay", "treasury");
 
 ```solidity
 closeRouteBook("alice@pay");
-// or closeRouteBook("alice", "pay");
 ```
 
-- No new routes can be added under that name
+or
+
+```solidity
+closeRouteBook("alice", "pay");
+```
+
+- No new routes can be added under that XNS name after the route book is closed
 - Existing routes stay updatable until individually frozen
 - XNS name owner can still toggle `isActive`
 
-> Useful for finalized endpoint sets, audited contract maps, or limited route collections.
-
-Use `isRouteBookClosed(...)` for the book flag and `record.isFrozen` (via `getRouteRecord`) for per-route freeze.
-
-**Freeze a route** when its endpoint should become permanent.
-
-**Close the route book** when the set of available routes should become permanent.
+To get the freeze and book closed state of a route, use `record.isFrozen` (via `getRouteRecord`) and `isRouteBookClosed(...)`, respectively.
 
 ---
 
