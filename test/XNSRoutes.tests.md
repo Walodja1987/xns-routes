@@ -160,7 +160,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 - `resolveRoute` returns `(target, routeType)` regardless of `isActive` / `isFrozen`.
 - `resolveRouteIfActive` reverts with `"XNSRoutes: route inactive"` when `isActive == false` (ignores freeze).
 - `resolveRouteIfFrozenAndActive` requires `isFrozen && isActive` (preferred production resolver).
-- String overloads require exactly `label@namespace/routeLabel` (no `/params…` suffix; apps must strip that themselves).
+- String overloads require exactly `label@namespace/routeLabel` (no query string or path-style `/params…`; apps must strip `?...` themselves).
 
 #### Reverts
 
@@ -176,7 +176,7 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 #### Functionality
 
 - `splitRoute` parses `label@namespace/routeLabel` into `(label, namespace, routeLabel)`.
-- Exactly one `/` is allowed; param suffixes are not stripped or accepted.
+- Exactly one `/` is allowed; path-style param suffixes (`/amount=10`) are not stripped or accepted. Strip `?...` query params before calling.
 - `splitXNSName` parses `label@namespace` into components.
 
 #### Reverts

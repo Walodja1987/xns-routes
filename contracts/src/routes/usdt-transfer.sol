@@ -11,8 +11,8 @@ interface IXNSForBuilderNaming {
 /// @title USDTTransferEthBuilder
 /// @notice Build contract for USDT transfers on Ethereum mainnet.
 ///
-/// Example route path:
-///   usdt.action/eth:transfer-usdt/to=0x1234.../amount=100
+/// Example shared link:
+///   usdt AT action/transfer-usdt?to=0x1234...&amount=100
 ///
 /// Returns tx template for:
 ///   USDT.transfer(to, amountWhole * 1e6)

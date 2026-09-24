@@ -44,8 +44,9 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - Not start or end with '-'.
 /// - Not contain consecutive hyphens ('--').
 ///
-/// Application-layer parameters (e.g. `/amount=10`) are not part of the on-chain route format.
-/// Callers must strip any such suffix before using string-based helpers.
+/// Application-layer parameters use URL query syntax (e.g. `?amount=10&to=0x…`) and are
+/// not part of the on-chain route format. Callers must strip any `?...` suffix before using
+/// string-based helpers. Path-style `/key=value` suffixes are invalid (exactly one `/` is allowed).
 ///
 /// ### Route record
 ///
@@ -950,7 +951,8 @@ contract XNSRoutes is Ownable2Step {
     ///
     ///     label AT namespace/routeLabel
     ///
-    /// Exactly one `/` is allowed. Application-layer param suffixes are not stripped.
+    /// Exactly one `/` is allowed. Query-string params (`?...`) are not stripped; callers must
+    /// remove them before calling. Extra `/` segments (e.g. path-style `/key=value`) revert.
     function _splitRoute(
         string calldata route
     )

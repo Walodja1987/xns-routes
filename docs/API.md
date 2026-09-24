@@ -31,8 +31,9 @@ The route label must:
 - Not start or end with '-'.
 - Not contain consecutive hyphens ('--').
 
-Application-layer parameters (e.g. `/amount=10`) are not part of the on-chain route format.
-Callers must strip any such suffix before using string-based helpers.
+Application-layer parameters use URL query syntax (e.g. `?amount=10&to=0x…`) and are
+not part of the on-chain route format. Callers must strip any `?...` suffix before using
+string-based helpers. Path-style `/key=value` suffixes are invalid (exactly one `/` is allowed).
 
 ### Route record
 
