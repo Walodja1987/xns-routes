@@ -207,50 +207,6 @@ To get the freeze and book closed state of a route, use `record.isFrozen` (via `
 
 ---
 
-## 🧱 Optional: build contracts
-
-Some applications may treat `target` as the address of a helper that builds a transaction template (view `build(...)` returning chain, destination, value, and data). That is public route type [`5`](routeTypes/5.md) and is supported by the generic `(target, routeType)` model but is **not** the primary use case of Routes.
-
-Example shared link:
-
-```text
-usdt@action/transfer-usdt/to=0x1234…abcd/amount=100
-```
-
-Only `usdt@action/transfer-usdt` is registered on-chain. The `/to=…/amount=…` params can be
-passed to the view contract pointed to by the route’s `target` to generate and return
-calldata — e.g. an ERC-20 `transfer(to, amount)` payload.
-
-Example builders in this repo:
-
-- `XNSRegisterNameBuilder` — `xns@action/register-name`
-- `USDTTransferEthBuilder` — `usdt@action/transfer-usdt`
-
-Build contracts:
-
-- define how parameters map to a transaction template
-- are reusable across routes
-- must be audited if widely used; wallets should verify route + builder before execution
-
----
-
-## 🧭 Suggested route label
-
-Build contracts can suggest the **route label** (the segment after `/` in the path).
-
-```solidity
-function suggestedRouteName() external pure returns (string memory);
-```
-
-### UX Flow
-
-- User picks builder from library
-- App reads suggested route label
-- Prefills `label@namespace/routeLabel` in the path
-- User accepts or edits
-
----
-
 ## 🌍 Design Principles
 
 The registry answers one question:
@@ -264,20 +220,6 @@ It does not interpret payment amounts, execute returned data, or decide what an 
 - **Generic** → `target` + `routeType`; apps define interpretation
 - **Forward-only** → resolve route → endpoint; no reverse index
 - **Optionally immutable** → `target` / `routeType` updateable until freeze; then permanent
-
----
-
-## 🔮 Vision
-
-Routes extend XNS from:
-
-> **name resolution → named endpoint resolution**
-
-They enable:
-
-- multiple payment and account destinations under one identity
-- protocol-native endpoint directories
-- wallets and apps that resolve `label@namespace/routeLabel` without hardcoding addresses
 
 ---
 
