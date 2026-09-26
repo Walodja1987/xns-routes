@@ -857,7 +857,7 @@ contract XNSRoutes is Ownable2Step {
     ///     label AT namespace/routeLabel
     ///
     /// Exactly one `/` is allowed. Query-string params (`?...`) are not stripped; callers must
-    /// remove them before calling. Extra `/` segments (e.g. path-style `/key=value`) revert.
+    /// remove them before calling. Extra `/` segments revert.
     function _splitRoute(
         string calldata route
     )

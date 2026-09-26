@@ -880,7 +880,7 @@ describe("XNSRoutes", function () {
       await routes.connect(owner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0);
       await routes.connect(owner).freezeRoute(LABEL, NAMESPACE, ROUTE_LABEL);
 
-      const extraPath = `${formatRoute(LABEL, NAMESPACE, ROUTE_LABEL)}/amount=10/to=0xabc`;
+      const extraPath = `${formatRoute(LABEL, NAMESPACE, ROUTE_LABEL)}/extra/path`;
       await expect(resolveRouteByRoute(routes, extraPath)).to.be.revertedWith(XR.invalidRoute);
     });
 
@@ -923,10 +923,10 @@ describe("XNSRoutes", function () {
       expect(routeLabel).to.equal(ROUTE_LABEL);
     });
 
-    it("Should revert when a second slash / params suffix is present", async function () {
+    it("Should revert when extra path segments are present", async function () {
       const { routes } = await loadFixture(deployFixture);
       await expect(
-        routes.splitRoute(`${formatRoute(LABEL, NAMESPACE, ROUTE_LABEL)}/amount=10/to=0xabc`),
+        routes.splitRoute(`${formatRoute(LABEL, NAMESPACE, ROUTE_LABEL)}/extra/path`),
       ).to.be.revertedWith(XR.invalidRoute);
     });
 
@@ -985,11 +985,11 @@ describe("XNSRoutes", function () {
       expect(fromString).to.equal(fromTuple);
     });
 
-    it("Should revert the string overload when a params suffix is present", async function () {
+    it("Should revert the string overload when an extra path segment is present", async function () {
       const { routes } = await loadFixture(deployFixture);
-      const parametrized = `${formatRoute(LABEL, NAMESPACE, ROUTE_LABEL)}/amount=10`;
+      const extraPath = `${formatRoute(LABEL, NAMESPACE, ROUTE_LABEL)}/extra`;
 
-      await expect(routes["getRouteKey(string)"](parametrized)).to.be.revertedWith(XR.invalidRoute);
+      await expect(routes["getRouteKey(string)"](extraPath)).to.be.revertedWith(XR.invalidRoute);
     });
   });
 

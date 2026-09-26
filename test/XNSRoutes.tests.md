@@ -148,7 +148,7 @@
 
 - `resolveRoute` returns `(target, routeType)` only when the route is frozen and active.
 - Callers that need mutable or inactive routes can inspect `getRouteRecord`.
-- String overloads require exactly `label@namespace/routeLabel` (no query string or path-style `/params…`; apps must strip `?...` themselves).
+- String overloads require exactly `label@namespace/routeLabel`; apps must strip `?...` query parameters before calling.
 
 #### Reverts
 
@@ -164,7 +164,7 @@
 #### Functionality
 
 - `splitRoute` parses `label@namespace/routeLabel` into `(label, namespace, routeLabel)`.
-- Exactly one `/` is allowed; path-style param suffixes (`/amount=10`) are not stripped or accepted. Strip `?...` query params before calling.
+- Exactly one `/` is allowed; extra path segments are rejected. Strip `?...` query parameters before calling.
 - `splitXNSName` parses `label@namespace` into components.
 
 #### Reverts
