@@ -636,6 +636,21 @@ contract XNSRoutes is Ownable2Step {
         return _resolveRoute(label, namespace, routeLabel);
     }
 
+    /// @dev Shared implementation for both route-resolution overloads.
+    function _resolveRoute(
+        string memory label,
+        string memory namespace,
+        string memory routeLabel
+    ) private view returns (bytes memory target, uint32 routeType) {
+        RouteRecord storage record = _routes[_routeKey(label, namespace, routeLabel)];
+
+        require(record.target.length > 0, "XNSRoutes: route not found");
+        require(record.isFrozen, "XNSRoutes: route not frozen");
+        require(record.isActive, "XNSRoutes: route inactive");
+
+        return (record.target, record.routeType);
+    }
+
     // -------------------------------------------------------------------------
     // Route-book metadata
     // -------------------------------------------------------------------------
@@ -798,21 +813,6 @@ contract XNSRoutes is Ownable2Step {
     // =========================================================================
     // INTERNAL VIEW HELPERS
     // =========================================================================
-
-    /// @dev Resolves a frozen and active route.
-    function _resolveRoute(
-        string memory label,
-        string memory namespace,
-        string memory routeLabel
-    ) private view returns (bytes memory target, uint32 routeType) {
-        RouteRecord storage record = _routes[_routeKey(label, namespace, routeLabel)];
-
-        require(record.target.length > 0, "XNSRoutes: route not found");
-        require(record.isFrozen, "XNSRoutes: route not frozen");
-        require(record.isActive, "XNSRoutes: route inactive");
-
-        return (record.target, record.routeType);
-    }
 
     /// @dev Requires msg.sender to be the current XNS owner of `label AT namespace`.
     ///
