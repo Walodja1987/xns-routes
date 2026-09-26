@@ -1082,6 +1082,38 @@ describe("XNSRoutes", function () {
     });
   });
 
+  describe("getXNSNameKey", function () {
+    it("Should match the off-chain XNS name key helper for tuple input", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      const expected = xnsNameKey(LABEL, NAMESPACE);
+
+      expect(await routes["getXNSNameKey(string,string)"](LABEL, NAMESPACE)).to.equal(expected);
+    });
+
+    it("Should match the off-chain XNS name key helper for a complete XNS name", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      const expected = xnsNameKey(LABEL, NAMESPACE);
+
+      expect(await routes["getXNSNameKey(string)"](XNS_NAME)).to.equal(expected);
+    });
+
+    it("Should agree between tuple and string overloads", async function () {
+      const { routes } = await loadFixture(deployFixture);
+
+      const fromTuple = await routes["getXNSNameKey(string,string)"](LABEL, NAMESPACE);
+      const fromString = await routes["getXNSNameKey(string)"](XNS_NAME);
+      expect(fromString).to.equal(fromTuple);
+    });
+
+    it("Should revert the string overload for a malformed XNS name", async function () {
+      const { routes } = await loadFixture(deployFixture);
+
+      await expect(routes["getXNSNameKey(string)"]("invalidname")).to.be.revertedWith(
+        XR.invalidXnsName,
+      );
+    });
+  });
+
   describe("route key list", function () {
     it("Should start with zero keys for a name", async function () {
       const { routes } = await loadFixture(deployFixture);

@@ -54,6 +54,7 @@ alice@eth/my-wallet-2        → 0xabc…901          (another EVM address)
 alice@eth/bitcoin-wallet-1   → bc1q…              (Bitcoin address)
 alice@eth/solana-main        → 7Ec…               (Solana pubkey)
 alice@eth/claim-airdrop      → 0xa9059cbb…        (calldata)
+alice@eth/docs               → ipfs://bafy…       (URI)
 ```
 
 Each route points to an opaque **endpoint payload** (`bytes target`) plus a **`routeType`** that tells applications how to interpret it.
@@ -104,7 +105,7 @@ await routes.createRoute(
 );
 ```
 
-Newly created routes are active by default (i.e., `isActive = true`). `target` and `routeType` are mutable until the route is [frozen](#-route-state-model). 
+Newly created routes are active by default (i.e., `isActive = true`). `target` and `routeType` are mutable until the route is [frozen](#-route-state-model).
 
 ---
 
@@ -130,13 +131,13 @@ XNS Routes only supports forward resolution as multiple routes may point at the 
 `routeType` tells the application how to read `target`. Conventions are documented in
 [`routeTypes/`](routeTypes/README.md) (not enforced on-chain):
 
-| `routeType` | Meaning          | Spec                   |
-| ----------- | ---------------- | ---------------------- |
-| `0`         | EVM address      | [routeTypes/0.md](routeTypes/0.md) |
-| `1`         | Bitcoin address  | [routeTypes/1.md](routeTypes/1.md) |
-| `2`         | Solana pubkey    | [routeTypes/2.md](routeTypes/2.md) |
-| `3`         | EVM calldata     | [routeTypes/3.md](routeTypes/3.md) |
-| `4`         | URI              | [routeTypes/4.md](routeTypes/4.md) |
+| `routeType` | Meaning           | Spec                               |
+| ----------- | ----------------- | ---------------------------------- |
+| `0`         | EVM address       | [routeTypes/0.md](routeTypes/0.md) |
+| `1`         | Bitcoin address   | [routeTypes/1.md](routeTypes/1.md) |
+| `2`         | Solana pubkey     | [routeTypes/2.md](routeTypes/2.md) |
+| `3`         | EVM calldata      | [routeTypes/3.md](routeTypes/3.md) |
+| `4`         | URI               | [routeTypes/4.md](routeTypes/4.md) |
 | `5`         | EVM route builder | [routeTypes/5.md](routeTypes/5.md) |
 
 New public types can be proposed via a GitHub issue (see [routeTypes/README.md](routeTypes/README.md#propose-a-new-route-type))
@@ -165,9 +166,10 @@ The XNS name owner can call `updateRoute` to change `target` and `routeType` unt
 
 ## 🧊 Route freeze
 
-XNS Routes has two permanence controls: 
-* **Per-route freeze:** lock an individual endpoint.
-* **Route book close:** lock the set of available routes under a name.
+XNS Routes has two permanence controls:
+
+- **Per-route freeze:** lock an individual endpoint.
+- **Route book close:** lock the set of available routes under a name.
 
 The former is useful to signal to users that the endpoint is not going to change.
 The latter is useful for finalized endpoint sets, audited contract maps or limited route collections.
@@ -223,31 +225,32 @@ The registry stores each route's **`routeLabel` on-chain** and keeps a per-name 
 
 ### State-modifying functions (executable by the XNS name owner only)
 
-| Function | Description |
-| -------- | ----------- |
-| `createRoute(label, namespace, routeLabel, target, routeType)` | Register a new route (starts active, unfrozen) |
-| `updateRoute(label, namespace, routeLabel, newTarget, newRouteType)` | Change `target` / `routeType` while not frozen |
-| `activateRoute` / `deactivateRoute` | Toggle `isActive` |
-| `freezeRoute(label, namespace, routeLabel)` | Permanently lock that route's `target` / `routeType` |
-| `batchFreezeRoutes(label, namespace, routeLabels[])` | Freeze many routes under one name |
-| `closeRouteBook(label, namespace)` / `closeRouteBook(xnsName)` | Permanently block new routes under that name |
+| Function                                                             | Description                                          |
+| -------------------------------------------------------------------- | ---------------------------------------------------- |
+| `createRoute(label, namespace, routeLabel, target, routeType)`       | Register a new route (starts active, unfrozen)       |
+| `updateRoute(label, namespace, routeLabel, newTarget, newRouteType)` | Change `target` / `routeType` while not frozen       |
+| `activateRoute` / `deactivateRoute`                                  | Toggle `isActive`                                    |
+| `freezeRoute(label, namespace, routeLabel)`                          | Permanently lock that route's `target` / `routeType` |
+| `batchFreezeRoutes(label, namespace, routeLabels[])`                 | Freeze many routes under one name                    |
+| `closeRouteBook(label, namespace)` / `closeRouteBook(xnsName)`       | Permanently block new routes under that name         |
 
 ### View functions
 
-| Function | Description |
-| -------- | ----------- |
-| `getRouteKey(label, namespace, routeLabel)` / `(route)` | Canonical route storage key |
-| `getRouteKeyCount(label, namespace)` | Number of routes registered under a name |
-| `getRouteEntries(label, namespace, start, end)` | **Preferred** page of keys + full records (`end` exclusive; clamped; empty if `start` past end) |
-| `getRouteKeys(label, namespace, start, end)` | Page of storage keys only (same pagination rules) |
-| `getRouteRecord(routeKey)` / `(label, namespace, routeLabel)` / `(route)` | Full `RouteRecord` (empty `target` ⇒ not registered) |
-| `isRouteBookClosed(label, namespace)` / `(xnsName)` | Whether new routes can still be added |
-| `resolveRouteIfFrozenAndActive` | Returns `(target, routeType)` if frozen **and** active (preferred production path) |
-| `resolveRouteIfActive` | Returns `(target, routeType)` if active (ignores freeze; drafts OK) |
-| `resolveRoute` | Returns `(target, routeType)` if the route exists (ignores `isActive` / `isFrozen`) |
-| `splitRoute` | Parse `label@namespace/routeLabel` |
-| `splitXNSName` | Parse `label@namespace` |
-| `isValidRouteLabel` | Whether a route label satisfies on-chain rules |
+| Function                                                                  | Description                                                                                     |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `getXNSNameKey(label, namespace)` / `(xnsName)`                           | Canonical XNS name storage key                                                                  |
+| `getRouteKey(label, namespace, routeLabel)` / `(route)`                   | Canonical route storage key                                                                     |
+| `getRouteKeyCount(label, namespace)`                                      | Number of routes registered under a name                                                        |
+| `getRouteEntries(label, namespace, start, end)`                           | **Preferred** page of keys + full records (`end` exclusive; clamped; empty if `start` past end) |
+| `getRouteKeys(label, namespace, start, end)`                              | Page of storage keys only (same pagination rules)                                               |
+| `getRouteRecord(routeKey)` / `(label, namespace, routeLabel)` / `(route)` | Full `RouteRecord` (empty `target` ⇒ not registered)                                            |
+| `isRouteBookClosed(label, namespace)` / `(xnsName)`                       | Whether new routes can still be added                                                           |
+| `resolveRouteIfFrozenAndActive`                                           | Returns `(target, routeType)` if frozen **and** active (preferred production path)              |
+| `resolveRouteIfActive`                                                    | Returns `(target, routeType)` if active (ignores freeze; drafts OK)                             |
+| `resolveRoute`                                                            | Returns `(target, routeType)` if the route exists (ignores `isActive` / `isFrozen`)             |
+| `splitRoute`                                                              | Parse `label@namespace/routeLabel`                                                              |
+| `splitXNSName`                                                            | Parse `label@namespace`                                                                         |
+| `isValidRouteLabel`                                                       | Whether a route label satisfies on-chain rules                                                  |
 
 Resolvers revert when the route is missing or fails the relevant flag checks. `getRouteRecord` returns an empty record (`target.length == 0`) when missing.
 
@@ -266,10 +269,10 @@ Generated contract documentation (NatSpec / solidity-docgen): [docs/API.md](docs
 
 ## 📍 Contract addresses
 
-| Network | XNS |
-| ------- | --- |
-| Ethereum | [`0x6e797ba2d3103aF167918e71a7E01DE40D45f74b`](https://etherscan.io/address/0x6e797ba2d3103aF167918e71a7E01DE40D45f74b) |
-| Sepolia | [`0x6e797ba2d3103aF167918e71a7E01DE40D45f74b`](https://sepolia.etherscan.io/address/0x6e797ba2d3103aF167918e71a7E01DE40D45f74b) (same address) |
+| Network  | XNS                                                                                                                                            |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ethereum | [`0x6e797ba2d3103aF167918e71a7E01DE40D45f74b`](https://etherscan.io/address/0x6e797ba2d3103aF167918e71a7E01DE40D45f74b)                        |
+| Sepolia  | [`0x6e797ba2d3103aF167918e71a7E01DE40D45f74b`](https://sepolia.etherscan.io/address/0x6e797ba2d3103aF167918e71a7E01DE40D45f74b) (same address) |
 
 ---
 

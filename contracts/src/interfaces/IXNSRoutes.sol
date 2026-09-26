@@ -129,6 +129,13 @@ interface IXNSRoutes {
         string calldata route
     ) external view returns (RouteRecord memory record);
 
+    function getXNSNameKey(
+        string calldata label,
+        string calldata namespace
+    ) external pure returns (bytes32 xnsNameKey);
+
+    function getXNSNameKey(string calldata xnsName) external pure returns (bytes32 xnsNameKey);
+
     function getRouteKey(
         string calldata label,
         string calldata namespace,

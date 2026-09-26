@@ -29,6 +29,8 @@
   "function getRouteRecord(string) view returns (tuple(bytes,uint32,bool,bool,string))",
   "function getRouteRecord(bytes32) view returns (tuple(bytes,uint32,bool,bool,string))",
   "function getRouteRecord(string,string,string) view returns (tuple(bytes,uint32,bool,bool,string))",
+  "function getXNSNameKey(string) pure returns (bytes32)",
+  "function getXNSNameKey(string,string) pure returns (bytes32)",
   "function isRouteBookClosed(string,string) view returns (bool)",
   "function isRouteBookClosed(string) view returns (bool)",
   "function isValidRouteLabel(string) pure returns (bool)",

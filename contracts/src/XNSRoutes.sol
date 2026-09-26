@@ -576,6 +576,25 @@ contract XNSRoutes is Ownable2Step {
     // Route key derivation
     // -------------------------------------------------------------------------
 
+    /// @notice Returns the canonical XNS name key for separate name components.
+    ///
+    /// Equal to the hash of the UTF-8 string `label AT namespace`.
+    function getXNSNameKey(
+        string calldata label,
+        string calldata namespace
+    ) external pure returns (bytes32 xnsNameKey) {
+        return _xnsNameKey(label, namespace);
+    }
+
+    /// @notice Returns the canonical XNS name key for a complete XNS name.
+    ///
+    /// The string must be exactly `label AT namespace`.
+    function getXNSNameKey(string calldata xnsName) external pure returns (bytes32 xnsNameKey) {
+        (string memory label, string memory namespace) = _splitXNSName(xnsName);
+
+        return _xnsNameKey(label, namespace);
+    }
+
     /// @notice Returns the canonical route key for separate XNS components.
     ///
     /// Equal to the hash of the UTF-8 string `label AT namespace/routeLabel`.

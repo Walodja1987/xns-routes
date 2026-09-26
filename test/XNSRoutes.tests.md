@@ -1,15 +1,4 @@
-# XNSRoutes test matrix
-
-This document lists behaviour covered by Hardhat tests for [`XNSRoutes`](../contracts/src/XNSRoutes.sol) in [`XNSRoutes.test.ts`](./XNSRoutes.test.ts).
-
-Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same style as `XNS: ...` in the XNS registry).
-
-## Test setup
-
-- **Unit tests** use [`MockXNS`](../contracts/src/mocks/MockXNS.sol): set `label@namespace → owner` via `setResolution(label, namespace, addr)`. Route label validation is local to `XNSRoutes` (not delegated to XNS): `routeLabel` allows 1–32 chars with lowercase/number/hyphen and hyphen-placement rules.
-- **Canonical on-chain XNS** addresses for deploy/scripts/fork work live in [`constants/addresses.ts`](../constants/addresses.ts) as `XNS_ADDRESS` (they are not used by the default local test suite).
-
----
+# XNSRoutes tests
 
 ## Constructor
 
@@ -182,6 +171,19 @@ Failures use Solidity `require` revert strings prefixed with `XNSRoutes: ` (same
 #### Reverts
 
 - `"XNSRoutes: invalid route"` / `"XNSRoutes: invalid XNS name"` for malformed input.
+
+---
+
+## `getXNSNameKey`
+
+#### Functionality
+
+- `getXNSNameKey(label, namespace)` returns `keccak256(abi.encodePacked(label, "@", namespace))`.
+- `getXNSNameKey(xnsName)` parses an exact `label@namespace` string and returns the same key.
+
+#### Reverts
+
+- `"XNSRoutes: invalid XNS name"` for the string overload when the XNS name is malformed.
 
 ---
 
