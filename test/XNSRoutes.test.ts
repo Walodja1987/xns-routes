@@ -396,22 +396,19 @@ describe("XNSRoutes", function () {
       await routes.connect(owner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0);
       await routes.connect(owner).deactivateRoute(LABEL, NAMESPACE, ROUTE_LABEL);
 
-      const filter = routes.filters.RouteActiveStatusUpdated();
-      const before = (await routes.queryFilter(filter)).length;
-      await routes.connect(owner).deactivateRoute(LABEL, NAMESPACE, ROUTE_LABEL);
-      const after = (await routes.queryFilter(filter)).length;
-      expect(after).to.equal(before);
+      await expect(
+        routes.connect(owner).deactivateRoute(LABEL, NAMESPACE, ROUTE_LABEL),
+      ).to.not.emit(routes, "RouteActiveStatusUpdated");
     });
 
     it("Should not emit RouteActiveStatusUpdated when activate called while already active", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes.connect(owner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0);
 
-      const filter = routes.filters.RouteActiveStatusUpdated();
-      const before = (await routes.queryFilter(filter)).length;
-      await routes.connect(owner).activateRoute(LABEL, NAMESPACE, ROUTE_LABEL);
-      const after = (await routes.queryFilter(filter)).length;
-      expect(after).to.equal(before);
+      await expect(routes.connect(owner).activateRoute(LABEL, NAMESPACE, ROUTE_LABEL)).to.not.emit(
+        routes,
+        "RouteActiveStatusUpdated",
+      );
     });
 
     it("Should succeed after route book close", async function () {
@@ -878,13 +875,22 @@ describe("XNSRoutes", function () {
       );
     });
 
-    it("Should revert when route has a params suffix", async function () {
+    it("Should reject extra path segments", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes.connect(owner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0);
       await routes.connect(owner).freezeRoute(LABEL, NAMESPACE, ROUTE_LABEL);
 
-      const parametrized = `${formatRoute(LABEL, NAMESPACE, ROUTE_LABEL)}/amount=10/to=0xabc`;
-      await expect(resolveRouteByRoute(routes, parametrized)).to.be.revertedWith(XR.invalidRoute);
+      const extraPath = `${formatRoute(LABEL, NAMESPACE, ROUTE_LABEL)}/amount=10/to=0xabc`;
+      await expect(resolveRouteByRoute(routes, extraPath)).to.be.revertedWith(XR.invalidRoute);
+    });
+
+    it("Should not strip query parameters automatically", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes.connect(owner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0);
+      await routes.connect(owner).freezeRoute(LABEL, NAMESPACE, ROUTE_LABEL);
+
+      const parametrized = `${formatRoute(LABEL, NAMESPACE, ROUTE_LABEL)}?amount=10&to=0xabc`;
+      await expect(resolveRouteByRoute(routes, parametrized)).to.be.revertedWith(XR.routeNotFound);
     });
 
     it("Should resolve via resolveRoute when route book is closed", async function () {
