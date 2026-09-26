@@ -117,10 +117,9 @@ Given:
 alice@pay/treasury
 ```
 
-An application:
-
-1. Calls one of the resolve variants (`resolveRouteIfFrozenAndActive`, `resolveRouteIfActive`, or `resolveRoute`)
-2. Receives `(target, routeType)`
+An application calls `resolveRoute` and receives `(target, routeType)`. Resolution succeeds only
+when the route is both frozen and active. Applications that intentionally need mutable or inactive
+routes can inspect `getRouteRecord` directly.
 
 XNS Routes only supports forward resolution as multiple routes may point at the same endpoint.
 
@@ -245,9 +244,7 @@ The registry stores each route's **`routeLabel` on-chain** and keeps a per-name 
 | `getRouteKeys(label, namespace, start, end)`                              | Page of storage keys only (same pagination rules)                                               |
 | `getRouteRecord(routeKey)` / `(label, namespace, routeLabel)` / `(route)` | Full `RouteRecord` (empty `target` ⇒ not registered)                                            |
 | `isRouteBookClosed(label, namespace)` / `(xnsName)`                       | Whether new routes can still be added                                                           |
-| `resolveRouteIfFrozenAndActive`                                           | Returns `(target, routeType)` if frozen **and** active (preferred production path)              |
-| `resolveRouteIfActive`                                                    | Returns `(target, routeType)` if active (ignores freeze; drafts OK)                             |
-| `resolveRoute`                                                            | Returns `(target, routeType)` if the route exists (ignores `isActive` / `isFrozen`)             |
+| `resolveRoute(label, namespace, routeLabel)` / `(route)`                  | Returns `(target, routeType)` only if the route is frozen and active                            |
 | `splitRoute`                                                              | Parse `label@namespace/routeLabel`                                                              |
 | `splitXNSName`                                                            | Parse `label@namespace`                                                                         |
 | `isValidRouteLabel`                                                       | Whether a route label satisfies on-chain rules                                                  |

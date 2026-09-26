@@ -64,7 +64,7 @@ npx hardhat run scripts/examples/<script_name>.ts --network <network_name>
 
 ### XNSRoutes (read)
 
-- [resolveRoute.ts](../scripts/examples/resolveRoute.ts) — demonstrates frozen+active, active-only, and raw resolution policies
+- [resolveRoute.ts](../scripts/examples/resolveRoute.ts) — resolves a frozen and active route
 - [listRoutes.ts](../scripts/examples/listRoutes.ts) — paginates through `getRouteEntries`
 - [routeExists.ts](../scripts/examples/routeExists.ts) — uses `getRouteRecord(...).target != 0`
 - [getRouteRecord.ts](../scripts/examples/getRouteRecord.ts)

@@ -114,11 +114,8 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// No reverse lookup is provided because multiple routes may point to the same target.
 ///
 /// **Resolution & indexing**
-/// - Forward: route -> `target` via:
-///   - `resolveRouteIfFrozenAndActive` (requires `isFrozen` and `isActive`) — preferred for
-///     production callers that only trust published, live bindings;
-///   - `resolveRouteIfActive` (requires `isActive`, ignores freeze);
-///   - `resolveRoute` (ignores `isActive` and freeze).
+/// - Forward: `resolveRoute` returns the `target` only when the route is frozen and active.
+///   Integrations that need mutable or inactive routes can inspect `getRouteRecord` directly.
 /// - XNS name key: `keccak256(abi.encodePacked(label, " AT ", namespace))`.
 /// - Route key: `keccak256` of `label`, the at-sign, `namespace`, `/`, `routeLabel`
 ///   (the hash of the canonical route string `label AT namespace/routeLabel`).
@@ -278,18 +275,6 @@ contract XNSRoutes is Ownable2Step {
     ) external {
         bytes32 xnsNameKey = _requireXNSNameOwner(label, namespace);
 
-        _createRoute(xnsNameKey, label, namespace, routeLabel, target, routeType);
-    }
-
-    /// @dev Shared route-creation implementation.
-    function _createRoute(
-        bytes32 xnsNameKey,
-        string calldata label,
-        string calldata namespace,
-        string calldata routeLabel,
-        bytes calldata target,
-        uint32 routeType
-    ) private {
         require(_isValidRouteLabel(routeLabel), "XNSRoutes: invalid route label");
         require(target.length > 0, "XNSRoutes: invalid target");
         require(!_routeBookClosed[xnsNameKey], "XNSRoutes: route book closed");
@@ -626,64 +611,6 @@ contract XNSRoutes is Ownable2Step {
     // -------------------------------------------------------------------------
 
     /// @notice Resolves a frozen and active route using separate XNS components.
-    ///
-    /// Recommended for integrations that require an immutable endpoint binding.
-    function resolveRouteIfFrozenAndActive(
-        string calldata label,
-        string calldata namespace,
-        string calldata routeLabel
-    ) external view returns (bytes memory target, uint32 routeType) {
-        return _resolveRouteIfFrozenAndActive(label, namespace, routeLabel);
-    }
-
-    /// @notice Resolves a frozen and active route using a complete route string.
-    ///
-    /// Example:
-    ///
-    ///     resolveRouteIfFrozenAndActive("alice AT pay/treasury")
-    ///
-    /// The string must be exactly `label AT namespace/routeLabel` (no extra `/` segments).
-    function resolveRouteIfFrozenAndActive(
-        string calldata route
-    ) external view returns (bytes memory target, uint32 routeType) {
-        (string memory label, string memory namespace, string memory routeLabel) = _splitRoute(
-            route
-        );
-
-        return _resolveRouteIfFrozenAndActive(label, namespace, routeLabel);
-    }
-
-    /// @notice Resolves an active route using separate XNS components.
-    ///
-    /// Unlike `resolveRouteIfFrozenAndActive`, this ignores whether the route is frozen.
-    function resolveRouteIfActive(
-        string calldata label,
-        string calldata namespace,
-        string calldata routeLabel
-    ) external view returns (bytes memory target, uint32 routeType) {
-        return _resolveRouteIfActive(label, namespace, routeLabel);
-    }
-
-    /// @notice Resolves an active route using a complete route string.
-    ///
-    /// Example:
-    ///
-    ///     resolveRouteIfActive("alice AT pay/treasury")
-    ///
-    /// The string must be exactly `label AT namespace/routeLabel` (no extra `/` segments).
-    ///
-    /// Unlike `resolveRouteIfFrozenAndActive`, this ignores whether the route is frozen.
-    function resolveRouteIfActive(
-        string calldata route
-    ) external view returns (bytes memory target, uint32 routeType) {
-        (string memory label, string memory namespace, string memory routeLabel) = _splitRoute(
-            route
-        );
-
-        return _resolveRouteIfActive(label, namespace, routeLabel);
-    }
-
-    /// @notice Resolves a route regardless of its active status.
     function resolveRoute(
         string calldata label,
         string calldata namespace,
@@ -692,7 +619,7 @@ contract XNSRoutes is Ownable2Step {
         return _resolveRoute(label, namespace, routeLabel);
     }
 
-    /// @notice Resolves a route regardless of active status using a complete route string.
+    /// @notice Resolves a frozen and active route using a complete route string.
     ///
     /// Example:
     ///
@@ -873,38 +800,6 @@ contract XNSRoutes is Ownable2Step {
     // =========================================================================
 
     /// @dev Resolves a frozen and active route.
-    function _resolveRouteIfFrozenAndActive(
-        string memory label,
-        string memory namespace,
-        string memory routeLabel
-    ) private view returns (bytes memory target, uint32 routeType) {
-        RouteRecord storage record = _routes[_routeKey(label, namespace, routeLabel)];
-
-        require(record.target.length > 0, "XNSRoutes: route not found");
-
-        require(record.isFrozen, "XNSRoutes: route not frozen");
-
-        require(record.isActive, "XNSRoutes: route inactive");
-
-        return (record.target, record.routeType);
-    }
-
-    /// @dev Resolves an active route (ignores freeze).
-    function _resolveRouteIfActive(
-        string memory label,
-        string memory namespace,
-        string memory routeLabel
-    ) private view returns (bytes memory target, uint32 routeType) {
-        RouteRecord storage record = _routes[_routeKey(label, namespace, routeLabel)];
-
-        require(record.target.length > 0, "XNSRoutes: route not found");
-
-        require(record.isActive, "XNSRoutes: route inactive");
-
-        return (record.target, record.routeType);
-    }
-
-    /// @dev Resolves a route regardless of active status.
     function _resolveRoute(
         string memory label,
         string memory namespace,
@@ -913,6 +808,8 @@ contract XNSRoutes is Ownable2Step {
         RouteRecord storage record = _routes[_routeKey(label, namespace, routeLabel)];
 
         require(record.target.length > 0, "XNSRoutes: route not found");
+        require(record.isFrozen, "XNSRoutes: route not frozen");
+        require(record.isActive, "XNSRoutes: route inactive");
 
         return (record.target, record.routeType);
     }

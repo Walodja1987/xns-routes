@@ -1,5 +1,5 @@
 /**
- * Resolve a route using one of the three resolution policies.
+ * Resolve a frozen and active route.
  *
  * USAGE:
  * `npx hardhat run scripts/examples/resolveRoute.ts --network <network_name>`
@@ -20,9 +20,6 @@ const label = "xns";
 const namespace = "action";
 const routeLabel = "register-name";
 
-/** `frozenAndActive` is the recommended production policy. */
-const policy: "frozenAndActive" | "active" | "raw" = "frozenAndActive";
-
 async function main() {
   const networkName = hre.network.name;
   const contractAddress = XNS_ROUTES_ADDRESS[networkName];
@@ -34,27 +31,11 @@ async function main() {
 
   const routes = await hre.ethers.getContractAt("XNSRoutes", contractAddress);
 
-  let result: [string, bigint] & { target: string; routeType: bigint };
-  if (policy === "frozenAndActive") {
-    result = await routes["resolveRouteIfFrozenAndActive(string,string,string)"](
-      label,
-      namespace,
-      routeLabel,
-    );
-  } else if (policy === "active") {
-    result = await routes["resolveRouteIfActive(string,string,string)"](
-      label,
-      namespace,
-      routeLabel,
-    );
-  } else {
-    result = await routes["resolveRoute(string,string,string)"](label, namespace, routeLabel);
-  }
+  const result = await routes["resolveRoute(string,string,string)"](label, namespace, routeLabel);
 
   console.log(`\nNetwork: ${GREEN}${networkName}${RESET}`);
   console.log(`XNSRoutes: ${GREEN}${contractAddress}${RESET}`);
   console.log(`Route: ${GREEN}${label}@${namespace}/${routeLabel}${RESET}`);
-  console.log(`Policy: ${GREEN}${policy}${RESET}`);
   console.log(`target: ${GREEN}${result.target}${RESET}`);
   console.log(`routeType: ${GREEN}${result.routeType}${RESET}\n`);
 }

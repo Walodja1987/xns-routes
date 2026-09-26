@@ -144,26 +144,6 @@ interface IXNSRoutes {
 
     function getRouteKey(string calldata route) external pure returns (bytes32 routeKey);
 
-    function resolveRouteIfFrozenAndActive(
-        string calldata label,
-        string calldata namespace,
-        string calldata routeLabel
-    ) external view returns (bytes memory target, uint32 routeType);
-
-    function resolveRouteIfFrozenAndActive(
-        string calldata route
-    ) external view returns (bytes memory target, uint32 routeType);
-
-    function resolveRouteIfActive(
-        string calldata label,
-        string calldata namespace,
-        string calldata routeLabel
-    ) external view returns (bytes memory target, uint32 routeType);
-
-    function resolveRouteIfActive(
-        string calldata route
-    ) external view returns (bytes memory target, uint32 routeType);
-
     function resolveRoute(
         string calldata label,
         string calldata namespace,

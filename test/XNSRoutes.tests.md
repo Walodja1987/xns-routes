@@ -142,20 +142,19 @@
 
 ---
 
-## `resolveRoute` / `resolveRouteIfActive` / `resolveRouteIfFrozenAndActive`
+## `resolveRoute`
 
 #### Functionality
 
-- `resolveRoute` returns `(target, routeType)` regardless of `isActive` / `isFrozen`.
-- `resolveRouteIfActive` reverts with `"XNSRoutes: route inactive"` when `isActive == false` (ignores freeze).
-- `resolveRouteIfFrozenAndActive` requires `isFrozen && isActive` (preferred production resolver).
+- `resolveRoute` returns `(target, routeType)` only when the route is frozen and active.
+- Callers that need mutable or inactive routes can inspect `getRouteRecord`.
 - String overloads require exactly `label@namespace/routeLabel` (no query string or path-style `/params…`; apps must strip `?...` themselves).
 
 #### Reverts
 
 - `"XNSRoutes: route not found"` when route does not exist.
-- `"XNSRoutes: route not frozen"` for `resolveRouteIfFrozenAndActive` when `isFrozen == false`.
-- `"XNSRoutes: route inactive"` when `isActive == false` (active-gated resolvers).
+- `"XNSRoutes: route not frozen"` when `isFrozen == false`.
+- `"XNSRoutes: route inactive"` when `isActive == false`.
 - `"XNSRoutes: invalid route"` for malformed route strings (including extra `/` segments).
 
 ---

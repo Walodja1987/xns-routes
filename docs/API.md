@@ -107,11 +107,8 @@ No reverse lookup is provided because multiple routes may point to the same targ
 
 **Resolution & indexing**
 
-- Forward: route -> `target` via:
-  - `resolveRouteIfFrozenAndActive` (requires `isFrozen` and `isActive`) — preferred for
-    production callers that only trust published, live bindings;
-  - `resolveRouteIfActive` (requires `isActive`, ignores freeze);
-  - `resolveRoute` (ignores `isActive` and freeze).
+- Forward: `resolveRoute` returns the `target` only when the route is frozen and active.
+  Integrations that need mutable or inactive routes can inspect `getRouteRecord` directly.
 - XNS name key: `keccak256(abi.encodePacked(label, "@", namespace))`.
 - Route key: `keccak256` of `label`, the at-sign, `namespace`, `/`, `routeLabel`
   (the hash of the canonical route string `label@namespace/routeLabel`).
@@ -341,59 +338,9 @@ The string must be exactly `label@namespace/routeLabel` (no extra `/` segments).
 function getRouteKey(string route) external pure returns (bytes32 routeKey)
 ```
 
-### resolveRouteIfFrozenAndActive
-
-Resolves a frozen and active route using separate XNS components.
-
-Recommended for integrations that require an immutable endpoint binding.
-
-```solidity
-function resolveRouteIfFrozenAndActive(string label, string namespace, string routeLabel) external view returns (bytes target, uint32 routeType)
-```
-
-### resolveRouteIfFrozenAndActive
-
-Resolves a frozen and active route using a complete route string.
-
-Example:
-
-    resolveRouteIfFrozenAndActive("alice@pay/treasury")
-
-The string must be exactly `label@namespace/routeLabel` (no extra `/` segments).
-
-```solidity
-function resolveRouteIfFrozenAndActive(string route) external view returns (bytes target, uint32 routeType)
-```
-
-### resolveRouteIfActive
-
-Resolves an active route using separate XNS components.
-
-Unlike `resolveRouteIfFrozenAndActive`, this ignores whether the route is frozen.
-
-```solidity
-function resolveRouteIfActive(string label, string namespace, string routeLabel) external view returns (bytes target, uint32 routeType)
-```
-
-### resolveRouteIfActive
-
-Resolves an active route using a complete route string.
-
-Example:
-
-    resolveRouteIfActive("alice@pay/treasury")
-
-The string must be exactly `label@namespace/routeLabel` (no extra `/` segments).
-
-Unlike `resolveRouteIfFrozenAndActive`, this ignores whether the route is frozen.
-
-```solidity
-function resolveRouteIfActive(string route) external view returns (bytes target, uint32 routeType)
-```
-
 ### resolveRoute
 
-Resolves a route regardless of its active status.
+Resolves a frozen and active route using separate XNS components.
 
 ```solidity
 function resolveRoute(string label, string namespace, string routeLabel) external view returns (bytes target, uint32 routeType)
@@ -401,7 +348,7 @@ function resolveRoute(string label, string namespace, string routeLabel) externa
 
 ### resolveRoute
 
-Resolves a route regardless of active status using a complete route string.
+Resolves a frozen and active route using a complete route string.
 
 Example:
 
