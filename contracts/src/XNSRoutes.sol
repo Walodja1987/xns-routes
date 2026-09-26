@@ -273,7 +273,9 @@ contract XNSRoutes is Ownable2Step {
         bytes calldata target,
         uint32 routeType
     ) external {
-        bytes32 xnsNameKey = _requireXNSNameOwner(label, namespace);
+        require(msg.sender == XNS.getAddress(label, namespace), "XNSRoutes: not XNS name owner");
+
+        bytes32 xnsNameKey = _xnsNameKey(label, namespace);
 
         require(_isValidRouteLabel(routeLabel), "XNSRoutes: invalid route label");
         require(target.length > 0, "XNSRoutes: invalid target");
@@ -350,7 +352,9 @@ contract XNSRoutes is Ownable2Step {
         string calldata routeLabel,
         bool active
     ) private {
-        bytes32 xnsNameKey = _requireXNSNameOwner(label, namespace);
+        require(msg.sender == XNS.getAddress(label, namespace), "XNSRoutes: not XNS name owner");
+
+        bytes32 xnsNameKey = _xnsNameKey(label, namespace);
         bytes32 routeKey = _routeKey(label, namespace, routeLabel);
 
         RouteRecord storage record = _routes[routeKey];
@@ -391,7 +395,9 @@ contract XNSRoutes is Ownable2Step {
         bytes calldata newTarget,
         uint32 newRouteType
     ) external {
-        bytes32 xnsNameKey = _requireXNSNameOwner(label, namespace);
+        require(msg.sender == XNS.getAddress(label, namespace), "XNSRoutes: not XNS name owner");
+
+        bytes32 xnsNameKey = _xnsNameKey(label, namespace);
         bytes32 routeKey = _routeKey(label, namespace, routeLabel);
 
         RouteRecord storage record = _routes[routeKey];
@@ -430,7 +436,9 @@ contract XNSRoutes is Ownable2Step {
         string calldata namespace,
         string calldata routeLabel
     ) external {
-        bytes32 xnsNameKey = _requireXNSNameOwner(label, namespace);
+        require(msg.sender == XNS.getAddress(label, namespace), "XNSRoutes: not XNS name owner");
+
+        bytes32 xnsNameKey = _xnsNameKey(label, namespace);
         _freezeRoute(xnsNameKey, label, namespace, routeLabel);
     }
 
@@ -449,7 +457,9 @@ contract XNSRoutes is Ownable2Step {
         string calldata namespace,
         string[] calldata routeLabels
     ) external {
-        bytes32 xnsNameKey = _requireXNSNameOwner(label, namespace);
+        require(msg.sender == XNS.getAddress(label, namespace), "XNSRoutes: not XNS name owner");
+
+        bytes32 xnsNameKey = _xnsNameKey(label, namespace);
 
         uint256 n = routeLabels.length;
         for (uint256 i = 0; i < n; ++i) {
@@ -491,7 +501,9 @@ contract XNSRoutes is Ownable2Step {
     ///
     /// Emits `RouteBookClosed` only if the route book was not already closed.
     function closeRouteBook(string calldata label, string calldata namespace) external {
-        bytes32 xnsNameKey = _requireXNSNameOwner(label, namespace);
+        require(msg.sender == XNS.getAddress(label, namespace), "XNSRoutes: not XNS name owner");
+
+        bytes32 xnsNameKey = _xnsNameKey(label, namespace);
 
         if (!_routeBookClosed[xnsNameKey]) {
             _routeBookClosed[xnsNameKey] = true;
@@ -507,7 +519,10 @@ contract XNSRoutes is Ownable2Step {
     /// Emits `RouteBookClosed` only if the route book was not already closed.
     function closeRouteBook(string calldata xnsName) external {
         (string memory label, string memory namespace) = _splitXNSName(xnsName);
-        bytes32 xnsNameKey = _requireXNSNameOwnerMemory(label, namespace);
+
+        require(msg.sender == XNS.getAddress(label, namespace), "XNSRoutes: not XNS name owner");
+
+        bytes32 xnsNameKey = _xnsNameKey(label, namespace);
 
         if (!_routeBookClosed[xnsNameKey]) {
             _routeBookClosed[xnsNameKey] = true;
@@ -808,32 +823,6 @@ contract XNSRoutes is Ownable2Step {
     /// @notice Returns whether a route label satisfies the XNS Routes label rules.
     function isValidRouteLabel(string calldata routeLabel) external pure returns (bool valid) {
         return _isValidRouteLabel(routeLabel);
-    }
-
-    // =========================================================================
-    // INTERNAL VIEW HELPERS
-    // =========================================================================
-
-    /// @dev Requires msg.sender to be the current XNS owner of `label AT namespace`.
-    ///
-    /// Uses the separate XNSv2 getter to avoid constructing and then parsing a full XNS name.
-    function _requireXNSNameOwner(
-        string calldata label,
-        string calldata namespace
-    ) private view returns (bytes32 xnsNameKey) {
-        require(msg.sender == XNS.getAddress(label, namespace), "XNSRoutes: not XNS name owner");
-
-        return _xnsNameKey(label, namespace);
-    }
-
-    /// @dev Memory-string variant of `_requireXNSNameOwner`.
-    function _requireXNSNameOwnerMemory(
-        string memory label,
-        string memory namespace
-    ) private view returns (bytes32 xnsNameKey) {
-        require(msg.sender == XNS.getAddress(label, namespace), "XNSRoutes: not XNS name owner");
-
-        return _xnsNameKey(label, namespace);
     }
 
     // =========================================================================
