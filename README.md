@@ -24,18 +24,18 @@
    3.4 [Interpret the endpoint](#4-interpret-the-endpoint) \
    3.5 [Route type registry](routeTypes/README.md)
 4. [Route State Model](#-route-state-model)
-5. [Route freeze](#-route-freeze) \
+5. [Permanence controls](#-permanence-controls) \
    5.1 [Per-route freeze](#per-route-freeze) \
    5.2 [Route-book close](#route-book-close)
-6. [Design Principles](#-design-principles)
-7. [Repo Contents](#-repo-contents)
-8. [On-chain route discovery](#-on-chain-route-discovery) \
-   8.1 [State-modifying](#state-modifying-executable-by-the-xns-name-owner) \
-   8.2 [Views](#views)
-9. [API reference](#-api-reference)
-10. [Contract addresses](#-contract-addresses)
-11. [Contract ownership](#-contract-ownership)
-12. [Contributing](#-contributing)
+6. [Repo Contents](#-repo-contents)
+7. [Contract functions](#-contract-functions) \
+   7.1 [State-modifying functions](#state-modifying-functions) \
+   7.2 [View functions](#view-functions) \
+   7.3 [On-chain route discovery](#on-chain-route-discovery)
+8. [API reference](#-api-reference)
+9. [Contract addresses](#-contract-addresses)
+10. [Contract ownership](#-contract-ownership)
+11. [Contributing](#-contributing)
 
 ---
 
@@ -62,13 +62,13 @@ alice@eth/docs               → ipfs://bafy…       (URI)
 
 Under the hood, each route stores an **endpoint payload** (`bytes target`) plus a **`routeType`** number that tells applications how to interpret it (e.g. `0` = EVM address, `1` = Bitcoin address; see [route types](#4-interpret-the-endpoint)). The contract does not interpret the payload itself.
 
-Routes can have parameters like URLs (`?key=value&…`). They are not stored on-chain, but can be used to derive return data (e.g. with a type-[`5`](routeTypes/5.md) builder).
-
-For example, the owner of `usdt@action` could publish a transfer route that apps call with parameters:
+Routes can carry URL-style parameters (`?key=value&…`). For example, the owner of `usdt@action` could publish a transfer route that apps call with parameters:
 
 ```text
 usdt@action/transfer-usdt?to=0x1234…abcd&amount=100
 ```
+
+Parameters are not part of the on-chain route. Apps strip the `?…` part before looking up the route (here `usdt@action/transfer-usdt`), and can then pass the parameters to a type-[`5`](routeTypes/5.md) route builder, which turns them into a ready-to-sign transaction.
 
 The character rules for a route label are the same as for XNS names:
 
@@ -76,7 +76,7 @@ The character rules for a route label are the same as for XNS names:
 - charset: lowercase `a-z`, digits `0-9`, and `-`
 - no leading/trailing `-`, and no consecutive `--`
 
-XNS name owners can publish an unlimited number of routes **for free**.
+XNS name owners can publish an unlimited number of routes with **no protocol fee** (only network gas).
 
 ---
 
@@ -85,8 +85,15 @@ XNS name owners can publish an unlimited number of routes **for free**.
 - ✅ **One XNS name, many endpoints** — publish several named destinations under `alice@eth`
 - ✅ **Beyond Ethereum addresses** — also Bitcoin, Solana, calldata, URIs, and more
 - ✅ **Human-readable sharing** — routes turn endpoint payloads into short, reusable names for links and apps
-- ✅ **Optional permanence** — freeze an endpoint or close the complete route set
+- ✅ **Endpoints apps can trust** — `resolveRoute` only returns frozen routes, so an endpoint cannot be swapped after apps start relying on it
+- ✅ **Optional closed route sets** — close the route book to guarantee no new routes appear under a name
 - ✅ **No protocol registration fee** — route creation is free, owners only pay network gas
+
+Example use cases:
+
+- A wallet user sends BTC to `alice@eth/bitcoin-wallet-1` instead of copy-pasting a Bitcoin address.
+- A dApp publishes `usdt@action/transfer-usdt` so wallets can build a USDT transfer from a shareable link.
+- Alice shares her documentation as `alice@eth/docs` instead of a long IPFS link.
 
 ---
 
@@ -120,7 +127,7 @@ Once the endpoint is final, freeze the route so its `target` and `routeType` can
 await routes.freezeRoute("alice", "eth", "treasury");
 ```
 
-Only frozen routes are returned by `resolveRoute`. This gives applications a guarantee that the endpoint cannot be swapped after they start relying on it. See [Route freeze](#-route-freeze) for details.
+Only frozen routes are returned by `resolveRoute`. This gives applications a guarantee that the endpoint cannot be swapped after they start relying on it. See [Permanence controls](#-permanence-controls) for details.
 
 ---
 
@@ -168,7 +175,7 @@ Each route has:
 - `routeType` → off-chain interpretation hint (**mutable** until the route is frozen)
 - `isActive` → usable or disabled (toggled by the XNS name owner)
 - `isFrozen` → permanently locks `target` / `routeType` for that route
-- `routeLabel` → immutable slug
+- `routeLabel` → the route's fixed name (cannot be renamed)
 
 The XNS name owner can call `updateRoute` to change `target` and `routeType` until the route's `isFrozen` flag is set.
 
@@ -178,7 +185,7 @@ The XNS name owner can call `updateRoute` to change `target` and `routeType` unt
 
 ---
 
-## 🧊 Route freeze
+## 🧊 Permanence controls
 
 XNS Routes has two permanence controls:
 
@@ -225,7 +232,7 @@ To get the freeze and book closed state of a route, use `record.isFrozen` (via `
 
 ## 📦 Repo Contents
 
-- [`XNSRoutes.sol`](XNSRoutes.sol) — XNS Routes smart contract
+- [`contracts/src/XNSRoutes.sol`](contracts/src/XNSRoutes.sol) — XNS Routes smart contract
 - [`routeTypes/`](routeTypes/README.md) — public `routeType` conventions (`0`–`5`, …)
 - [`docs/API.md`](docs/API.md) — NatSpec-generated contract API reference
 - [`docs/DEV_NOTES.md`](docs/DEV_NOTES.md) — local setup, networks, and development notes
@@ -233,11 +240,13 @@ To get the freeze and book closed state of a route, use `record.isFrozen` (via `
 
 ---
 
-## 📇 On-chain route discovery
+## 📇 Contract functions
 
-The registry stores each route's **`routeLabel` on-chain** and keeps a per-name list so integrators can discover and reconstruct human-readable routes using only `eth_call`s—**no subgraph or indexer required**. Full NatSpec: [docs/API.md](docs/API.md).
+Full NatSpec: [docs/API.md](docs/API.md).
 
-### State-modifying functions (executable by the XNS name owner only)
+### State-modifying functions
+
+Only the owner of the XNS name can call these.
 
 | Function                                                             | Description                                          |
 | -------------------------------------------------------------------- | ---------------------------------------------------- |
@@ -264,9 +273,11 @@ The registry stores each route's **`routeLabel` on-chain** and keeps a per-name 
 | `splitXNSName`                                                            | Parse `label@namespace`                                                                         |
 | `isValidRouteLabel`                                                       | Whether a route label satisfies on-chain rules                                                  |
 
-Resolvers revert when the route is missing or fails the relevant flag checks. `getRouteRecord` returns an empty record (`target.length == 0`) when missing.
+`resolveRoute` reverts if the route is missing, not frozen, or inactive. `getRouteRecord` never reverts for a missing route; it returns an empty record (`target.length == 0`).
 
-**Important semantics**
+### On-chain route discovery
+
+The registry stores each route's **`routeLabel` on-chain** and keeps a per-name list so integrators can discover and reconstruct human-readable routes using only `eth_call`s — **no subgraph or indexer required**.
 
 1. **Route list** — `getRouteKeyCount` is one entry per successful `createRoute`. Routes are never deleted. Use `getRouteEntries` to reconstruct human-readable routes without event history.
 2. **Existence** — `getRouteRecord(...).target.length == 0` means not registered.
@@ -281,10 +292,10 @@ Generated contract documentation (NatSpec / solidity-docgen): [docs/API.md](docs
 
 ## 📍 Contract addresses
 
-| Network  | XNS                                                                                                                                            |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Ethereum | [`0x6e797ba2d3103aF167918e71a7E01DE40D45f74b`](https://etherscan.io/address/0x6e797ba2d3103aF167918e71a7E01DE40D45f74b)                        |
-| Sepolia  | [`0x6e797ba2d3103aF167918e71a7E01DE40D45f74b`](https://sepolia.etherscan.io/address/0x6e797ba2d3103aF167918e71a7E01DE40D45f74b) (same address) |
+| Network  | XNS Routes       |
+| -------- | ---------------- |
+| Ethereum | Not yet deployed |
+| Sepolia  | Not yet deployed |
 
 ---
 
