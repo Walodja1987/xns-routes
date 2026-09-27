@@ -18,10 +18,11 @@
 1. [What are XNS Routes?](#-what-are-xns-routes)
 2. [Why XNS Routes?](#-why-xns-routes)
 3. [How It Works](#-how-it-works) \
-   3.1 [Define a Route](#1-define-a-route) \
-   3.2 [Resolve a Route](#2-resolve-a-route) \
-   3.3 [Interpret the endpoint](#3-interpret-the-endpoint) \
-   3.4 [Route type registry](routeTypes/README.md)
+   3.1 [Create a Route](#1-create-a-route) \
+   3.2 [Freeze the Route](#2-freeze-the-route) \
+   3.3 [Resolve a Route](#3-resolve-a-route) \
+   3.4 [Interpret the endpoint](#4-interpret-the-endpoint) \
+   3.5 [Route type registry](routeTypes/README.md)
 4. [Route State Model](#-route-state-model)
 5. [Route freeze](#-route-freeze) \
    5.1 [Per-route freeze](#per-route-freeze) \
@@ -59,11 +60,11 @@ alice@eth/claim-airdrop      → 0xa9059cbb…        (calldata)
 alice@eth/docs               → ipfs://bafy…       (URI)
 ```
 
-Under the hood, each route stores an **endpoint payload** (`bytes target`) plus a **`routeType`** number that tells applications how to interpret it (e.g. `0` = EVM address, `1` = Bitcoin address; see [route types](#3-interpret-the-endpoint)). The contract does not interpret the payload itself.
+Under the hood, each route stores an **endpoint payload** (`bytes target`) plus a **`routeType`** number that tells applications how to interpret it (e.g. `0` = EVM address, `1` = Bitcoin address; see [route types](#4-interpret-the-endpoint)). The contract does not interpret the payload itself.
 
 Routes can have parameters like URLs (`?key=value&…`). They are not stored on-chain, but can be used to derive return data (e.g. with a type-[`5`](routeTypes/5.md) builder).
 
-Example route with parameters:
+For example, the owner of `usdt@action` could publish a transfer route that apps call with parameters:
 
 ```text
 usdt@action/transfer-usdt?to=0x1234…abcd&amount=100
@@ -81,7 +82,7 @@ XNS name owners can publish an unlimited number of routes **for free**.
 
 ## 🚀 Why XNS Routes?
 
-- ✅ **One XNS name, many endpoints** — publish several named destinations under alice@eth
+- ✅ **One XNS name, many endpoints** — publish several named destinations under `alice@eth`
 - ✅ **Beyond Ethereum addresses** — also Bitcoin, Solana, calldata, URIs, and more
 - ✅ **Human-readable sharing** — routes turn endpoint payloads into short, reusable names for links and apps
 - ✅ **Optional permanence** — freeze an endpoint or close the complete route set
@@ -91,7 +92,7 @@ XNS name owners can publish an unlimited number of routes **for free**.
 
 ## 🔧 How It Works
 
-### 1. Define a Route
+### 1. Create a Route
 
 A route is registered under an XNS name:
 
@@ -100,23 +101,35 @@ import { getBytes } from "ethers";
 
 await routes.createRoute(
   "alice", // label
-  "pay", // namespace
+  "eth", // namespace
   "treasury", // routeLabel
   getBytes("0xAbc0000000000000000000000000000000000Def"), // target (bytes; e.g. 20-byte EVM address)
   0, // routeType — meanings are defined in routeTypes/, not by the contract
 );
 ```
 
-Newly created routes are active by default (i.e., `isActive = true`). `target` and `routeType` are mutable until the route is [frozen](#-route-state-model).
+Newly created routes are active by default (i.e., `isActive = true`). `target` and `routeType` are mutable until the route is [frozen](#2-freeze-the-route).
 
 ---
 
-### 2. Resolve a Route
+### 2. Freeze the Route
+
+Once the endpoint is final, freeze the route so its `target` and `routeType` can never change:
+
+```ts
+await routes.freezeRoute("alice", "eth", "treasury");
+```
+
+Only frozen routes are returned by `resolveRoute`. This gives applications a guarantee that the endpoint cannot be swapped after they start relying on it. See [Route freeze](#-route-freeze) for details.
+
+---
+
+### 3. Resolve a Route
 
 Given:
 
 ```text
-alice@pay/treasury
+alice@eth/treasury
 ```
 
 An application calls `resolveRoute` and receives `(target, routeType)`. Resolution succeeds only
@@ -127,7 +140,7 @@ XNS Routes only supports forward resolution as multiple routes may point at the 
 
 ---
 
-### 3. Interpret the endpoint
+### 4. Interpret the endpoint
 
 `routeType` tells the application how to read `target`. Conventions are documented in
 [`routeTypes/`](routeTypes/README.md) (not enforced on-chain):
@@ -178,13 +191,13 @@ The latter is useful for finalized endpoint sets, audited contract maps or limit
 ### Per-route freeze
 
 ```solidity
-freezeRoute("alice", "pay", "treasury");
+freezeRoute("alice", "eth", "treasury");
 ```
 
 or
 
 ```solidity
-batchFreezeRoutes("alice", "pay", ["treasury", "personal"]);
+batchFreezeRoutes("alice", "eth", ["treasury", "my-wallet-2"]);
 ```
 
 - Permanently locks that route's `target` / `routeType`
@@ -193,13 +206,13 @@ batchFreezeRoutes("alice", "pay", ["treasury", "personal"]);
 ### Route-book close
 
 ```solidity
-closeRouteBook("alice@pay");
+closeRouteBook("alice@eth");
 ```
 
 or
 
 ```solidity
-closeRouteBook("alice", "pay");
+closeRouteBook("alice", "eth");
 ```
 
 - No new routes can be added under that XNS name after the route book is closed

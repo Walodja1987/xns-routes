@@ -35,5 +35,5 @@ Do not reuse assigned public ids. New public ids are assigned when a proposal is
 
 After review, a maintainer assigns an id and adds `routeTypes/<id>.md` to this folder.
 
-See also the main [README](../README.md#3-interpret-the-endpoint) and
+See also the main [README](../README.md#4-interpret-the-endpoint) and
 [Contributing](../README.md#-contributing).
