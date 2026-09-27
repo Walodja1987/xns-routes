@@ -88,6 +88,9 @@ After closing:
 
 ### Resolution
 
+`resolveRoute` returns the `target` only when the route is frozen and active.
+Integrations that need mutable or inactive routes can inspect `getRouteRecord` directly.
+
 Efficient contract integrations should use the separate:
 
     (label, namespace, routeLabel)
@@ -100,14 +103,13 @@ Convenience view functions additionally support complete strings such as:
 
 No reverse lookup is provided because multiple routes may point to the same target.
 
-**Resolution & indexing**
-- Forward: `resolveRoute` returns the `target` only when the route is frozen and active.
-  Integrations that need mutable or inactive routes can inspect `getRouteRecord` directly.
+### Keys and indexing
+
 - XNS name key: `keccak256(abi.encodePacked(label, "@", namespace))`.
 - Route key: `keccak256(abi.encodePacked(label, "@", namespace, "/", routeLabel))`
   (the hash of the canonical route string `label@namespace/routeLabel`).
   Unambiguous because XNSv2 forbids the at-sign and `/` in `label` and `namespace`,
-  and a route label cannot contain `/`. See `_routeKey`.
+  and a route label cannot contain `/`.
 - The route list can be queried with `getRouteKeyCount`, `getRouteKeys`, and `getRouteEntries`.
   `getRouteEntries` returns each route's key plus stored `routeLabel` and metadata.
 
@@ -437,7 +439,7 @@ function isRouteBookClosed(string label, string namespace) external view returns
 ### isRouteBookClosed
 
 
-Convenience overload accepting a complete XNS name.
+Convenience overload accepting `label@namespace`.
 
 Example:
 
