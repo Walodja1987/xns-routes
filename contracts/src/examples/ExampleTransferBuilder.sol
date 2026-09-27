@@ -1,16 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-struct ParamSpec {
-    string name;
-    string paramType;
-}
-
-interface IXNSRouteBuilderV1 {
-    function suggestedRouteName() external pure returns (string memory);
-    function title() external pure returns (string memory);
-    function getParamSpecs() external pure returns (ParamSpec[] memory specs);
-}
+import {IXNSRouteBuilderV1, ParamSpec} from "./IXNSRouteBuilderV1.sol";
 
 contract ExampleTransferBuilder is IXNSRouteBuilderV1 {
     function suggestedRouteName() external pure returns (string memory) {

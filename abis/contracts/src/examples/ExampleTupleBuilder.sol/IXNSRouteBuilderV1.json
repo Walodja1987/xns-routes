@@ -1,5 +1,0 @@
-[
-  "function getParamSpecs() pure returns (tuple(string,string)[])",
-  "function suggestedRouteName() pure returns (string)",
-  "function title() pure returns (string)"
-]

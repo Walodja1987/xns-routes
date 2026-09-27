@@ -19,6 +19,26 @@ struct ParamSpec {
 /// - build parameter order must exactly match `getParamSpecs()`
 /// - `paramType` uses canonical ABI type strings
 /// - build returns a standard tx template
+///
+/// `build` is not declared here because its inputs are route-specific. Every builder
+/// must implement:
+///
+///     function build(<typed inputs per getParamSpecs()>)
+///         external
+///         view
+///         returns (uint256 targetChainId, address target, uint256 value, bytes memory data);
+///
+/// The parser/wallet:
+/// - reads `getParamSpecs()`
+/// - maps named route params into the canonical order
+/// - dynamically derives the typed `build(...)` signature
+/// - calls `build`
+///
+/// `build` must return:
+/// - targetChainId: the chain where the tx must be executed
+/// - target: the target contract / address
+/// - value: native token amount to send
+/// - data: calldata
 interface IXNSRouteBuilderV1 {
     /// @notice Suggested default route name for UI prefill.
     function suggestedRouteName() external pure returns (string memory);
@@ -39,27 +59,4 @@ interface IXNSRouteBuilderV1 {
     ///   { name: "memo", paramType: "string" }
     /// ]
     function getParamSpecs() external pure returns (ParamSpec[] memory specs);
-
-    /// @notice Build a tx template.
-    ///
-    /// The parser/wallet:
-    /// - reads `getParamSpecs()`
-    /// - maps named route params into the canonical order
-    /// - dynamically derives the typed `build(...)` signature
-    /// - calls this function
-    ///
-    /// Must return:
-    /// - targetChainId: the chain where the tx must be executed
-    /// - target: the target contract / address
-    /// - value: native token amount to send
-    /// - data: calldata
-    function build()
-        external
-        view
-        returns (
-            /* typed inputs, route-specific */ uint256 targetChainId,
-            address target,
-            uint256 value,
-            bytes memory data
-        );
 }
