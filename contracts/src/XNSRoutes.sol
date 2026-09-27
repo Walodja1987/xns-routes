@@ -882,15 +882,13 @@ contract XNSRoutes is Ownable2Step {
         require(slashIndex != type(uint256).max, "XNSRoutes: invalid route");
         require(slashIndex > 0, "XNSRoutes: invalid route");
 
-        string memory xnsName = _calldataSubstringToString(b, 0, slashIndex);
-
-        (label, namespace) = _splitXNSName(xnsName);
+        (label, namespace) = _splitXNSName(string(b[:slashIndex]));
 
         uint256 routeStart = slashIndex + 1;
 
         require(routeStart < len, "XNSRoutes: invalid route");
 
-        routeLabel = _calldataSubstringToString(b, routeStart, len);
+        routeLabel = string(b[routeStart:]);
     }
 
     /// @dev Parses `label AT namespace`.
@@ -932,24 +930,6 @@ contract XNSRoutes is Ownable2Step {
 
         label = string(labelBytes);
         namespace = string(namespaceBytes);
-    }
-
-    /// @dev Copies calldata substring `[start:end]` into a string.
-    function _calldataSubstringToString(
-        bytes calldata data,
-        uint256 start,
-        uint256 end
-    ) private pure returns (string memory out) {
-        require(end >= start, "XNSRoutes: invalid substring");
-
-        uint256 len = end - start;
-        bytes memory buf = new bytes(len);
-
-        for (uint256 i = 0; i < len; ++i) {
-            buf[i] = data[start + i];
-        }
-
-        return string(buf);
     }
 
     /// @dev Returns `arr[start:end]`, with `end` clamped to array length.
