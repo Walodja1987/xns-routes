@@ -760,11 +760,10 @@ describe("XNSRoutes", function () {
       const { routes, owner } = await loadFixture(deployFixture);
       await closeRouteBookTuple(routes.connect(owner), LABEL, NAMESPACE);
 
-      const filter = routes.filters.RouteBookClosed();
-      const before = (await routes.queryFilter(filter)).length;
-      await closeRouteBookTuple(routes.connect(owner), LABEL, NAMESPACE);
-      const after = (await routes.queryFilter(filter)).length;
-      expect(after).to.equal(before);
+      await expect(closeRouteBookTuple(routes.connect(owner), LABEL, NAMESPACE)).to.not.emit(
+        routes,
+        "RouteBookClosed",
+      );
     });
 
     it("Should revert with NotXnsNameOwner", async function () {
