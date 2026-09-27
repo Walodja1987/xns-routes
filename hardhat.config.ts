@@ -8,7 +8,6 @@ import "@nomicfoundation/hardhat-chai-matchers";
 import "@nomicfoundation/hardhat-ignition-ethers";
 import "@typechain/hardhat";
 
-import "xdeployer";
 import "@matterlabs/hardhat-zksync-solc";
 import "@matterlabs/hardhat-zksync-deploy";
 import "@matterlabs/hardhat-zksync-verify";
@@ -826,40 +825,6 @@ const config: HardhatUserConfig = {
       accounts,
       ledgerAccounts,
     },
-  },
-  xdeploy: {
-    // Change this name to the name of your main contract
-    // Does not necessarily have to match the contract file name
-    contract: "Greeter",
-
-    // Change to `undefined` if your constructor does not have any input arguments
-    constructorArgsPath: "./deploy-args.ts",
-
-    // The salt must be the same for each EVM chain for which you want to have a single contract address
-    // Change the salt if you are doing a re-deployment with the same codebase
-    salt: vars.get(
-      "SALT",
-      // `keccak256("SALT")`
-      "0x087ee6a43229fddc3e140062b42bcff0c6d1c5a3bba8123976a59688e7024c25",
-    ),
-
-    // This is your wallet's private key
-    signer: accounts[0],
-
-    // Use the network names specified here: https://github.com/pcaversaccio/xdeployer#configuration
-    // Use `localhost` or `hardhat` for local testing
-    networks: ["hardhat", "sepolia", "optimismSepolia"],
-
-    // Use the matching env URL with your chosen RPC in the `.env` file
-    rpcUrls: [
-      "hardhat",
-      vars.get("ETH_SEPOLIA_TESTNET_URL", "https://rpc.sepolia.org"),
-      vars.get("OPTIMISM_SEPOLIA_URL", "https://sepolia.optimism.io"),
-    ],
-
-    // Maximum limit is 15 * 10 ** 6 or 15,000,000. If the deployments are failing, try increasing this number
-    // However, keep in mind that this costs money in a production environment!
-    gasLimit: 1.2 * 10 ** 6,
   },
   contractSizer: {
     alphaSort: true,

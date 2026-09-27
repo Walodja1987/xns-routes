@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import {IXNSRouteBuilderV1, ParamSpec} from "../interfaces/IXNSRouteBuilderV1.sol";
+
 interface IXNSForBuilderNaming {
     function registerName(string calldata label, string calldata namespace) external payable;
     function isValidLabelOrNamespace(
@@ -22,7 +24,7 @@ interface IXNSForBuilderNaming {
 /// - if `routeLabel` is empty, no name is assigned
 /// - if `routeLabel` is non-empty, the constructor calls XNS.registerName(...)
 ///   from this contract, so the name is registered to the build contract address
-contract USDTTransferEthBuilder {
+contract USDTTransferEthBuilder is IXNSRouteBuilderV1 {
     error ZeroXNS();
     error ZeroToken();
     error ZeroRecipient();
@@ -79,6 +81,15 @@ contract USDTTransferEthBuilder {
     /// @notice Human-readable title for builder libraries.
     function title() external pure returns (string memory) {
         return "USDT Transfer on Ethereum";
+    }
+
+    /// @notice Returns the canonical schema for the `build` inputs.
+    ///
+    /// `amount` is a whole-number USDT amount (e.g. 100 means 100 USDT).
+    function getParamSpecs() external pure returns (ParamSpec[] memory specs) {
+        specs = new ParamSpec[](2);
+        specs[0] = ParamSpec({name: "to", paramType: "address"});
+        specs[1] = ParamSpec({name: "amount", paramType: "uint256"});
     }
 
     /// @notice Build tx template for USDT.transfer(to, amountWhole * 1e6)

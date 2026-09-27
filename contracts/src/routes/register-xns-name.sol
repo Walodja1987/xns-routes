@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import {IXNSRouteBuilderV1, ParamSpec} from "../interfaces/IXNSRouteBuilderV1.sol";
+
 interface IXNSForRegisterNameBuilder {
     function registerName(string calldata label, string calldata namespace) external payable;
     function getNamespacePrice(string calldata namespace) external view returns (uint256);
@@ -21,7 +23,7 @@ interface IXNSForRegisterNameBuilder {
 /// - if `routeLabel` is empty, no name is assigned
 /// - if `routeLabel` is non-empty, the constructor calls XNS.registerName(...)
 ///   from this contract, so the name is registered to the build contract address
-contract XNSRegisterNameBuilder {
+contract XNSRegisterNameBuilder is IXNSRouteBuilderV1 {
     error ZeroXNS();
     error InvalidLabel();
     error InvalidNamespace();
@@ -67,6 +69,13 @@ contract XNSRegisterNameBuilder {
     /// @notice Human-readable title for builder libraries.
     function title() external pure returns (string memory) {
         return "XNS Register Name";
+    }
+
+    /// @notice Returns the canonical schema for the `build` inputs.
+    function getParamSpecs() external pure returns (ParamSpec[] memory specs) {
+        specs = new ParamSpec[](2);
+        specs[0] = ParamSpec({name: "label", paramType: "string"});
+        specs[1] = ParamSpec({name: "namespace", paramType: "string"});
     }
 
     /// @notice Build the tx template for XNS.registerName(label, namespace).

@@ -9,6 +9,7 @@
   "function TARGET_CHAIN_ID() view returns (uint256)",
   "function XNS() view returns (address)",
   "function build(string,string) view returns (uint256, address, uint256, bytes)",
+  "function getParamSpecs() pure returns (tuple(string,string)[])",
   "function suggestedRouteName() pure returns (string)",
   "function title() pure returns (string)"
 ]

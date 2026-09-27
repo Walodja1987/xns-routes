@@ -70,7 +70,7 @@ usdt@action/transfer-usdt?to=0x1234…abcd&amount=100
 
 Parameters are not part of the on-chain route. Apps strip the `?…` part before looking up the route (here `usdt@action/transfer-usdt`), and can then pass the parameters to a type-[`5`](routeTypes/5.md) route builder, which turns them into a ready-to-sign transaction.
 
-The character rules for a route label are the same as for XNS names:
+A route label uses the same characters as XNS names, but may be longer (up to 32 instead of 20 characters):
 
 - `routeLabel` must be `1-32` chars
 - charset: lowercase `a-z`, digits `0-9`, and `-`

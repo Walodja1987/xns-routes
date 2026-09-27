@@ -4,14 +4,10 @@ update          :; forge update
 # install latest stable solc version
 solc            :; sudo add-apt-repository ppa:ethereum/ethereum && sudo apt-get update && sudo apt-get install solc
 
-# build & test
+# build
 build           :; forge build
 build-optimised :; forge build --optimize
-test-forge      :; forge test
-test-gasreport 	:; forge test --gas-report
-trace           :; forge test -vvvvv
 clean           :; forge clean
-snapshot        :; forge snapshot
 
 # chmod scripts
 scripts         :; chmod +x ./scripts/*

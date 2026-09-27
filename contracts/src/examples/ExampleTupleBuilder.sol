@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {IXNSRouteBuilderV1, ParamSpec} from "./IXNSRouteBuilderV1.sol";
+import {IXNSRouteBuilderV1, ParamSpec} from "../interfaces/IXNSRouteBuilderV1.sol";
 
 contract ExampleTupleBuilder is IXNSRouteBuilderV1 {
     struct Payment {

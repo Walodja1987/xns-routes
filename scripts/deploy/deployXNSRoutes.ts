@@ -3,6 +3,7 @@
  *
  * USAGE:
  * `npx hardhat run scripts/deploy/deployXNSRoutes.ts --network sepolia`
+ * `XNS_ROUTES_INITIAL_OWNER=0xYourOwner npx hardhat run scripts/deploy/deployXNSRoutes.ts --network sepolia`
  *
  * REQUIRED SETUP (Hardhat vars — see docs/DEV_NOTES.md):
  * - MNEMONIC
