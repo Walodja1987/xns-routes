@@ -934,6 +934,31 @@ describe("XNSRoutes", function () {
       const { routes } = await loadFixture(deployFixture);
       await expect(routes.splitRoute(XNS_NAME)).to.be.revertedWith(XR.invalidRoute);
     });
+
+    const invalidRoutes: [string, string][] = [
+      ["", XR.invalidRoute],
+      [`/${ROUTE_LABEL}`, XR.invalidRoute],
+      [`${XNS_NAME}/`, XR.invalidRoute],
+      [`${LABEL}${NAMESPACE}/${ROUTE_LABEL}`, XR.invalidXnsName],
+      [`${LABEL}@${NAMESPACE}@extra/${ROUTE_LABEL}`, XR.invalidXnsName],
+    ];
+
+    for (const [input, error] of invalidRoutes) {
+      it(`Should revert for malformed route "${input}"`, async function () {
+        const { routes } = await loadFixture(deployFixture);
+        await expect(routes.splitRoute(input)).to.be.revertedWith(error);
+      });
+    }
+
+    it("Should not strip a query suffix from the route label", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      const [label, namespace, routeLabel] = await routes.splitRoute(
+        `${formatRoute(LABEL, NAMESPACE, ROUTE_LABEL)}?extra`,
+      );
+      expect(label).to.equal(LABEL);
+      expect(namespace).to.equal(NAMESPACE);
+      expect(routeLabel).to.equal(`${ROUTE_LABEL}?extra`);
+    });
   });
 
   describe("splitXNSName", function () {
@@ -957,6 +982,16 @@ describe("XNSRoutes", function () {
     it("Should revert when namespace is empty", async function () {
       const { routes } = await loadFixture(deployFixture);
       await expect(routes.splitXNSName("xns@")).to.be.revertedWith(XR.invalidXnsName);
+    });
+
+    it("Should revert when input is empty", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      await expect(routes.splitXNSName("")).to.be.revertedWith(XR.invalidXnsName);
+    });
+
+    it("Should revert when @ appears more than once", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      await expect(routes.splitXNSName("a@b@c")).to.be.revertedWith(XR.invalidXnsName);
     });
   });
 

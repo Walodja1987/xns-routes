@@ -543,7 +543,7 @@ contract XNSRoutes is Ownable2Step {
     ///
     /// `record.target.length == 0` means the route does not exist.
     function getRouteRecord(bytes32 routeKey) external view returns (RouteRecord memory record) {
-        return _copyRouteRecord(_routes[routeKey]);
+        return _routes[routeKey];
     }
 
     /// @notice Returns a route record using separate XNS components.
@@ -552,7 +552,7 @@ contract XNSRoutes is Ownable2Step {
         string calldata namespace,
         string calldata routeLabel
     ) external view returns (RouteRecord memory record) {
-        return _copyRouteRecord(_routes[_routeKey(label, namespace, routeLabel)]);
+        return _routes[_routeKey(label, namespace, routeLabel)];
     }
 
     /// @notice Returns a route record using a complete route string.
@@ -569,7 +569,7 @@ contract XNSRoutes is Ownable2Step {
             route
         );
 
-        return _copyRouteRecord(_routes[_routeKey(label, namespace, routeLabel)]);
+        return _routes[_routeKey(label, namespace, routeLabel)];
     }
 
     // -------------------------------------------------------------------------
@@ -749,7 +749,7 @@ contract XNSRoutes is Ownable2Step {
 
             entries[i] = RouteEntry({
                 routeKey: routeKey,
-                record: _copyRouteRecord(_routes[routeKey])
+                record: _routes[routeKey]
             });
         }
     }
@@ -777,7 +777,7 @@ contract XNSRoutes is Ownable2Step {
 
             entries[i] = RouteEntry({
                 routeKey: routeKey,
-                record: _copyRouteRecord(_routes[routeKey])
+                record: _routes[routeKey]
             });
         }
     }
@@ -880,7 +880,6 @@ contract XNSRoutes is Ownable2Step {
         }
 
         require(slashIndex != type(uint256).max, "XNSRoutes: invalid route");
-
         require(slashIndex > 0, "XNSRoutes: invalid route");
 
         string memory xnsName = _calldataSubstringToString(b, 0, slashIndex);
@@ -951,20 +950,6 @@ contract XNSRoutes is Ownable2Step {
         }
 
         return string(buf);
-    }
-
-    /// @dev Copies a stored route record into memory.
-    function _copyRouteRecord(
-        RouteRecord storage s
-    ) private view returns (RouteRecord memory record) {
-        return
-            RouteRecord({
-                target: s.target,
-                routeType: s.routeType,
-                isActive: s.isActive,
-                isFrozen: s.isFrozen,
-                routeLabel: s.routeLabel
-            });
     }
 
     /// @dev Returns `arr[start:end]`, with `end` clamped to array length.
