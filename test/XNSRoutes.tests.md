@@ -36,7 +36,7 @@
 
 #### Events
 
-- Should emit `RouteCreated` with indexed `xnsNameKey`, `routeKey`, and `targetHash` (`keccak256(target)`), then `label`, `namespace`, `routeLabel`, `routeType`, and `isActive` in log data. Full `target` is not logged — read it from storage via `getRouteRecord` / resolve.
+- Should emit `RouteCreated` with indexed `xnsNameKey`, `routeKey`, and `targetHash` (`keccak256(target)`), then `label`, `namespace`, `routeLabel`, and `routeType` in log data (new routes always start active). Full `target` is not logged — read it from storage via `getRouteRecord` / resolve.
 
 #### Reverts
 

@@ -576,7 +576,7 @@ function isValidRouteLabel(string routeLabel) external pure returns (bool valid)
 
 
 ```solidity
-event RouteCreated(bytes32 xnsNameKey, bytes32 routeKey, bytes32 targetHash, string label, string namespace, string routeLabel, uint32 routeType, bool isActive)
+event RouteCreated(bytes32 xnsNameKey, bytes32 routeKey, bytes32 targetHash, string label, string namespace, string routeLabel, uint32 routeType)
 ```
 
 _Emitted by `createRoute`._

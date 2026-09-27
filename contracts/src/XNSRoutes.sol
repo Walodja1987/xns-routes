@@ -175,8 +175,7 @@ contract XNSRoutes is Ownable2Step {
         string label,
         string namespace,
         string routeLabel,
-        uint32 routeType,
-        bool isActive
+        uint32 routeType
     );
 
     /// @dev Emitted by `activateRoute` and `deactivateRoute` (only when `isActive` changes).
@@ -302,8 +301,7 @@ contract XNSRoutes is Ownable2Step {
             label,
             namespace,
             routeLabel,
-            routeType,
-            true
+            routeType
         );
     }
 
@@ -501,15 +499,7 @@ contract XNSRoutes is Ownable2Step {
     ///
     /// Emits `RouteBookClosed` only if the route book was not already closed.
     function closeRouteBook(string calldata label, string calldata namespace) external {
-        require(msg.sender == XNS.getAddress(label, namespace), "XNSRoutes: not XNS name owner");
-
-        bytes32 xnsNameKey = _xnsNameKey(label, namespace);
-
-        if (!_routeBookClosed[xnsNameKey]) {
-            _routeBookClosed[xnsNameKey] = true;
-
-            emit RouteBookClosed(xnsNameKey, label, namespace);
-        }
+        _closeRouteBook(label, namespace);
     }
 
     /// @notice Permanently closes the route book for `label AT namespace`.
@@ -520,6 +510,11 @@ contract XNSRoutes is Ownable2Step {
     function closeRouteBook(string calldata xnsName) external {
         (string memory label, string memory namespace) = _splitXNSName(xnsName);
 
+        _closeRouteBook(label, namespace);
+    }
+
+    /// @dev Shared implementation for both route-book close overloads.
+    function _closeRouteBook(string memory label, string memory namespace) private {
         require(msg.sender == XNS.getAddress(label, namespace), "XNSRoutes: not XNS name owner");
 
         bytes32 xnsNameKey = _xnsNameKey(label, namespace);
@@ -734,24 +729,7 @@ contract XNSRoutes is Ownable2Step {
         uint256 start,
         uint256 end
     ) external view returns (RouteEntry[] memory entries) {
-        bytes32[] memory keys = _sliceRouteKeys(
-            _routeKeysByXNSName[_xnsNameKey(label, namespace)],
-            start,
-            end
-        );
-
-        uint256 n = keys.length;
-
-        entries = new RouteEntry[](n);
-
-        for (uint256 i = 0; i < n; ++i) {
-            bytes32 routeKey = keys[i];
-
-            entries[i] = RouteEntry({
-                routeKey: routeKey,
-                record: _routes[routeKey]
-            });
-        }
+        return _getRouteEntries(_xnsNameKey(label, namespace), start, end);
     }
 
     /// @notice Convenience overload accepting `label AT namespace`.
@@ -762,11 +740,16 @@ contract XNSRoutes is Ownable2Step {
     ) external view returns (RouteEntry[] memory entries) {
         (string memory label, string memory namespace) = _splitXNSName(xnsName);
 
-        bytes32[] memory keys = _sliceRouteKeys(
-            _routeKeysByXNSName[_xnsNameKey(label, namespace)],
-            start,
-            end
-        );
+        return _getRouteEntries(_xnsNameKey(label, namespace), start, end);
+    }
+
+    /// @dev Shared implementation for both route-entry listing overloads.
+    function _getRouteEntries(
+        bytes32 xnsNameKey,
+        uint256 start,
+        uint256 end
+    ) private view returns (RouteEntry[] memory entries) {
+        bytes32[] memory keys = _sliceRouteKeys(_routeKeysByXNSName[xnsNameKey], start, end);
 
         uint256 n = keys.length;
 

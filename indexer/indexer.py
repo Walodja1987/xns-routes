@@ -274,7 +274,7 @@ def apply_event(conn: sqlite3.Connection, chain_id: int, contract: str, evt: dic
             if not isinstance(a["targetHash"], str)
             else a["targetHash"],
             route_type=int(a["routeType"]),
-            is_active=1 if a["isActive"] else 0,
+            is_active=1,
             is_frozen=0,
         )
     elif name == "RouteActiveStatusUpdated":

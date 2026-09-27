@@ -3,7 +3,7 @@
   "event OwnershipTransferred(address indexed,address indexed)",
   "event RouteActiveStatusUpdated(bytes32 indexed,bytes32 indexed,string,string,string,bool)",
   "event RouteBookClosed(bytes32 indexed,string,string)",
-  "event RouteCreated(bytes32 indexed,bytes32 indexed,bytes32 indexed,string,string,string,uint32,bool)",
+  "event RouteCreated(bytes32 indexed,bytes32 indexed,bytes32 indexed,string,string,string,uint32)",
   "event RouteFrozen(bytes32 indexed,bytes32 indexed,string,string,string)",
   "event RouteUpdated(bytes32 indexed,bytes32 indexed,bytes32 indexed,string,string,string,uint32)",
   "function XNS() view returns (address)",

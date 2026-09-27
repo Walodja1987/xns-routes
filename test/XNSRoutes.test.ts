@@ -253,7 +253,6 @@ describe("XNSRoutes", function () {
           NAMESPACE,
           ROUTE_LABEL,
           RT0,
-          true,
         );
 
       expect(

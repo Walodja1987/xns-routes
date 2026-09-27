@@ -24,8 +24,7 @@ interface IXNSRoutes {
         string label,
         string namespace,
         string routeLabel,
-        uint32 routeType,
-        bool isActive
+        uint32 routeType
     );
 
     event RouteActiveStatusUpdated(
