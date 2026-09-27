@@ -40,13 +40,15 @@
 
 ## ✨ What are XNS Routes?
 
-Routes are typed endpoints underneath an [XNS name](https://github.com/Walodja1987/XNSv2/blob/main/README.md#xns--the-name-layer-on-ethereum). XNS Routes extends an XNS name with a simple path:
+[XNS](https://github.com/Walodja1987/XNSv2/blob/main/README.md#xns--the-name-layer-on-ethereum) gives you a human-readable name like `alice@eth` that resolves to your Ethereum address.
+
+**XNS Routes** lets you publish named sub-paths under that name — like `alice@eth/treasury` or `alice@eth/docs` — each pointing to something different: another EVM address, a Bitcoin or Solana address, a link, or a ready-made transaction. Think of it as URL paths for your XNS name:
 
 ```text
 route = label@namespace/routeLabel
 ```
 
-If you own `alice@eth`, you can publish routes under that name such as:
+If you own `alice@eth`, you can publish routes such as:
 
 ```text
 alice@eth/treasury           → 0xdf2…3e7          (EVM address)
@@ -57,7 +59,7 @@ alice@eth/claim-airdrop      → 0xa9059cbb…        (calldata)
 alice@eth/docs               → ipfs://bafy…       (URI)
 ```
 
-Each route points to an opaque **endpoint payload** (`bytes target`) plus a **`routeType`** that tells applications how to interpret it.
+Under the hood, each route stores an **endpoint payload** (`bytes target`) plus a **`routeType`** number that tells applications how to interpret it (e.g. `0` = EVM address, `1` = Bitcoin address; see [route types](#3-interpret-the-endpoint)). The contract does not interpret the payload itself.
 
 Routes can have parameters like URLs (`?key=value&…`). They are not stored on-chain, but can be used to derive return data (e.g. with a type-[`5`](routeTypes/5.md) builder).
 
