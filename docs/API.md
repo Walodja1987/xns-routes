@@ -4,6 +4,7 @@ This is an automatically generated documentation (using `solidity-docgen` packag
 
 ## XNSRoutes
 
+
 A simple named-endpoint registry attached to XNS names.
 
 The ERC-173-compatible `owner()` is an identity/administrative pointer for external
@@ -19,14 +20,12 @@ identifiers, or other application-defined data — interpreted via `routeType`.
 label@namespace/routeLabel
 
 Examples:
-
 - `alice@pay/treasury`
 - `alice@pay/treasury-eth`
 - `alice@pay/treasury-arb`
 - `aave@defi/v3-pool`
 
 The route label must:
-
 - Be 1–32 characters long.
 - Consist only of [a-z0-9-].
 - Not start or end with '-'.
@@ -39,7 +38,6 @@ string-based helpers. Path-style `/key=value` suffixes are invalid (exactly one 
 ### Route record
 
 Each route stores:
-
 - `target` — opaque endpoint payload (mutable until frozen); must be non-empty.
 - `routeType` — generic off-chain interpretation hint (mutable until frozen).
 - `isActive` — whether applications should currently treat the route as usable
@@ -54,7 +52,6 @@ The exact semantics of `routeType` are intentionally not enforced by this contra
 Applications may define their own interpretation conventions.
 
 Example route types (illustrative; see `routeTypes/`):
-
 - `0` = EVM address
 - `1` = Bitcoin address
 - `2` = Solana pubkey
@@ -77,7 +74,6 @@ route has been frozen. Freezing a route does **not** lock `isActive`.
 The XNS name owner may permanently freeze an individual route (`freezeRoute`).
 
 Once `isFrozen` is true:
-
 - `target` and `routeType` can never change again.
 - The XNS name owner may continue toggling `isActive`.
 
@@ -86,7 +82,6 @@ Once `isFrozen` is true:
 The XNS name owner may permanently close the route book (`closeRouteBook`).
 
 After closing:
-
 - No new routes may be created under that name.
 - Existing routes are unchanged (not frozen by the close).
 - Per-route freeze and `isActive` controls remain independent.
@@ -106,7 +101,6 @@ Convenience view functions additionally support complete strings such as:
 No reverse lookup is provided because multiple routes may point to the same target.
 
 **Resolution & indexing**
-
 - Forward: `resolveRoute` returns the `target` only when the route is frozen and active.
   Integrations that need mutable or inactive routes can inspect `getRouteRecord` directly.
 - XNS name key: `keccak256(abi.encodePacked(label, "@", namespace))`.
@@ -117,9 +111,11 @@ No reverse lookup is provided because multiple routes may point to the same targ
 - The route list can be queried with `getRouteKeyCount`, `getRouteKeys`, and `getRouteEntries`.
   `getRouteEntries` returns each route's key plus stored `routeLabel` and metadata.
 
+
 ## Functions
 
 ### createRoute
+
 
 Creates a route under an XNS name.
 
@@ -135,7 +131,6 @@ creates:
     alice@pay/treasury
 
 Requirements:
-
 - `msg.sender` must own `label@namespace`.
 - `routeLabel` must be valid.
 - `target` must be non-empty.
@@ -148,14 +143,17 @@ Emits `RouteCreated`.
 function createRoute(string label, string namespace, string routeLabel, bytes target, uint32 routeType) external
 ```
 
+
+
+
 ### activateRoute
+
 
 Activates an existing route.
 
 Allowed even if the route is frozen — freeze does not lock `isActive`.
 
 **Requirements:**
-
 - `msg.sender` must own `label@namespace`.
 - The route must exist.
 
@@ -165,14 +163,17 @@ Emits `RouteActiveStatusUpdated` only when `isActive` changes.
 function activateRoute(string label, string namespace, string routeLabel) external
 ```
 
+
+
+
 ### deactivateRoute
+
 
 Deactivates an existing route.
 
 Allowed even if the route is frozen — freeze does not lock `isActive`.
 
 **Requirements:**
-
 - `msg.sender` must own `label@namespace`.
 - The route must exist.
 
@@ -182,12 +183,15 @@ Emits `RouteActiveStatusUpdated` only when `isActive` changes.
 function deactivateRoute(string label, string namespace, string routeLabel) external
 ```
 
+
+
+
 ### updateRoute
+
 
 Updates `target` and `routeType` for an existing route.
 
 **Requirements:**
-
 - `msg.sender` must own `label@namespace`.
 - The route must exist.
 - The route must not be frozen (`isFrozen`).
@@ -199,14 +203,17 @@ Emits `RouteUpdated` only when `target` or `routeType` actually changes.
 function updateRoute(string label, string namespace, string routeLabel, bytes newTarget, uint32 newRouteType) external
 ```
 
+
+
+
 ### freezeRoute
+
 
 Permanently freezes an individual route so `target` and `routeType` cannot change.
 
 Freezing is irreversible. `isActive` remains independently controllable by the XNS name owner.
 
 **Requirements:**
-
 - `msg.sender` must own `label@namespace`.
 - The route must exist.
 
@@ -216,7 +223,11 @@ Emits `RouteFrozen` only if the route was not already frozen.
 function freezeRoute(string label, string namespace, string routeLabel) external
 ```
 
+
+
+
 ### batchFreezeRoutes
+
 
 Permanently freezes multiple routes under one XNS name.
 
@@ -224,7 +235,6 @@ Same per-route semantics as `freezeRoute`. Already-frozen routes are skipped
 (no event). Missing routes cause the entire call to revert.
 
 **Requirements:**
-
 - `msg.sender` must own `label@namespace`.
 - Every `routeLabels[i]` must refer to an existing route.
 
@@ -234,7 +244,11 @@ Emits `RouteFrozen` for each route that newly becomes frozen.
 function batchFreezeRoutes(string label, string namespace, string[] routeLabels) external
 ```
 
+
+
+
 ### closeRouteBook
+
 
 Permanently closes the route book associated with an XNS name.
 
@@ -250,7 +264,11 @@ Emits `RouteBookClosed` only if the route book was not already closed.
 function closeRouteBook(string label, string namespace) external
 ```
 
+
+
+
 ### closeRouteBook
+
 
 Permanently closes the route book for `label@namespace`.
 
@@ -262,7 +280,11 @@ Emits `RouteBookClosed` only if the route book was not already closed.
 function closeRouteBook(string xnsName) external
 ```
 
+
+
+
 ### getRouteRecord
+
 
 Returns a route record directly by route key.
 
@@ -272,7 +294,11 @@ Returns a route record directly by route key.
 function getRouteRecord(bytes32 routeKey) external view returns (struct XNSRoutes.RouteRecord record)
 ```
 
+
+
+
 ### getRouteRecord
+
 
 Returns a route record using separate XNS components.
 
@@ -280,7 +306,11 @@ Returns a route record using separate XNS components.
 function getRouteRecord(string label, string namespace, string routeLabel) external view returns (struct XNSRoutes.RouteRecord record)
 ```
 
+
+
+
 ### getRouteRecord
+
 
 Returns a route record using a complete route string.
 
@@ -294,7 +324,11 @@ The string must be exactly `label@namespace/routeLabel` (no extra `/` segments).
 function getRouteRecord(string route) external view returns (struct XNSRoutes.RouteRecord record)
 ```
 
+
+
+
 ### getXNSNameKey
+
 
 Returns the canonical XNS name key for separate name components.
 
@@ -304,7 +338,11 @@ Equal to the hash of the UTF-8 string `label@namespace`.
 function getXNSNameKey(string label, string namespace) external pure returns (bytes32 xnsNameKey)
 ```
 
+
+
+
 ### getXNSNameKey
+
 
 Returns the canonical XNS name key for a complete XNS name.
 
@@ -314,7 +352,11 @@ The string must be exactly `label@namespace`.
 function getXNSNameKey(string xnsName) external pure returns (bytes32 xnsNameKey)
 ```
 
+
+
+
 ### getRouteKey
+
 
 Returns the canonical route key for separate XNS components.
 
@@ -324,7 +366,11 @@ Equal to the hash of the UTF-8 string `label@namespace/routeLabel`.
 function getRouteKey(string label, string namespace, string routeLabel) external pure returns (bytes32 routeKey)
 ```
 
+
+
+
 ### getRouteKey
+
 
 Returns the canonical route key for a complete route string.
 
@@ -338,7 +384,11 @@ The string must be exactly `label@namespace/routeLabel` (no extra `/` segments).
 function getRouteKey(string route) external pure returns (bytes32 routeKey)
 ```
 
+
+
+
 ### resolveRoute
+
 
 Resolves a frozen and active route using separate XNS components.
 
@@ -346,7 +396,11 @@ Resolves a frozen and active route using separate XNS components.
 function resolveRoute(string label, string namespace, string routeLabel) external view returns (bytes target, uint32 routeType)
 ```
 
+
+
+
 ### resolveRoute
+
 
 Resolves a frozen and active route using a complete route string.
 
@@ -360,7 +414,11 @@ The string must be exactly `label@namespace/routeLabel` (no extra `/` segments).
 function resolveRoute(string route) external view returns (bytes target, uint32 routeType)
 ```
 
+
+
+
 ### isRouteBookClosed
+
 
 Returns whether the route book belonging to an XNS name is closed.
 
@@ -368,7 +426,11 @@ Returns whether the route book belonging to an XNS name is closed.
 function isRouteBookClosed(string label, string namespace) external view returns (bool closed)
 ```
 
+
+
+
 ### isRouteBookClosed
+
 
 Convenience overload accepting a complete XNS name.
 
@@ -380,7 +442,11 @@ Example:
 function isRouteBookClosed(string xnsName) external view returns (bool closed)
 ```
 
+
+
+
 ### getRouteKeyCount
+
 
 Returns the number of routes ever created under an XNS name.
 
@@ -388,7 +454,11 @@ Returns the number of routes ever created under an XNS name.
 function getRouteKeyCount(string label, string namespace) external view returns (uint256 count)
 ```
 
+
+
+
 ### getRouteKeyCount
+
 
 Convenience overload accepting `label@namespace`.
 
@@ -396,7 +466,11 @@ Convenience overload accepting `label@namespace`.
 function getRouteKeyCount(string xnsName) external view returns (uint256 count)
 ```
 
+
+
+
 ### getRouteKeys
+
 
 Returns route keys `[start:end]` for an XNS name.
 
@@ -406,7 +480,11 @@ Returns route keys `[start:end]` for an XNS name.
 function getRouteKeys(string label, string namespace, uint256 start, uint256 end) external view returns (bytes32[] keys)
 ```
 
+
+
+
 ### getRouteKeys
+
 
 Convenience overload accepting `label@namespace`.
 
@@ -414,7 +492,11 @@ Convenience overload accepting `label@namespace`.
 function getRouteKeys(string xnsName, uint256 start, uint256 end) external view returns (bytes32[] keys)
 ```
 
+
+
+
 ### getRouteEntries
+
 
 Returns full route entries `[start:end]` for an XNS name.
 
@@ -422,7 +504,11 @@ Returns full route entries `[start:end]` for an XNS name.
 function getRouteEntries(string label, string namespace, uint256 start, uint256 end) external view returns (struct XNSRoutes.RouteEntry[] entries)
 ```
 
+
+
+
 ### getRouteEntries
+
 
 Convenience overload accepting `label@namespace`.
 
@@ -430,7 +516,11 @@ Convenience overload accepting `label@namespace`.
 function getRouteEntries(string xnsName, uint256 start, uint256 end) external view returns (struct XNSRoutes.RouteEntry[] entries)
 ```
 
+
+
+
 ### splitRoute
+
 
 Parses a complete route string into:
 
@@ -450,7 +540,11 @@ The input must contain exactly one `/` separating the XNS name from the route la
 function splitRoute(string route) external pure returns (string label, string namespace, string routeLabel)
 ```
 
+
+
+
 ### splitXNSName
+
 
 Parses `label@namespace`.
 
@@ -458,7 +552,11 @@ Parses `label@namespace`.
 function splitXNSName(string xnsName) external pure returns (string label, string namespace)
 ```
 
+
+
+
 ### isValidRouteLabel
+
 
 Returns whether a route label satisfies the XNS Routes label rules.
 
@@ -466,9 +564,16 @@ Returns whether a route label satisfies the XNS Routes label rules.
 function isValidRouteLabel(string routeLabel) external pure returns (bool valid)
 ```
 
+
+
+
+
 ## Events
 
 ### RouteCreated
+
+
+
 
 ```solidity
 event RouteCreated(bytes32 xnsNameKey, bytes32 routeKey, bytes32 targetHash, string label, string namespace, string routeLabel, uint32 routeType, bool isActive)
@@ -476,7 +581,13 @@ event RouteCreated(bytes32 xnsNameKey, bytes32 routeKey, bytes32 targetHash, str
 
 _Emitted by `createRoute`._
 
+
+
+
 ### RouteActiveStatusUpdated
+
+
+
 
 ```solidity
 event RouteActiveStatusUpdated(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel, bool isActive)
@@ -484,7 +595,13 @@ event RouteActiveStatusUpdated(bytes32 xnsNameKey, bytes32 routeKey, string labe
 
 _Emitted by `activateRoute` and `deactivateRoute` (only when `isActive` changes)._
 
+
+
+
 ### RouteUpdated
+
+
+
 
 ```solidity
 event RouteUpdated(bytes32 xnsNameKey, bytes32 routeKey, bytes32 targetHash, string label, string namespace, string routeLabel, uint32 routeType)
@@ -492,7 +609,13 @@ event RouteUpdated(bytes32 xnsNameKey, bytes32 routeKey, bytes32 targetHash, str
 
 _Emitted by `updateRoute`._
 
+
+
+
 ### RouteFrozen
+
+
+
 
 ```solidity
 event RouteFrozen(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel)
@@ -500,7 +623,13 @@ event RouteFrozen(bytes32 xnsNameKey, bytes32 routeKey, string label, string nam
 
 _Emitted by `freezeRoute` and `batchFreezeRoutes`._
 
+
+
+
 ### RouteBookClosed
+
+
+
 
 ```solidity
 event RouteBookClosed(bytes32 xnsNameKey, string label, string namespace)
@@ -508,15 +637,27 @@ event RouteBookClosed(bytes32 xnsNameKey, string label, string namespace)
 
 _Emitted by `closeRouteBook`._
 
+
+
+
+
+
+
 ## State Variables
 
 ### XNS
+
 
 XNSv2 registry used for name ownership resolution.
 
 ```solidity
 contract IXNSMinimal XNS
 ```
+
+
+
+
+
 
 ## Types
 
@@ -533,6 +674,11 @@ struct RouteRecord {
 
 Metadata associated with a route.
 
+
+
+
+
+
 ### RouteEntry
 
 ```solidity
@@ -542,3 +688,10 @@ struct RouteEntry {
 ```
 
 Paginated route listing entry.
+
+
+
+
+
+
+

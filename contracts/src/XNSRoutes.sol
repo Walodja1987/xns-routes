@@ -885,7 +885,7 @@ contract XNSRoutes is Ownable2Step {
 
         string memory xnsName = _calldataSubstringToString(b, 0, slashIndex);
 
-        (label, namespace) = _splitXNSNameMemory(xnsName);
+        (label, namespace) = _splitXNSName(xnsName);
 
         uint256 routeStart = slashIndex + 1;
 
@@ -894,37 +894,8 @@ contract XNSRoutes is Ownable2Step {
         routeLabel = _calldataSubstringToString(b, routeStart, len);
     }
 
-    /// @dev Parses `label AT namespace` from calldata.
+    /// @dev Parses `label AT namespace`.
     function _splitXNSName(
-        string calldata xnsName
-    ) private pure returns (string memory label, string memory namespace) {
-        bytes calldata b = bytes(xnsName);
-        uint256 len = b.length;
-
-        require(len > 0, "XNSRoutes: invalid XNS name");
-
-        uint256 atIndex = type(uint256).max;
-
-        for (uint256 i = 0; i < len; ++i) {
-            if (b[i] == 0x40) {
-                require(atIndex == type(uint256).max, "XNSRoutes: invalid XNS name");
-
-                atIndex = i;
-            }
-        }
-
-        require(
-            atIndex != type(uint256).max && atIndex > 0 && atIndex + 1 < len,
-            "XNSRoutes: invalid XNS name"
-        );
-
-        label = _calldataSubstringToString(b, 0, atIndex);
-
-        namespace = _calldataSubstringToString(b, atIndex + 1, len);
-    }
-
-    /// @dev Memory equivalent of `_splitXNSName`.
-    function _splitXNSNameMemory(
         string memory xnsName
     ) private pure returns (string memory label, string memory namespace) {
         bytes memory b = bytes(xnsName);
