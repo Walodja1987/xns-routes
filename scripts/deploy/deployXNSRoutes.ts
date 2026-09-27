@@ -23,7 +23,8 @@
  *
  * The constructor is payable: it forwards `msg.value` to XNS `registerName("routes","xns")` so `routes@xns`
  * resolves to the new registry. The script queries `getNamespacePrice("xns")` on the XNS contract and
- * uses that as the deployment transaction value (excess is refunded by XNS).
+ * uses that as the deployment transaction value. The value must equal the price exactly: XNS refunds any
+ * excess to the caller, and XNSRoutes has no `receive()` function, so an overpayment reverts the deployment.
  */
 
 import { vars } from "hardhat/config";
