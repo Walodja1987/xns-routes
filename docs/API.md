@@ -393,6 +393,8 @@ function getRouteKey(string route) external pure returns (bytes32 routeKey)
 
 Resolves a frozen and active route using separate XNS components.
 
+Reverts if the route does not exist, is not frozen, or is inactive.
+
 ```solidity
 function resolveRoute(string label, string namespace, string routeLabel) external view returns (bytes target, uint32 routeType)
 ```
@@ -410,6 +412,8 @@ Example:
     resolveRoute("alice@pay/treasury")
 
 The string must be exactly `label@namespace/routeLabel` (no extra `/` segments).
+Reverts if the route string is malformed, or if the route does not exist, is not frozen,
+or is inactive.
 
 ```solidity
 function resolveRoute(string route) external view returns (bytes target, uint32 routeType)

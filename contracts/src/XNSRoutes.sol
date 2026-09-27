@@ -622,6 +622,8 @@ contract XNSRoutes is Ownable2Step {
     // -------------------------------------------------------------------------
 
     /// @notice Resolves a frozen and active route using separate XNS components.
+    ///
+    /// Reverts if the route does not exist, is not frozen, or is inactive.
     function resolveRoute(
         string calldata label,
         string calldata namespace,
@@ -637,6 +639,8 @@ contract XNSRoutes is Ownable2Step {
     ///     resolveRoute("alice AT pay/treasury")
     ///
     /// The string must be exactly `label AT namespace/routeLabel` (no extra `/` segments).
+    /// Reverts if the route string is malformed, or if the route does not exist, is not frozen,
+    /// or is inactive.
     function resolveRoute(
         string calldata route
     ) external view returns (bytes memory target, uint32 routeType) {
