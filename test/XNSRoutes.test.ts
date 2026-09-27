@@ -33,7 +33,7 @@ describe("XNSRoutes", function () {
     routeFrozen: "XNSRoutes: route frozen",
     routeAlreadyExists: "XNSRoutes: route already exists",
     invalidRoute: "XNSRoutes: invalid route",
-    invalidRouteKeySlice: "XNSRoutes: invalid route key slice",
+    invalidSlice: "XNSRoutes: invalid slice",
   } as const;
 
   function formatRoute(label: string, namespace: string, routeLabel: string): string {
@@ -1181,7 +1181,7 @@ describe("XNSRoutes", function () {
       expect(mid[0].record.routeLabel).to.equal("other-route");
 
       await expect(getRouteEntriesTuple(routes, LABEL, NAMESPACE, 1, 0)).to.be.revertedWith(
-        XR.invalidRouteKeySlice,
+        XR.invalidSlice,
       );
 
       const pastRange = await getRouteEntriesTuple(routes, LABEL, NAMESPACE, 2, 3);
@@ -1193,7 +1193,7 @@ describe("XNSRoutes", function () {
       await routes.connect(owner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0);
 
       await expect(getRouteKeysTuple(routes, LABEL, NAMESPACE, 1, 0)).to.be.revertedWith(
-        XR.invalidRouteKeySlice,
+        XR.invalidSlice,
       );
 
       const pastRange = await getRouteKeysTuple(routes, LABEL, NAMESPACE, 2, 3);

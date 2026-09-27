@@ -917,7 +917,7 @@ contract XNSRoutes is Ownable2Step {
         uint256 start,
         uint256 end
     ) private view returns (bytes32[] memory keys) {
-        require(start <= end, "XNSRoutes: invalid route key slice");
+        require(start <= end, "XNSRoutes: invalid slice");
 
         uint256 len = arr.length;
         uint256 adjustedEnd = end > len ? len : end;

@@ -210,7 +210,7 @@
 
 #### Reverts
 
-- `"XNSRoutes: invalid route key slice"` when `start > end`.
+- `"XNSRoutes: invalid slice"` when `start > end`.
 
 ---
 
