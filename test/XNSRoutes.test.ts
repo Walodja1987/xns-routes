@@ -131,11 +131,6 @@ describe("XNSRoutes", function () {
     return [r.target, r.routeType, r.isActive] as const;
   }
 
-  /** True when `target` is a non-empty bytes payload (route exists). */
-  function isLiveTarget(target: string): boolean {
-    return ethers.getBytes(target).length > 0;
-  }
-
   /** 20-byte EVM-address payload as hex (ABI `bytes`). */
   function addressTarget(addr: string): string {
     return ethers.hexlify(ethers.getBytes(addr));
@@ -255,9 +250,6 @@ describe("XNSRoutes", function () {
           RT0,
         );
 
-      expect(
-        isLiveTarget((await routes.getRouteRecord(LABEL, NAMESPACE, ROUTE_LABEL)).target),
-      ).to.equal(true);
       const record = await routes.getRouteRecord(LABEL, NAMESPACE, ROUTE_LABEL);
       expect(record.target).to.equal(buildTarget);
       expect(record.isActive).to.equal(true);
@@ -795,7 +787,6 @@ describe("XNSRoutes", function () {
       const { routes } = await loadFixture(deployFixture);
 
       const record = await routes.getRouteRecord(LABEL, NAMESPACE, ROUTE_LABEL);
-      expect(isLiveTarget(record.target)).to.equal(false);
       expect(record.target).to.equal(EMPTY_TARGET);
     });
 
