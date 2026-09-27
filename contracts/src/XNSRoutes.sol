@@ -957,8 +957,8 @@ contract XNSRoutes is Ownable2Step {
     /// - [a-z0-9-] only.
     /// - No leading/trailing '-'.
     /// - No consecutive '--'.
-    function _isValidRouteLabel(string memory routeLabel) private pure returns (bool isValid) {
-        bytes memory b = bytes(routeLabel);
+    function _isValidRouteLabel(string calldata routeLabel) private pure returns (bool isValid) {
+        bytes calldata b = bytes(routeLabel);
         uint256 len = b.length;
 
         if (len == 0 || len > 32) {
