@@ -481,7 +481,8 @@ function getRouteKeyCount(string xnsName) external view returns (uint256 count)
 
 Returns route keys `[start:end]` for an XNS name.
 
-`end` is exclusive and is clamped to the array length.
+`end` is exclusive and is clamped to the array length. Returns an empty array if
+`start` is at or beyond the clamped `end`. Reverts if `start > end`.
 
 ```solidity
 function getRouteKeys(string label, string namespace, uint256 start, uint256 end) external view returns (bytes32[] keys)
@@ -495,6 +496,8 @@ function getRouteKeys(string label, string namespace, uint256 start, uint256 end
 
 Convenience overload accepting `label@namespace`.
 
+Same pagination rules as `getRouteKeys(label, namespace, start, end)`.
+
 ```solidity
 function getRouteKeys(string xnsName, uint256 start, uint256 end) external view returns (bytes32[] keys)
 ```
@@ -507,6 +510,8 @@ function getRouteKeys(string xnsName, uint256 start, uint256 end) external view 
 
 Returns full route entries `[start:end]` for an XNS name.
 
+Same pagination rules as `getRouteKeys(label, namespace, start, end)`.
+
 ```solidity
 function getRouteEntries(string label, string namespace, uint256 start, uint256 end) external view returns (struct XNSRoutes.RouteEntry[] entries)
 ```
@@ -518,6 +523,8 @@ function getRouteEntries(string label, string namespace, uint256 start, uint256 
 
 
 Convenience overload accepting `label@namespace`.
+
+Same pagination rules as `getRouteKeys(label, namespace, start, end)`.
 
 ```solidity
 function getRouteEntries(string xnsName, uint256 start, uint256 end) external view returns (struct XNSRoutes.RouteEntry[] entries)

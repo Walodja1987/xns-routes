@@ -708,7 +708,8 @@ contract XNSRoutes is Ownable2Step {
 
     /// @notice Returns route keys `[start:end]` for an XNS name.
     ///
-    /// `end` is exclusive and is clamped to the array length.
+    /// `end` is exclusive and is clamped to the array length. Returns an empty array if
+    /// `start` is at or beyond the clamped `end`. Reverts if `start > end`.
     function getRouteKeys(
         string calldata label,
         string calldata namespace,
@@ -719,6 +720,8 @@ contract XNSRoutes is Ownable2Step {
     }
 
     /// @notice Convenience overload accepting `label AT namespace`.
+    ///
+    /// Same pagination rules as `getRouteKeys(label, namespace, start, end)`.
     function getRouteKeys(
         string calldata xnsName,
         uint256 start,
@@ -730,6 +733,8 @@ contract XNSRoutes is Ownable2Step {
     }
 
     /// @notice Returns full route entries `[start:end]` for an XNS name.
+    ///
+    /// Same pagination rules as `getRouteKeys(label, namespace, start, end)`.
     function getRouteEntries(
         string calldata label,
         string calldata namespace,
@@ -740,6 +745,8 @@ contract XNSRoutes is Ownable2Step {
     }
 
     /// @notice Convenience overload accepting `label AT namespace`.
+    ///
+    /// Same pagination rules as `getRouteKeys(label, namespace, start, end)`.
     function getRouteEntries(
         string calldata xnsName,
         uint256 start,

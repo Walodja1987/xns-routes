@@ -91,7 +91,7 @@ const config: HardhatUserConfig = {
         runs: 999_999,
       },
       viaIR: true,
-      evmVersion: "cancun", // Prevent using the `PUSH0` and `cancun` opcodes
+      evmVersion: "cancun", // Enables `PUSH0` and Cancun opcodes (e.g. `MCOPY`); target chains must support Cancun
     },
   },
   zksolc: {
