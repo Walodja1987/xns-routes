@@ -868,8 +868,6 @@ contract XNSRoutes is Ownable2Step {
         bytes calldata b = bytes(route);
         uint256 len = b.length;
 
-        require(len > 0, "XNSRoutes: invalid route");
-
         uint256 slashIndex = type(uint256).max;
 
         for (uint256 i = 0; i < len; ++i) {
@@ -897,8 +895,6 @@ contract XNSRoutes is Ownable2Step {
     ) private pure returns (string memory label, string memory namespace) {
         bytes memory b = bytes(xnsName);
         uint256 len = b.length;
-
-        require(len > 0, "XNSRoutes: invalid XNS name");
 
         uint256 atIndex = type(uint256).max;
 
