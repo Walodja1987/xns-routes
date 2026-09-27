@@ -117,7 +117,7 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 /// - Forward: `resolveRoute` returns the `target` only when the route is frozen and active.
 ///   Integrations that need mutable or inactive routes can inspect `getRouteRecord` directly.
 /// - XNS name key: `keccak256(abi.encodePacked(label, " AT ", namespace))`.
-/// - Route key: `keccak256` of `label`, the at-sign, `namespace`, `/`, `routeLabel`
+/// - Route key: `keccak256(abi.encodePacked(label, " AT ", namespace, "/", routeLabel))`
 ///   (the hash of the canonical route string `label AT namespace/routeLabel`).
 ///   Unambiguous because XNSv2 forbids the at-sign and `/` in `label` and `namespace`,
 ///   and a route label cannot contain `/`. See `_routeKey`.
@@ -257,7 +257,7 @@ contract XNSRoutes is Ownable2Step {
     ///
     ///     alice AT pay/treasury
     ///
-    /// Requirements:
+    /// **Requirements:**
     /// - `msg.sender` must own `label AT namespace`.
     /// - `routeLabel` must be valid.
     /// - `target` must be non-empty.
@@ -495,7 +495,8 @@ contract XNSRoutes is Ownable2Step {
     /// Existing routes are unchanged: they are not frozen, and `isActive` remains
     /// controllable by the XNS name owner.
     ///
-    /// Requires `msg.sender` to own `label AT namespace`.
+    /// **Requirements:**
+    /// - `msg.sender` must own `label AT namespace`.
     ///
     /// Emits `RouteBookClosed` only if the route book was not already closed.
     function closeRouteBook(string calldata label, string calldata namespace) external {
@@ -662,7 +663,7 @@ contract XNSRoutes is Ownable2Step {
     }
 
     // -------------------------------------------------------------------------
-    // Route-book metadata
+    // Route book and route list
     // -------------------------------------------------------------------------
 
     /// @notice Returns whether the route book belonging to an XNS name is closed.
@@ -809,7 +810,7 @@ contract XNSRoutes is Ownable2Step {
     }
 
     // =========================================================================
-    // INTERNAL PURE HELPERS
+    // INTERNAL HELPERS
     // =========================================================================
 
     /// @dev Returns the same canonical name hash used by XNSv2:
@@ -822,9 +823,10 @@ contract XNSRoutes is Ownable2Step {
         return keccak256(abi.encodePacked(label, "@", namespace));
     }
 
-    /// @dev Canonical route key: hash of `label AT namespace/routeLabel`.
+    /// @dev Canonical route key: hash of `label AT namespace/routeLabel`:
     ///
-    /// `abi.encodePacked` of label, the at-sign, namespace, `/`, and routeLabel.
+    ///     keccak256(abi.encodePacked(label, " AT ", namespace, "/", routeLabel))
+    ///
     /// Unambiguous because XNSv2 forbids the at-sign and `/` in `label` and
     /// `namespace`, and a route label cannot contain `/`.
     function _routeKey(

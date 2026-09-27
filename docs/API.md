@@ -104,7 +104,7 @@ No reverse lookup is provided because multiple routes may point to the same targ
 - Forward: `resolveRoute` returns the `target` only when the route is frozen and active.
   Integrations that need mutable or inactive routes can inspect `getRouteRecord` directly.
 - XNS name key: `keccak256(abi.encodePacked(label, "@", namespace))`.
-- Route key: `keccak256` of `label`, the at-sign, `namespace`, `/`, `routeLabel`
+- Route key: `keccak256(abi.encodePacked(label, "@", namespace, "/", routeLabel))`
   (the hash of the canonical route string `label@namespace/routeLabel`).
   Unambiguous because XNSv2 forbids the at-sign and `/` in `label` and `namespace`,
   and a route label cannot contain `/`. See `_routeKey`.
@@ -130,7 +130,7 @@ creates:
 
     alice@pay/treasury
 
-Requirements:
+**Requirements:**
 - `msg.sender` must own `label@namespace`.
 - `routeLabel` must be valid.
 - `target` must be non-empty.
@@ -256,7 +256,8 @@ After closing, no additional routes may be created under that name.
 Existing routes are unchanged: they are not frozen, and `isActive` remains
 controllable by the XNS name owner.
 
-Requires `msg.sender` to own `label@namespace`.
+**Requirements:**
+- `msg.sender` must own `label@namespace`.
 
 Emits `RouteBookClosed` only if the route book was not already closed.
 
