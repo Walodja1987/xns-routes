@@ -125,12 +125,6 @@ describe("XNSRoutes", function () {
     return routes["resolveRoute(string)"](route);
   }
 
-  /** `getRouteRecord(routeKey)` returns a struct; destructure as tuple in tests. */
-  async function getRouteRecordSingle(routes: XNSRoutes, routeKey: string) {
-    const r = await getRouteRecordByKey(routes, routeKey);
-    return [r.target, r.routeType, r.isActive] as const;
-  }
-
   /** 20-byte EVM-address payload as hex (ABI `bytes`). */
   function addressTarget(addr: string): string {
     return ethers.hexlify(ethers.getBytes(addr));
@@ -1069,10 +1063,12 @@ describe("XNSRoutes", function () {
       expect(keys.length).to.equal(1);
       expect(keys[0]).to.equal(rk);
 
-      const [target, routeType, isActive] = await getRouteRecordSingle(routes, rk);
-      expect(target).to.equal(buildTarget);
-      expect(routeType).to.equal(RT0);
-      expect(isActive).to.equal(true);
+      const record = await getRouteRecordByKey(routes, rk);
+      expect(record.target).to.equal(buildTarget);
+      expect(record.routeType).to.equal(RT0);
+      expect(record.isActive).to.equal(true);
+      expect(record.isFrozen).to.equal(false);
+      expect(record.routeLabel).to.equal(ROUTE_LABEL);
     });
 
     it("Should not add a key when createRoute reverts with RouteAlreadyExists", async function () {
