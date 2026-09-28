@@ -148,14 +148,14 @@
 
 - `resolveRoute` returns `(target, routeType)` only when the route is frozen and active.
 - Callers that need mutable or inactive routes can inspect `getRouteRecord`.
-- String overloads require exactly `label@namespace/routeLabel`; apps must strip `?...` query parameters before calling.
+- String overloads split at the first `@` and first `/` without validating components; apps must strip `?...` query parameters before calling. Strings with extra `/` segments or `@` characters match no route.
 
 #### Reverts
 
 - `"XNSRoutes: route not found"` when route does not exist.
 - `"XNSRoutes: route not frozen"` when `isFrozen == false`.
 - `"XNSRoutes: route inactive"` when `isActive == false`.
-- `"XNSRoutes: invalid route"` for malformed route strings (including extra `/` segments).
+- `"XNSRoutes: invalid route"` / `"XNSRoutes: invalid XNS name"` when the route string cannot be split (missing delimiter or empty component).
 
 ---
 
@@ -164,12 +164,13 @@
 #### Functionality
 
 - `splitRoute` parses `label@namespace/routeLabel` into `(label, namespace, routeLabel)`.
-- Exactly one `/` is allowed; extra path segments are rejected. Strip `?...` query parameters before calling.
-- `splitXNSName` parses `label@namespace` into components.
+- Splits at the first `/`; extra path segments stay in `routeLabel` (e.g. `alice@eth/pay/extra` → `("alice", "eth", "pay/extra")`). Strip `?...` query parameters before calling.
+- `splitXNSName` parses `label@namespace` into components, splitting at the first `@` (e.g. `a@b@c` → `("a", "b@c")`).
+- Components are not validated; invalid components simply match no route.
 
 #### Reverts
 
-- `"XNSRoutes: invalid route"` / `"XNSRoutes: invalid XNS name"` for malformed input.
+- `"XNSRoutes: invalid route"` / `"XNSRoutes: invalid XNS name"` when a delimiter is missing or a component is empty.
 
 ---
 
@@ -178,11 +179,11 @@
 #### Functionality
 
 - `getXNSNameKey(label, namespace)` returns `keccak256(abi.encodePacked(label, "@", namespace))`.
-- `getXNSNameKey(xnsName)` parses an exact `label@namespace` string and returns the same key.
+- `getXNSNameKey(xnsName)` splits the string at the first `@` and returns the same key.
 
 #### Reverts
 
-- `"XNSRoutes: invalid XNS name"` for the string overload when the XNS name is malformed.
+- `"XNSRoutes: invalid XNS name"` for the string overload when the `@` is missing or a component is empty.
 
 ---
 
@@ -191,11 +192,11 @@
 #### Functionality
 
 - `getRouteKey(label, namespace, routeLabel)` returns `keccak256(abi.encodePacked(label, "@", namespace, "/", routeLabel))`.
-- `getRouteKey(route)` parses an exact `label@namespace/routeLabel` string and returns the same key.
+- `getRouteKey(route)` splits the string like `splitRoute` and returns the same key (for any splittable string, the key equals `keccak256` of the string).
 
 #### Reverts
 
-- `"XNSRoutes: invalid route"` for the string overload when the route string is malformed.
+- `"XNSRoutes: invalid route"` / `"XNSRoutes: invalid XNS name"` for the string overload when a delimiter is missing or a component is empty.
 
 ---
 

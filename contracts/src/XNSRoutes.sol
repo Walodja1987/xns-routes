@@ -46,7 +46,7 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 ///
 /// Application-layer parameters use URL query syntax (e.g. `?amount=10&to=0x…`) and are
 /// not part of the on-chain route format. Callers must strip any `?...` suffix before using
-/// string-based helpers. Path-style `/key=value` suffixes are invalid (exactly one `/` is allowed).
+/// string-based helpers.
 ///
 /// ### Route record
 ///
@@ -559,7 +559,8 @@ contract XNSRoutes is Ownable2Step {
     ///
     ///     alice AT pay/treasury
     ///
-    /// The string must be exactly `label AT namespace/routeLabel` (no extra `/` segments).
+    /// Parsed like `splitRoute` (no component validation). Returns an empty record if no
+    /// route matches.
     function getRouteRecord(
         string calldata route
     ) external view returns (RouteRecord memory record) {
@@ -586,7 +587,7 @@ contract XNSRoutes is Ownable2Step {
 
     /// @notice Returns the canonical XNS name key for a complete XNS name.
     ///
-    /// The string must be exactly `label AT namespace`.
+    /// Parsed like `splitXNSName` (no component validation).
     function getXNSNameKey(string calldata xnsName) external pure returns (bytes32 xnsNameKey) {
         (string memory label, string memory namespace) = _splitXNSName(xnsName);
 
@@ -610,7 +611,8 @@ contract XNSRoutes is Ownable2Step {
     ///
     ///     getRouteKey("alice AT pay/treasury")
     ///
-    /// The string must be exactly `label AT namespace/routeLabel` (no extra `/` segments).
+    /// Parsed like `splitRoute` (no component validation), so an invalid route string still
+    /// yields a key; no created route can have it.
     function getRouteKey(string calldata route) external pure returns (bytes32 routeKey) {
         (string memory label, string memory namespace, string memory routeLabel) = _splitRoute(
             route
@@ -640,8 +642,8 @@ contract XNSRoutes is Ownable2Step {
     ///
     ///     resolveRoute("alice AT pay/treasury")
     ///
-    /// The string must be exactly `label AT namespace/routeLabel` (no extra `/` segments).
-    /// Reverts if the route string is malformed, or if the route does not exist, is not frozen,
+    /// Parsed like `splitRoute` (no component validation). Reverts if the string cannot be split
+    /// (missing delimiter or empty component), or if the route does not exist, is not frozen,
     /// or is inactive.
     function resolveRoute(
         string calldata route
@@ -795,7 +797,9 @@ contract XNSRoutes is Ownable2Step {
     ///
     ///     ("alice", "pay", "treasury")
     ///
-    /// The input must contain exactly one `/` separating the XNS name from the route label.
+    /// Splits at the first `/` and the first at-sign before it. Components are not validated:
+    /// for example, `alice AT pay/foo/bar` becomes `("alice", "pay", "foo/bar")`.
+    /// Reverts only if a delimiter is missing or a component is empty.
     function splitRoute(
         string calldata route
     )
@@ -807,6 +811,9 @@ contract XNSRoutes is Ownable2Step {
     }
 
     /// @notice Parses `label AT namespace`.
+    ///
+    /// Splits at the first at-sign. Components are not validated.
+    /// Reverts only if the at-sign is missing or a component is empty.
     function splitXNSName(
         string calldata xnsName
     ) external pure returns (string memory label, string memory namespace) {
@@ -854,8 +861,9 @@ contract XNSRoutes is Ownable2Step {
     ///
     ///     label AT namespace/routeLabel
     ///
-    /// Exactly one `/` is allowed. Query-string params (`?...`) are not stripped; callers must
-    /// remove them before calling. Extra `/` segments revert.
+    /// Splits at the first `/`; everything after it becomes `routeLabel`. Components are not
+    /// validated. Query-string params (`?...`) are not stripped; callers must remove them
+    /// before calling.
     function _splitRoute(
         string calldata route
     )
@@ -870,8 +878,8 @@ contract XNSRoutes is Ownable2Step {
 
         for (uint256 i = 0; i < len; ++i) {
             if (b[i] == 0x2F) {
-                require(slashIndex == type(uint256).max, "XNSRoutes: invalid route");
                 slashIndex = i;
+                break;
             }
         }
 
@@ -887,7 +895,7 @@ contract XNSRoutes is Ownable2Step {
         routeLabel = string(b[routeStart:]);
     }
 
-    /// @dev Parses `label AT namespace`.
+    /// @dev Parses `label AT namespace`, splitting at the first at-sign. Components are not validated.
     function _splitXNSName(
         string memory xnsName
     ) private pure returns (string memory label, string memory namespace) {
@@ -898,9 +906,8 @@ contract XNSRoutes is Ownable2Step {
 
         for (uint256 i = 0; i < len; ++i) {
             if (b[i] == 0x40) {
-                require(atIndex == type(uint256).max, "XNSRoutes: invalid XNS name");
-
                 atIndex = i;
+                break;
             }
         }
 

@@ -33,7 +33,9 @@ The route label must:
 
 Application-layer parameters use URL query syntax (e.g. `?amount=10&to=0x…`) and are
 not part of the on-chain route format. Callers must strip any `?...` suffix before using
-string-based helpers. Path-style `/key=value` suffixes are invalid (exactly one `/` is allowed).
+string-based helpers. These helpers only split the input (at the first at-sign and the first
+`/`) and do not validate the components; anything invalid, such as path-style `/key=value`
+suffixes, simply matches no route.
 
 ### Route record
 
@@ -321,7 +323,8 @@ Example:
 
     alice@pay/treasury
 
-The string must be exactly `label@namespace/routeLabel` (no extra `/` segments).
+Parsed like `splitRoute` (no component validation). Returns an empty record if no
+route matches.
 
 ```solidity
 function getRouteRecord(string route) external view returns (struct XNSRoutes.RouteRecord record)
@@ -349,7 +352,7 @@ function getXNSNameKey(string label, string namespace) external pure returns (by
 
 Returns the canonical XNS name key for a complete XNS name.
 
-The string must be exactly `label@namespace`.
+Parsed like `splitXNSName` (no component validation).
 
 ```solidity
 function getXNSNameKey(string xnsName) external pure returns (bytes32 xnsNameKey)
@@ -381,7 +384,8 @@ Example:
 
     getRouteKey("alice@pay/treasury")
 
-The string must be exactly `label@namespace/routeLabel` (no extra `/` segments).
+Parsed like `splitRoute` (no component validation), so an invalid route string still
+yields a key; no created route can have it.
 
 ```solidity
 function getRouteKey(string route) external pure returns (bytes32 routeKey)
@@ -413,8 +417,8 @@ Example:
 
     resolveRoute("alice@pay/treasury")
 
-The string must be exactly `label@namespace/routeLabel` (no extra `/` segments).
-Reverts if the route string is malformed, or if the route does not exist, is not frozen,
+Parsed like `splitRoute` (no component validation). Reverts if the string cannot be split
+(missing delimiter or empty component), or if the route does not exist, is not frozen,
 or is inactive.
 
 ```solidity
@@ -548,7 +552,9 @@ becomes:
 
     ("alice", "pay", "treasury")
 
-The input must contain exactly one `/` separating the XNS name from the route label.
+Splits at the first `/` and the first at-sign before it. Components are not validated:
+for example, `alice@pay/foo/bar` becomes `("alice", "pay", "foo/bar")`.
+Reverts only if a delimiter is missing or a component is empty.
 
 ```solidity
 function splitRoute(string route) external pure returns (string label, string namespace, string routeLabel)
@@ -561,6 +567,9 @@ function splitRoute(string route) external pure returns (string label, string na
 
 
 Parses `label@namespace`.
+
+Splits at the first at-sign. Components are not validated.
+Reverts only if the at-sign is missing or a component is empty.
 
 ```solidity
 function splitXNSName(string xnsName) external pure returns (string label, string namespace)

@@ -858,13 +858,13 @@ describe("XNSRoutes", function () {
       );
     });
 
-    it("Should reject extra path segments", async function () {
+    it("Should not match any route when extra path segments are present", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);
       await routes.connect(owner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0);
       await routes.connect(owner).freezeRoute(LABEL, NAMESPACE, ROUTE_LABEL);
 
       const extraPath = `${formatRoute(LABEL, NAMESPACE, ROUTE_LABEL)}/extra/path`;
-      await expect(resolveRouteByRoute(routes, extraPath)).to.be.revertedWith(XR.invalidRoute);
+      await expect(resolveRouteByRoute(routes, extraPath)).to.be.revertedWith(XR.routeNotFound);
     });
 
     it("Should not strip query parameters automatically", async function () {
@@ -906,11 +906,24 @@ describe("XNSRoutes", function () {
       expect(routeLabel).to.equal(ROUTE_LABEL);
     });
 
-    it("Should revert when extra path segments are present", async function () {
+    it("Should split at the first slash and keep extra segments in the route label", async function () {
       const { routes } = await loadFixture(deployFixture);
-      await expect(
-        routes.splitRoute(`${formatRoute(LABEL, NAMESPACE, ROUTE_LABEL)}/extra/path`),
-      ).to.be.revertedWith(XR.invalidRoute);
+      const [label, namespace, routeLabel] = await routes.splitRoute(
+        `${formatRoute(LABEL, NAMESPACE, ROUTE_LABEL)}/extra/path`,
+      );
+      expect(label).to.equal(LABEL);
+      expect(namespace).to.equal(NAMESPACE);
+      expect(routeLabel).to.equal(`${ROUTE_LABEL}/extra/path`);
+    });
+
+    it("Should split at the first @ and keep extra @ in the namespace", async function () {
+      const { routes } = await loadFixture(deployFixture);
+      const [label, namespace, routeLabel] = await routes.splitRoute(
+        `${LABEL}@${NAMESPACE}@extra/${ROUTE_LABEL}`,
+      );
+      expect(label).to.equal(LABEL);
+      expect(namespace).to.equal(`${NAMESPACE}@extra`);
+      expect(routeLabel).to.equal(ROUTE_LABEL);
     });
 
     it("Should revert when no slash is present", async function () {
@@ -923,7 +936,6 @@ describe("XNSRoutes", function () {
       [`/${ROUTE_LABEL}`, XR.invalidRoute],
       [`${XNS_NAME}/`, XR.invalidRoute],
       [`${LABEL}${NAMESPACE}/${ROUTE_LABEL}`, XR.invalidXnsName],
-      [`${LABEL}@${NAMESPACE}@extra/${ROUTE_LABEL}`, XR.invalidXnsName],
     ];
 
     for (const [input, error] of invalidRoutes) {
@@ -972,9 +984,11 @@ describe("XNSRoutes", function () {
       await expect(routes.splitXNSName("")).to.be.revertedWith(XR.invalidXnsName);
     });
 
-    it("Should revert when @ appears more than once", async function () {
+    it("Should split at the first @ when @ appears more than once", async function () {
       const { routes } = await loadFixture(deployFixture);
-      await expect(routes.splitXNSName("a@b@c")).to.be.revertedWith(XR.invalidXnsName);
+      const [label, namespace] = await routes.splitXNSName("a@b@c");
+      expect(label).to.equal("a");
+      expect(namespace).to.equal("b@c");
     });
   });
 
@@ -1003,11 +1017,13 @@ describe("XNSRoutes", function () {
       expect(fromString).to.equal(fromTuple);
     });
 
-    it("Should revert the string overload when an extra path segment is present", async function () {
+    it("Should hash the full string when an extra path segment is present", async function () {
       const { routes } = await loadFixture(deployFixture);
       const extraPath = `${formatRoute(LABEL, NAMESPACE, ROUTE_LABEL)}/extra`;
 
-      await expect(routes["getRouteKey(string)"](extraPath)).to.be.revertedWith(XR.invalidRoute);
+      expect(await routes["getRouteKey(string)"](extraPath)).to.equal(
+        routeStorageKey(LABEL, NAMESPACE, `${ROUTE_LABEL}/extra`),
+      );
     });
   });
 
