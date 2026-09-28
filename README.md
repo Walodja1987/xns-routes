@@ -303,10 +303,10 @@ Generated contract documentation (NatSpec / solidity-docgen): [docs/API.md](docs
 
 ## 📍 Contract addresses
 
-| Network  | XNS Routes       |
-| -------- | ---------------- |
-| Ethereum | Not yet deployed |
-| Sepolia  | Not yet deployed |
+| Network  | XNS Routes                                                                                                                      | XNS name     |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| Ethereum | [`0xc4bfF5E4c961048b5fca038A93b6E7b43219A9a8`](https://etherscan.io/address/0xc4bfF5E4c961048b5fca038A93b6E7b43219A9a8)         | `routes@xns` |
+| Sepolia  | [`0xc4bfF5E4c961048b5fca038A93b6E7b43219A9a8`](https://sepolia.etherscan.io/address/0xc4bfF5E4c961048b5fca038A93b6E7b43219A9a8) | `routes@xns`            |
 
 ---
 

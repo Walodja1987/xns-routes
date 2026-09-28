@@ -6,8 +6,6 @@ export const XNS_ADDRESS: Record<string, string> = {
 
 // XNSRoutes contract addresses by network (see scripts/deploy/deployXNSRoutes.ts)
 export const XNS_ROUTES_ADDRESS: Record<string, string> = {
-  hardhat: "",
-  localhost: "",
-  ethMain: "",
-  sepolia: "",
+  ethMain: "0xc4bfF5E4c961048b5fca038A93b6E7b43219A9a8",
+  sepolia: "0xc4bfF5E4c961048b5fca038A93b6E7b43219A9a8",
 };
