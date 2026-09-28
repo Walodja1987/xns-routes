@@ -931,9 +931,9 @@ contract XNSRoutes is Ownable2Step {
 
     /// @dev Parses `label AT namespace`, splitting at the first at-sign. Components are not validated.
     function _splitXNSName(
-        string memory xnsName
+        string calldata xnsName
     ) private pure returns (string memory label, string memory namespace) {
-        bytes memory b = bytes(xnsName);
+        bytes calldata b = bytes(xnsName);
         uint256 len = b.length;
 
         uint256 atIndex = type(uint256).max;
@@ -950,21 +950,8 @@ contract XNSRoutes is Ownable2Step {
             "XNSRoutes: invalid XNS name"
         );
 
-        bytes memory labelBytes = new bytes(atIndex);
-
-        for (uint256 i = 0; i < atIndex; ++i) {
-            labelBytes[i] = b[i];
-        }
-
-        uint256 namespaceLength = len - atIndex - 1;
-        bytes memory namespaceBytes = new bytes(namespaceLength);
-
-        for (uint256 i = 0; i < namespaceLength; ++i) {
-            namespaceBytes[i] = b[atIndex + 1 + i];
-        }
-
-        label = string(labelBytes);
-        namespace = string(namespaceBytes);
+        label = string(b[:atIndex]);
+        namespace = string(b[atIndex + 1:]);
     }
 
     /// @dev Returns `arr[start:end]`, with `end` clamped to array length.
