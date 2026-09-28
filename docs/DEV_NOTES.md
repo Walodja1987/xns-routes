@@ -76,6 +76,7 @@ npx hardhat run scripts/examples/<script_name>.ts --network <network_name>
 ### XNSRoutes (write — caller must be XNS-resolved owner of `xnsName`)
 
 - [createRoute.ts](../scripts/examples/createRoute.ts)
+- [createRouteAndFreeze.ts](../scripts/examples/createRouteAndFreeze.ts) — creates and freezes in one transaction (irreversible)
 - [updateRoute.ts](../scripts/examples/updateRoute.ts)
 - [activateRoute.ts](../scripts/examples/activateRoute.ts)
 - [deactivateRoute.ts](../scripts/examples/deactivateRoute.ts)
