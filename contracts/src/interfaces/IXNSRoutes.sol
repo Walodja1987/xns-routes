@@ -80,6 +80,14 @@ interface IXNSRoutes {
         uint32 routeType
     ) external;
 
+    function createRouteAndFreeze(
+        string calldata label,
+        string calldata namespace,
+        string calldata routeLabel,
+        bytes calldata target,
+        uint32 routeType
+    ) external;
+
     function activateRoute(
         string calldata label,
         string calldata namespace,

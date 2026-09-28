@@ -13,6 +13,7 @@
   "function closeRouteBook(string,string)",
   "function closeRouteBook(string)",
   "function createRoute(string,string,string,bytes,uint32)",
+  "function createRouteAndFreeze(string,string,string,bytes,uint32)",
   "function deactivateRoute(string,string,string)",
   "function freezeRoute(string,string,string)",
   "function getRouteEntries(string,string,uint256,uint256) view returns (tuple(bytes32,tuple(bytes,uint32,bool,bool,string))[])",

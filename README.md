@@ -129,6 +129,8 @@ await routes.freezeRoute("alice", "eth", "treasury");
 
 Only frozen routes are returned by `resolveRoute`. This gives applications a guarantee that the endpoint cannot be swapped after they start relying on it. See [Permanence controls](#-permanence-controls) for details.
 
+If the endpoint is already final at creation, `createRouteAndFreeze` (same arguments as `createRoute`) creates and freezes the route in one transaction. Double-check the `target` and `routeType` first: a frozen route can never be corrected or removed, only deactivated.
+
 ---
 
 ### 3. Resolve a Route
@@ -251,6 +253,7 @@ Only the owner of the XNS name can call these.
 | Function                                                             | Description                                          |
 | -------------------------------------------------------------------- | ---------------------------------------------------- |
 | `createRoute(label, namespace, routeLabel, target, routeType)`       | Register a new route (starts active, unfrozen)       |
+| `createRouteAndFreeze(...)` (same arguments as `createRoute`)        | Register a new route that is frozen from the start   |
 | `updateRoute(label, namespace, routeLabel, newTarget, newRouteType)` | Change `target` / `routeType` while not frozen       |
 | `activateRoute` / `deactivateRoute`                                  | Toggle `isActive`                                    |
 | `freezeRoute(label, namespace, routeLabel)`                          | Permanently lock that route's `target` / `routeType` |

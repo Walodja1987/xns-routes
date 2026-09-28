@@ -338,6 +338,130 @@ describe("XNSRoutes", function () {
     });
   });
 
+  describe("createRouteAndFreeze", function () {
+    it("Should create an active, frozen route and emit RouteCreated then RouteFrozen", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      const nameKey = xnsNameKey(LABEL, NAMESPACE);
+      const routeKey = routeStorageKey(LABEL, NAMESPACE, ROUTE_LABEL);
+
+      const tx = routes
+        .connect(owner)
+        .createRouteAndFreeze(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0);
+      await expect(tx)
+        .to.emit(routes, "RouteCreated")
+        .withArgs(nameKey, routeKey, hashTarget(buildTarget), LABEL, NAMESPACE, ROUTE_LABEL, RT0);
+      await expect(tx)
+        .to.emit(routes, "RouteFrozen")
+        .withArgs(nameKey, routeKey, LABEL, NAMESPACE, ROUTE_LABEL);
+
+      const receipt = await (await tx).wait();
+      const eventNames = receipt!.logs.map((log) => routes.interface.parseLog(log)?.name);
+      expect(eventNames).to.deep.equal(["RouteCreated", "RouteFrozen"]);
+
+      const record = await routes.getRouteRecord(LABEL, NAMESPACE, ROUTE_LABEL);
+      expect(record.target).to.equal(buildTarget);
+      expect(record.routeType).to.equal(RT0);
+      expect(record.isActive).to.equal(true);
+      expect(record.isFrozen).to.equal(true);
+      expect(record.routeLabel).to.equal(ROUTE_LABEL);
+    });
+
+    it("Should make the route immediately resolvable", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes
+        .connect(owner)
+        .createRouteAndFreeze(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0);
+
+      const [target, routeType] = await resolveRouteTuple(routes, LABEL, NAMESPACE, ROUTE_LABEL);
+      expect(target).to.equal(buildTarget);
+      expect(routeType).to.equal(RT0);
+    });
+
+    it("Should add the route key to the route list", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes
+        .connect(owner)
+        .createRouteAndFreeze(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0);
+
+      expect(await getRouteKeyCountTuple(routes, LABEL, NAMESPACE)).to.equal(1n);
+      expect(await getRouteKeysTuple(routes, LABEL, NAMESPACE, 0, 1)).to.deep.equal([
+        routeStorageKey(LABEL, NAMESPACE, ROUTE_LABEL),
+      ]);
+    });
+
+    it("Should reject updateRoute but still allow toggling isActive", async function () {
+      const { routes, owner, other, buildTarget } = await loadFixture(deployFixture);
+      await routes
+        .connect(owner)
+        .createRouteAndFreeze(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0);
+
+      await expect(
+        routes
+          .connect(owner)
+          .updateRoute(LABEL, NAMESPACE, ROUTE_LABEL, addressTarget(other.address), RT0),
+      ).to.be.revertedWith(XR.routeFrozen);
+
+      await routes.connect(owner).deactivateRoute(LABEL, NAMESPACE, ROUTE_LABEL);
+      expect((await routes.getRouteRecord(LABEL, NAMESPACE, ROUTE_LABEL)).isActive).to.equal(false);
+    });
+
+    it("Should not emit RouteFrozen when freezeRoute is called afterwards", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes
+        .connect(owner)
+        .createRouteAndFreeze(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0);
+
+      await expect(routes.connect(owner).freezeRoute(LABEL, NAMESPACE, ROUTE_LABEL)).to.not.emit(
+        routes,
+        "RouteFrozen",
+      );
+    });
+
+    it("Should revert with NotXnsNameOwner when caller is not XNS owner", async function () {
+      const { routes, other, buildTarget } = await loadFixture(deployFixture);
+
+      await expect(
+        routes.connect(other).createRouteAndFreeze(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0),
+      ).to.be.revertedWith(XR.notXnsNameOwner);
+    });
+
+    it("Should revert with InvalidRouteLabel for an invalid route label", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+
+      await expect(
+        routes.connect(owner).createRouteAndFreeze(LABEL, NAMESPACE, "Bad", buildTarget, RT0),
+      ).to.be.revertedWith(XR.invalidRouteLabel);
+    });
+
+    it("Should revert with InvalidTarget when target is empty", async function () {
+      const { routes, owner } = await loadFixture(deployFixture);
+
+      await expect(
+        routes
+          .connect(owner)
+          .createRouteAndFreeze(LABEL, NAMESPACE, ROUTE_LABEL, EMPTY_TARGET, RT0),
+      ).to.be.revertedWith(XR.invalidTarget);
+    });
+
+    it("Should revert with RouteBookClosed after closeRouteBook", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await closeRouteBookTuple(routes.connect(owner), LABEL, NAMESPACE);
+
+      await expect(
+        routes.connect(owner).createRouteAndFreeze(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0),
+      ).to.be.revertedWith(XR.routeBookClosed);
+    });
+
+    it("Should revert with RouteAlreadyExists when the route already exists", async function () {
+      const { routes, owner, buildTarget } = await loadFixture(deployFixture);
+      await routes.connect(owner).createRoute(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0);
+
+      await expect(
+        routes.connect(owner).createRouteAndFreeze(LABEL, NAMESPACE, ROUTE_LABEL, buildTarget, RT0),
+      ).to.be.revertedWith(XR.routeAlreadyExists);
+    });
+  });
+
   describe("activateRoute and deactivateRoute", function () {
     it("Should deactivate, emit RouteActiveStatusUpdated, and set isActive false", async function () {
       const { routes, owner, buildTarget } = await loadFixture(deployFixture);

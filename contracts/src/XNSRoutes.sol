@@ -84,7 +84,8 @@ import {IXNSMinimal} from "./interfaces/IXNSMinimal.sol";
 ///
 /// ### Route freezing
 ///
-/// The XNS name owner may permanently freeze an individual route (`freezeRoute`).
+/// The XNS name owner may permanently freeze an individual route (`freezeRoute`), or create
+/// it already frozen (`createRouteAndFreeze`).
 ///
 /// Once `isFrozen` is true:
 /// - `target` and `routeType` can never change again.
@@ -169,7 +170,7 @@ contract XNSRoutes is Ownable2Step {
     // Events
     // -------------------------------------------------------------------------
 
-    /// @dev Emitted by `createRoute`.
+    /// @dev Emitted by `createRoute` and `createRouteAndFreeze`.
     event RouteCreated(
         bytes32 indexed xnsNameKey,
         bytes32 indexed routeKey,
@@ -201,7 +202,7 @@ contract XNSRoutes is Ownable2Step {
         uint32 routeType
     );
 
-    /// @dev Emitted by `freezeRoute` and `batchFreezeRoutes`.
+    /// @dev Emitted by `freezeRoute`, `batchFreezeRoutes`, and `createRouteAndFreeze`.
     event RouteFrozen(
         bytes32 indexed xnsNameKey,
         bytes32 indexed routeKey,
@@ -274,6 +275,38 @@ contract XNSRoutes is Ownable2Step {
         bytes calldata target,
         uint32 routeType
     ) external {
+        _createRoute(label, namespace, routeLabel, target, routeType, false);
+    }
+
+    /// @notice Creates a route and permanently freezes it in the same transaction.
+    ///
+    /// The route starts active and frozen, so it is immediately returned by `resolveRoute`.
+    /// Use only with a verified `target` and `routeType`: a mistaken route can never be
+    /// corrected or removed, only deactivated.
+    ///
+    /// **Requirements:**
+    /// - Same as `createRoute`.
+    ///
+    /// Emits `RouteCreated` followed by `RouteFrozen`.
+    function createRouteAndFreeze(
+        string calldata label,
+        string calldata namespace,
+        string calldata routeLabel,
+        bytes calldata target,
+        uint32 routeType
+    ) external {
+        _createRoute(label, namespace, routeLabel, target, routeType, true);
+    }
+
+    /// @dev Shared implementation for `createRoute` and `createRouteAndFreeze`.
+    function _createRoute(
+        string calldata label,
+        string calldata namespace,
+        string calldata routeLabel,
+        bytes calldata target,
+        uint32 routeType,
+        bool frozen
+    ) private {
         require(msg.sender == XNS.getAddress(label, namespace), "XNSRoutes: not XNS name owner");
 
         bytes32 xnsNameKey = _xnsNameKey(label, namespace);
@@ -290,7 +323,7 @@ contract XNSRoutes is Ownable2Step {
             target: target,
             routeType: routeType,
             isActive: true,
-            isFrozen: false,
+            isFrozen: frozen,
             routeLabel: routeLabel
         });
 
@@ -305,6 +338,10 @@ contract XNSRoutes is Ownable2Step {
             routeLabel,
             routeType
         );
+
+        if (frozen) {
+            emit RouteFrozen(xnsNameKey, routeKey, label, namespace, routeLabel);
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -774,10 +811,7 @@ contract XNSRoutes is Ownable2Step {
         for (uint256 i = 0; i < n; ++i) {
             bytes32 routeKey = keys[i];
 
-            entries[i] = RouteEntry({
-                routeKey: routeKey,
-                record: _routes[routeKey]
-            });
+            entries[i] = RouteEntry({routeKey: routeKey, record: _routes[routeKey]});
         }
     }
 

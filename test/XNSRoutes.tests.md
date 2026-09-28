@@ -44,6 +44,25 @@
 
 ---
 
+## `createRouteAndFreeze`
+
+#### Functionality
+
+- Same as `createRoute`, but the route starts with `isFrozen == true` (and `isActive == true`).
+- The route is immediately returned by `resolveRoute` and appended to the route key list.
+- `updateRoute` reverts with `"XNSRoutes: route frozen"`; `activateRoute` / `deactivateRoute` still work.
+- A later `freezeRoute` is a no-op (no event).
+
+#### Events
+
+- Emits `RouteCreated` (same args as `createRoute`) followed by `RouteFrozen` in the same transaction.
+
+#### Reverts
+
+- Same as `createRoute`.
+
+---
+
 ## `activateRoute` / `deactivateRoute`
 
 #### Functionality

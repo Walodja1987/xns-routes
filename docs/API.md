@@ -33,9 +33,7 @@ The route label must:
 
 Application-layer parameters use URL query syntax (e.g. `?amount=10&to=0x…`) and are
 not part of the on-chain route format. Callers must strip any `?...` suffix before using
-string-based helpers. These helpers only split the input (at the first at-sign and the first
-`/`) and do not validate the components; anything invalid, such as path-style `/key=value`
-suffixes, simply matches no route.
+string-based helpers.
 
 ### Route record
 
@@ -73,7 +71,8 @@ route has been frozen. Freezing a route does **not** lock `isActive`.
 
 ### Route freezing
 
-The XNS name owner may permanently freeze an individual route (`freezeRoute`).
+The XNS name owner may permanently freeze an individual route (`freezeRoute`), or create
+it already frozen (`createRouteAndFreeze`).
 
 Once `isFrozen` is true:
 - `target` and `routeType` can never change again.
@@ -145,6 +144,27 @@ Emits `RouteCreated`.
 
 ```solidity
 function createRoute(string label, string namespace, string routeLabel, bytes target, uint32 routeType) external
+```
+
+
+
+
+### createRouteAndFreeze
+
+
+Creates a route and permanently freezes it in the same transaction.
+
+The route starts active and frozen, so it is immediately returned by `resolveRoute`.
+Use only with a verified `target` and `routeType`: a mistaken route can never be
+corrected or removed, only deactivated.
+
+**Requirements:**
+- Same as `createRoute`.
+
+Emits `RouteCreated` followed by `RouteFrozen`.
+
+```solidity
+function createRouteAndFreeze(string label, string namespace, string routeLabel, bytes target, uint32 routeType) external
 ```
 
 
@@ -602,7 +622,7 @@ function isValidRouteLabel(string routeLabel) external pure returns (bool valid)
 event RouteCreated(bytes32 xnsNameKey, bytes32 routeKey, bytes32 targetHash, string label, string namespace, string routeLabel, uint32 routeType)
 ```
 
-_Emitted by `createRoute`._
+_Emitted by `createRoute` and `createRouteAndFreeze`._
 
 
 
@@ -644,7 +664,7 @@ _Emitted by `updateRoute`._
 event RouteFrozen(bytes32 xnsNameKey, bytes32 routeKey, string label, string namespace, string routeLabel)
 ```
 
-_Emitted by `freezeRoute` and `batchFreezeRoutes`._
+_Emitted by `freezeRoute`, `batchFreezeRoutes`, and `createRouteAndFreeze`._
 
 
 
