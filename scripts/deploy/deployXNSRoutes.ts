@@ -36,6 +36,9 @@ const RESET = "\x1b[0m";
 const GREEN = "\x1b[32m";
 const YELLOW = "\x1b[33m";
 
+/** Deployer signer index (0 = first account from mnemonic) */
+const deployerIndex = 3;
+
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -81,7 +84,7 @@ async function main() {
   const xnsAddress = resolveXnsContractAddress();
   console.log("XNS registry (constructor):", xnsAddress, "\n");
 
-  const [deployer] = await hre.ethers.getSigners();
+  const deployer = (await hre.ethers.getSigners())[deployerIndex];
   const initialOwner = resolveInitialOwner(deployer.address);
   console.log("Deploying with account:", deployer.address);
   console.log("Initial owner:", initialOwner);
@@ -109,7 +112,7 @@ async function main() {
     );
   }
 
-  const XNSRoutes = await hre.ethers.getContractFactory("XNSRoutes");
+  const XNSRoutes = await hre.ethers.getContractFactory("XNSRoutes", deployer);
   const xnsRoutes = await XNSRoutes.deploy(initialOwner, xnsAddress, {
     value: registrationValue,
   });

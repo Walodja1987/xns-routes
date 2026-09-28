@@ -9,7 +9,7 @@ A simple named-endpoint registry attached to XNS names.
 
 The ERC-173-compatible `owner()` is an identity/administrative pointer for external
 integrations only. It has no authority over routes. Route mutations are authorized
-exclusively through current XNS name ownership.
+exclusively through XNS name ownership.
 
 XNS name owners can create named routes under their XNS name which resolve to opaque
 endpoint payloads (`bytes`). Routes may represent EVM addresses, other-chain addresses,

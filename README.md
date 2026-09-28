@@ -26,7 +26,8 @@
 4. [Route State Model](#-route-state-model)
 5. [Permanence controls](#-permanence-controls) \
    5.1 [Per-route freeze](#per-route-freeze) \
-   5.2 [Route-book close](#route-book-close)
+   5.2 [Route-book close](#route-book-close) \
+   5.3 [Routes that can never be deactivated](#routes-that-can-never-be-deactivated)
 6. [Repo Contents](#-repo-contents)
 7. [Contract functions](#-contract-functions) \
    7.1 [State-modifying functions](#state-modifying-functions) \
@@ -230,11 +231,18 @@ closeRouteBook("alice", "eth");
 
 To get the freeze and book closed state of a route, use `record.isFrozen` (via `getRouteRecord`) and `isRouteBookClosed(...)`, respectively.
 
+### Routes that can never be deactivated
+
+Freezing guarantees that a route's endpoint can never change, but the XNS name owner can still deactivate it. If a route must keep resolving forever (e.g. a route sponsored for someone else), let a contract own the XNS name.
+
+XNS names are non-transferable, so only that contract can ever manage its routes. If the contract can only create frozen routes and has no way to deactivate them, every route under its name stays resolvable permanently. [`SponsoredRoutes`](contracts/src/examples/SponsoredRoutes.sol) is an example: its owner can add routes via `createRouteAndFreeze` and close the route book, but nothing else.
+
 ---
 
 ## 📦 Repo Contents
 
 - [`contracts/src/XNSRoutes.sol`](contracts/src/XNSRoutes.sol) — XNS Routes smart contract
+- [`contracts/src/examples/SponsoredRoutes.sol`](contracts/src/examples/SponsoredRoutes.sol) — example contract that publishes routes that can never be changed or deactivated
 - [`routeTypes/`](routeTypes/README.md) — public `routeType` conventions (`0`–`5`, …)
 - [`docs/API.md`](docs/API.md) — NatSpec-generated contract API reference
 - [`docs/DEV_NOTES.md`](docs/DEV_NOTES.md) — local setup, networks, and development notes

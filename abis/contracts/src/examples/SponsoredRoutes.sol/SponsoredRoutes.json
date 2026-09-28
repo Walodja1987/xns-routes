@@ -1,0 +1,17 @@
+[
+  "constructor(address,address,address,string,string) payable",
+  "error OwnableInvalidOwner(address)",
+  "error OwnableUnauthorizedAccount(address)",
+  "event OwnershipTransferStarted(address indexed,address indexed)",
+  "event OwnershipTransferred(address indexed,address indexed)",
+  "function XNS_ROUTES() view returns (address)",
+  "function acceptOwnership()",
+  "function closeRouteBook()",
+  "function owner() view returns (address)",
+  "function pendingOwner() view returns (address)",
+  "function renounceOwnership()",
+  "function sponsorRoute(string,bytes,uint32)",
+  "function transferOwnership(address)",
+  "function xnsLabel() view returns (string)",
+  "function xnsNamespace() view returns (string)"
+]
